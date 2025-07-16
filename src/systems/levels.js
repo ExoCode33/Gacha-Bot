@@ -1,4 +1,4 @@
-// src/systems/levels.js - Level System Based on Discord Roles
+// src/systems/levels.js - Fixed Level System with User Initialization
 const DatabaseManager = require('../database/manager');
 
 class LevelSystem {
@@ -23,12 +23,125 @@ class LevelSystem {
     async initialize(client) {
         this.client = client;
         
-        // Set up event listeners for role changes
-        client.on('guildMemberUpdate', async (oldMember, newMember) => {
-            await this.handleRoleChange(oldMember, newMember);
-        });
+        // Initialize all users when bot starts
+        setTimeout(async () => {
+            await this.initializeAllUsers();
+        }, 5000); // Wait 5 seconds for bot to be fully ready
         
-        console.log('⭐ Level System ready - monitoring role changes');
+        console.log('⭐ Level System ready - will initialize all users');
+    }
+
+    async initializeAllUsers() {
+        try {
+            console.log('⭐ Initializing all users with Level-0...');
+            
+            let totalInitialized = 0;
+            
+            // Go through all guilds
+            for (const [guildId, guild] of this.client.guilds.cache) {
+                try {
+                    console.log(`⭐ Processing guild: ${guild.name} (${guild.memberCount} members)`);
+                    
+                    // Fetch all members
+                    const members = await guild.members.fetch();
+                    
+                    for (const [userId, member] of members) {
+                        if (member.user.bot) continue; // Skip bots
+                        
+                        try {
+                            // Ensure user exists with Level-0 as default
+                            await DatabaseManager.ensureUser(userId, member.user.username, guildId);
+                            
+                            // Update their level based on roles
+                            await this.updateUserLevel(userId, member.user.username, guildId);
+                            
+                            totalInitialized++;
+                            
+                            if (totalInitialized % 10 === 0) {
+                                console.log(`⭐ Initialized ${totalInitialized} users...`);
+                            }
+                            
+                        } catch (error) {
+                            console.error(`❌ Error initializing user ${member.user.username}:`, error);
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.error(`❌ Error processing guild ${guild.name}:`, error);
+                }
+            }
+            
+            console.log(`✅ Initialized ${totalInitialized} users total`);
+            
+            // Now update all users to have minimum Level-0
+            await this.ensureAllUsersHaveLevel();
+            
+        } catch (error) {
+            console.error('❌ Error initializing all users:', error);
+        }
+    }
+
+    async ensureAllUsersHaveLevel() {
+        try {
+            console.log('⭐ Ensuring all users have minimum Level-0...');
+            
+            // Update all users without a level or with 0 total_cp to have Level-0
+            const result = await DatabaseManager.query(`
+                UPDATE users 
+                SET level = 0, base_cp = 100, total_cp = 100, updated_at = NOW()
+                WHERE level = 0 AND total_cp = 0
+            `);
+            
+            console.log(`✅ Updated ${result.rowCount} users to have Level-0 base CP`);
+            
+        } catch (error) {
+            console.error('❌ Error ensuring users have levels:', error);
+        }
+    }
+
+    async updateUserLevel(userId, username, guildId) {
+        try {
+            // Get user's current roles
+            const guild = this.client.guilds.cache.get(guildId);
+            if (!guild) return;
+            
+            const member = await guild.members.fetch(userId).catch(() => null);
+            if (!member) return;
+            
+            // Find highest level role
+            const userRoles = member.roles.cache.map(role => role.name);
+            let highestLevel = 0;
+            let highestBaseCp = 100;
+            let roleName = 'Level-0';
+            
+            // Check for level roles
+            for (const role of userRoles) {
+                if (this.levelRoles[role]) {
+                    const levelData = this.levelRoles[role];
+                    if (levelData.level > highestLevel) {
+                        highestLevel = levelData.level;
+                        highestBaseCp = levelData.baseCp;
+                        roleName = role;
+                    }
+                }
+            }
+            
+            // If no level role found, default to Level-0
+            if (highestLevel === 0) {
+                console.log(`⭐ User ${username} has no level role, defaulting to Level-0`);
+            }
+            
+            // Ensure user exists in database
+            await DatabaseManager.ensureUser(userId, username, guildId);
+            
+            // Update user's level and base CP
+            await DatabaseManager.updateUserLevel(userId, highestLevel, roleName, highestBaseCp);
+            
+            console.log(`⭐ ${username} updated to ${roleName} (Level ${highestLevel}, ${highestBaseCp} base CP)`);
+            
+        } catch (error) {
+            console.error('Error updating user level:', error);
+        }
     }
 
     async handleRoleChange(oldMember, newMember) {
@@ -50,45 +163,6 @@ class LevelSystem {
         }
     }
 
-    async updateUserLevel(userId, username, guildId) {
-        try {
-            // Get user's current roles
-            const guild = this.client.guilds.cache.get(guildId);
-            if (!guild) return;
-            
-            const member = await guild.members.fetch(userId);
-            if (!member) return;
-            
-            // Find highest level role
-            const userRoles = member.roles.cache.map(role => role.name);
-            let highestLevel = 0;
-            let highestBaseCp = 100;
-            let roleName = 'Level-0';
-            
-            for (const role of userRoles) {
-                if (this.levelRoles[role]) {
-                    const levelData = this.levelRoles[role];
-                    if (levelData.level > highestLevel) {
-                        highestLevel = levelData.level;
-                        highestBaseCp = levelData.baseCp;
-                        roleName = role;
-                    }
-                }
-            }
-            
-            // Ensure user exists in database
-            await DatabaseManager.ensureUser(userId, username, guildId);
-            
-            // Update user's level and base CP
-            await DatabaseManager.updateUserLevel(userId, highestLevel, roleName, highestBaseCp);
-            
-            console.log(`⭐ ${username} updated to ${roleName} (Level ${highestLevel}, ${highestBaseCp} base CP)`);
-            
-        } catch (error) {
-            console.error('Error updating user level:', error);
-        }
-    }
-
     async getUserLevel(userId) {
         try {
             const user = await DatabaseManager.getUser(userId);
@@ -106,56 +180,7 @@ class LevelSystem {
         }
     }
 
-    async scanAndUpdateAllUsers(guildId) {
-        try {
-            const guild = this.client.guilds.cache.get(guildId);
-            if (!guild) return;
-            
-            console.log(`⭐ Scanning all users in ${guild.name}...`);
-            
-            const members = await guild.members.fetch();
-            let updated = 0;
-            
-            for (const [userId, member] of members) {
-                if (member.user.bot) continue;
-                
-                await this.updateUserLevel(userId, member.user.username, guildId);
-                updated++;
-            }
-            
-            console.log(`⭐ Updated ${updated} users' levels`);
-            
-        } catch (error) {
-            console.error('Error scanning users:', error);
-        }
-    }
-
-    calculateTotalCP(baseCp, fruitMultipliers) {
-        let totalCp = 0;
-        
-        // Group fruits by ID and calculate duplicates
-        const fruitGroups = {};
-        fruitMultipliers.forEach(multiplier => {
-            if (!fruitGroups[multiplier.fruitId]) {
-                fruitGroups[multiplier.fruitId] = {
-                    multiplier: multiplier.multiplier,
-                    count: 0
-                };
-            }
-            fruitGroups[multiplier.fruitId].count++;
-        });
-        
-        // Calculate total CP with duplicate bonuses
-        Object.values(fruitGroups).forEach(group => {
-            const duplicateBonus = 1 + ((group.count - 1) * 0.01); // 1% per duplicate
-            const fruitCp = (baseCp * group.multiplier) * duplicateBonus;
-            totalCp += fruitCp;
-        });
-        
-        return Math.floor(totalCp);
-    }
-
-    getLevelRequirements() {
+    getLevelRoles() {
         return this.levelRoles;
     }
 
@@ -165,28 +190,6 @@ class LevelSystem {
         return nextLevel || null;
     }
 
-    getLevelProgress(userId) {
-        // This could be expanded to show progress towards next level
-        // For now, it's role-based so progress is binary
-        return {
-            currentLevel: 0,
-            nextLevel: 5,
-            progress: 0,
-            isRoleBased: true
-        };
-    }
-
-    async getLevelLeaderboard(guildId, limit = 10) {
-        try {
-            const leaderboard = await DatabaseManager.getLeaderboard('cp', limit);
-            return leaderboard;
-        } catch (error) {
-            console.error('Error getting level leaderboard:', error);
-            return [];
-        }
-    }
-
-    // Utility methods for level system
     getRoleColor(level) {
         const colors = {
             0: 0x808080,   // Gray
@@ -236,64 +239,6 @@ class LevelSystem {
             50: 'Pirate King Level'
         };
         return titles[level] || 'Unknown';
-    }
-
-    async getDetailedUserInfo(userId) {
-        try {
-            const user = await DatabaseManager.getUser(userId);
-            if (!user) return null;
-            
-            return {
-                level: user.level,
-                baseCp: user.base_cp,
-                totalCp: user.total_cp,
-                roleName: user.role_name || 'Level-0',
-                title: this.getLevelTitle(user.level),
-                emoji: this.getRoleEmoji(user.level),
-                color: this.getRoleColor(user.level),
-                berries: user.berries,
-                nextLevel: this.getNextLevel(user.level)
-            };
-            
-        } catch (error) {
-            console.error('Error getting detailed user info:', error);
-            return null;
-        }
-    }
-
-    // Admin functions
-    async forceUpdateUser(userId, level) {
-        try {
-            const levelData = Object.values(this.levelRoles).find(l => l.level === level);
-            if (!levelData) {
-                throw new Error(`Invalid level: ${level}`);
-            }
-            
-            const user = await DatabaseManager.getUser(userId);
-            if (!user) {
-                throw new Error('User not found');
-            }
-            
-            const roleName = Object.keys(this.levelRoles).find(key => this.levelRoles[key].level === level);
-            
-            await DatabaseManager.updateUserLevel(userId, level, roleName, levelData.baseCp);
-            
-            console.log(`⭐ Force updated user ${userId} to level ${level}`);
-            
-        } catch (error) {
-            console.error('Error force updating user:', error);
-            throw error;
-        }
-    }
-
-    async resetUserLevel(userId) {
-        try {
-            await DatabaseManager.updateUserLevel(userId, 0, 'Level-0', 100);
-            console.log(`⭐ Reset user ${userId} to level 0`);
-        } catch (error) {
-            console.error('Error resetting user level:', error);
-            throw error;
-        }
     }
 
     getSystemStats() {
