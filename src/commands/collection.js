@@ -1,4 +1,4 @@
-// src/commands/collection.js - Fixed Collection Command
+// src/commands/collection.js - Updated Collection Command with Types
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const { getRarityEmoji, getRarityColor } = require('../data/devil-fruits');
@@ -119,13 +119,14 @@ module.exports = {
                 pageFruits.forEach(fruit => {
                     const name = fruit.count > 1 ? `${fruit.fruit_name} (${fruit.count})` : fruit.fruit_name;
                     const bonus = fruit.count > 1 ? ` • +${((fruit.count - 1) * 1).toFixed(0)}% CP` : '';
-                    const element = fruit.fruit_element ? ` • ${fruit.fruit_element}` : '';
+                    // Use fruitType if available, fallback to fruit_element for backward compatibility
+                    const fruitType = fruit.fruit_type || fruit.fruit_element || 'Unknown';
                     // Convert stored integer back to decimal for display
                     const multiplier = (fruit.base_cp / 100).toFixed(1);
                     
                     embed.addFields([{
                         name: `${getRarityEmoji(fruit.fruit_rarity)} ${name}`,
-                        value: `${fruit.fruit_rarity.toUpperCase()} • ${multiplier}x CP${bonus}${element}`,
+                        value: `${fruit.fruit_rarity.toUpperCase()} • ${multiplier}x CP • ${fruitType}${bonus}`,
                         inline: true
                     }]);
                 });
