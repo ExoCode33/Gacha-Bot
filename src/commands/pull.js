@@ -545,9 +545,11 @@ module.exports = {
             uniqueFruits.forEach(fruit => {
                 const name = fruit.count > 1 ? `${fruit.fruit_name} (${fruit.count})` : fruit.fruit_name;
                 const bonus = fruit.count > 1 ? ` • +${((fruit.count - 1) * 1).toFixed(0)}% CP` : '';
+                // Convert stored integer back to decimal for display
+                const multiplier = (fruit.base_cp / 100).toFixed(1);
                 embed.addFields([{
                     name: `${getRarityEmoji(fruit.fruit_rarity)} ${name}`,
-                    value: `${fruit.fruit_rarity.toUpperCase()} • ${fruit.base_cp}x CP${bonus}`,
+                    value: `${fruit.fruit_rarity.toUpperCase()} • ${multiplier}x CP${bonus}`,
                     inline: true
                 }]);
             });
