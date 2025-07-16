@@ -1,4 +1,4 @@
-// src/events/ready.js - Ready Event
+// src/events/ready.js - Ready Event Handler
 const { Events } = require('discord.js');
 
 module.exports = {
@@ -10,8 +10,16 @@ module.exports = {
         console.log(`👥 Connected to ${client.users.cache.size} user(s)`);
         
         // Set bot presence
-        client.user.setPresence({
-            activities: [{ name: 'the Grand Line for Devil Fruits! 🍈', type: 0 }],
-            status: 'online'
-        });
+        try {
+            client.user.setPresence({
+                activities: [{ name: 'the Grand Line for Devil Fruits! 🍈', type: 0 }],
+                status: 'online'
+            });
+            console.log('✅ Bot presence set successfully');
+        } catch (error) {
+            console.error('❌ Error setting bot presence:', error);
+        }
+        
+        console.log('🎉 Ready event completed successfully!');
     }
+};
