@@ -1,4 +1,4 @@
-// src/database/manager.js - Database Manager v2.0
+// src/database/manager.js - Database Manager v2.0 - Fixed for Integer Multipliers
 const { Pool } = require('pg');
 
 class DatabaseManager {
@@ -125,7 +125,7 @@ class DatabaseManager {
         try {
             const result = await this.query(
                 `INSERT INTO users (user_id, username, guild_id, level, base_cp, total_cp, berries, created_at, updated_at)
-                 VALUES ($1, $2, $3, 0, 100, 0, 0, NOW(), NOW())
+                 VALUES ($1, $2, $3, 0, 100, 100, 0, NOW(), NOW())
                  ON CONFLICT (user_id) 
                  DO UPDATE SET username = $2, guild_id = $3, updated_at = NOW()
                  RETURNING *`,
@@ -195,7 +195,8 @@ class DatabaseManager {
                 [userId]
             );
             
-            let totalCp = 0;
+            // Start with base CP
+            let totalCp = baseCp;
             
             // Calculate CP for each fruit type
             const fruitGroups = {};
@@ -209,10 +210,12 @@ class DatabaseManager {
                 fruitGroups[fruit.fruit_id].count++;
             });
             
-            // Calculate total CP with duplicate bonuses
+            // Calculate total CP with fruit multipliers and duplicate bonuses
             Object.values(fruitGroups).forEach(group => {
+                // Convert stored integer back to decimal for calculation
+                const multiplier = group.baseCp / 100;
                 const duplicateBonus = 1 + ((group.count - 1) * 0.01); // 1% per duplicate
-                const fruitCp = (baseCp * group.baseCp) * duplicateBonus;
+                const fruitCp = (baseCp * multiplier) * duplicateBonus;
                 totalCp += fruitCp;
             });
             
@@ -252,6 +255,9 @@ class DatabaseManager {
             // Get user's base CP for calculation
             const user = await this.getUser(userId);
             const baseCp = user.base_cp;
+            
+            // Store multiplier as integer (multiply by 100)
+            const multiplierAsInt = Math.floor(fruitData.multiplier * 100);
             const totalCp = baseCp * fruitData.multiplier;
             
             // Add the fruit
@@ -264,17 +270,17 @@ class DatabaseManager {
                  RETURNING *`,
                 [userId, fruitData.id, fruitData.name, fruitData.type, fruitData.rarity,
                  fruitData.element, fruitData.power, fruitData.description, 
-                 fruitData.multiplier, duplicateCount, totalCp]
+                 multiplierAsInt, duplicateCount, totalCp]
             );
             
             // Recalculate user's total CP
-            await this.recalculateUserCP(userId);
+            const newTotalCp = await this.recalculateUserCP(userId);
             
             return {
                 fruit: result.rows[0],
                 isNewFruit,
                 duplicateCount,
-                totalCp
+                totalCp: newTotalCp
             };
             
         } catch (error) {
@@ -420,6 +426,14 @@ class DatabaseManager {
                         LEFT JOIN user_devil_fruits df ON u.user_id = df.user_id
                         GROUP BY u.user_id, u.username
                         ORDER BY unique_fruits DESC 
+                        LIMIT $1
+                    `;
+                    break;
+                case 'level':
+                    query = `
+                        SELECT user_id, username, level, base_cp
+                        FROM users 
+                        ORDER BY level DESC, base_cp DESC 
                         LIMIT $1
                     `;
                     break;
