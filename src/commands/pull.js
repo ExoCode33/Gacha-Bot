@@ -1,4 +1,4 @@
-// src/commands/pull.js - Pull Command with Professional Animation
+// src/commands/pull.js - Updated Pull Command with New Fruit Structure
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getRandomFruit, getRarityColor, getRarityEmoji } = require('../data/devil-fruits');
 const DatabaseManager = require('../database/manager');
@@ -482,7 +482,7 @@ module.exports = {
             `${typeEmojis[targetFruit.type] || '🍈'} **Type:** ${targetFruit.type}`,
             `⭐ **Rarity:** ${targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1)}`,
             `🔥 **CP Multiplier:** ${targetFruit.multiplier}x`,
-            `🌟 **Element:** ${targetFruit.element || 'Unknown'}`,
+            `🌟 **Category:** ${targetFruit.fruitType || 'Unknown'}`,
             "",
             duplicateInfo,
             "",
@@ -545,11 +545,12 @@ module.exports = {
             uniqueFruits.forEach(fruit => {
                 const name = fruit.count > 1 ? `${fruit.fruit_name} (${fruit.count})` : fruit.fruit_name;
                 const bonus = fruit.count > 1 ? ` • +${((fruit.count - 1) * 1).toFixed(0)}% CP` : '';
+                const fruitType = fruit.fruit_fruit_type || fruit.fruit_element || 'Unknown';
                 // Convert stored integer back to decimal for display
                 const multiplier = (fruit.base_cp / 100).toFixed(1);
                 embed.addFields([{
                     name: `${getRarityEmoji(fruit.fruit_rarity)} ${name}`,
-                    value: `${fruit.fruit_rarity.toUpperCase()} • ${multiplier}x CP${bonus}`,
+                    value: `${fruit.fruit_rarity.toUpperCase()} • ${multiplier}x CP${bonus}\n🔹 ${fruitType}`,
                     inline: true
                 }]);
             });
