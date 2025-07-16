@@ -181,6 +181,15 @@ module.exports = {
             collector.on('collect', async (buttonInteraction) => {
                 try {
                     switch (buttonInteraction.customId) {
+                        case 'collection_first':
+                            currentPage = 0;
+                            break;
+                        case 'collection_prev':
+                            currentPage = Math.max(0, currentPage - 1);
+                            break;
+                        case 'collection_next':
+                            currentPage = Math.min(totalPages - 1, currentPage + 1);
+                            break;
                         case 'collection_last':
                             currentPage = totalPages - 1;
                             break;
@@ -214,13 +223,4 @@ module.exports = {
             await interaction.reply({ embeds: [embed], ephemeral: true });
         }
     }
-};'collection_first':
-                            currentPage = 0;
-                            break;
-                        case 'collection_prev':
-                            currentPage = Math.max(0, currentPage - 1);
-                            break;
-                        case 'collection_next':
-                            currentPage = Math.min(totalPages - 1, currentPage + 1);
-                            break;
-                        case
+};
