@@ -1,4 +1,4 @@
-// src/commands/income.js - Income Command
+// src/commands/income.js - Fixed Income Command for Manual Collection
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const EconomySystem = require('../systems/economy');
@@ -6,7 +6,7 @@ const EconomySystem = require('../systems/economy');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('income')
-        .setDescription('💰 Collect your hourly berry income based on your CP!'),
+        .setDescription('💰 Collect a large berry bonus based on your CP! (1 hour cooldown)'),
 
     async execute(interaction) {
         try {
@@ -16,36 +16,39 @@ module.exports = {
             // Ensure user exists
             await DatabaseManager.ensureUser(userId, username, interaction.guild?.id);
             
-            // Process income
-            const result = await EconomySystem.processIncome(userId, username);
+            // Process manual income
+            const result = await EconomySystem.processManualIncome(userId, username);
             
             if (!result.success) {
                 const embed = new EmbedBuilder()
                     .setColor(0xFF8000)
                     .setTitle('⏰ Income Collection')
                     .setDescription(result.message)
-                    .setFooter({ text: 'Income is generated based on your total CP!' });
+                    .setFooter({ text: 'Manual income gives you a large bonus with a cooldown!' });
                 
-                if (result.nextIncome) {
+                if (result.nextCollection) {
                     embed.addFields([
-                        { name: '⏰ Next Collection', value: `${result.nextIncome} minutes`, inline: true }
+                        { name: '⏰ Next Collection Available', value: `${result.nextCollection} minutes`, inline: true }
                     ]);
                 }
                 
                 return await interaction.reply({ embeds: [embed], ephemeral: true });
             }
             
+            // Success - show collection details
             const embed = new EmbedBuilder()
                 .setColor(0x00FF00)
-                .setTitle('💰 Income Collected!')
+                .setTitle('💰 Large Income Bonus Collected!')
                 .setDescription(`You've collected **${result.amount.toLocaleString()} berries**!`)
                 .addFields([
                     { name: '💎 Total CP', value: `${result.totalCp.toLocaleString()}`, inline: true },
                     { name: '📈 Hourly Rate', value: `${result.hourlyRate.toLocaleString()} berries/hour`, inline: true },
-                    { name: '⏰ Time Collected', value: `${result.hoursElapsed.toFixed(1)} hours`, inline: true },
-                    { name: '💰 New Balance', value: `${result.newBalance.toLocaleString()} berries`, inline: false }
+                    { name: '🔥 Bonus Multiplier', value: `${result.multiplier}x hourly rate`, inline: true },
+                    { name: '💰 New Balance', value: `${result.newBalance.toLocaleString()} berries`, inline: true },
+                    { name: '⏰ Next Collection', value: `${result.cooldownMinutes} minutes`, inline: true },
+                    { name: '🎯 Collection Type', value: 'Manual Bonus', inline: true }
                 ])
-                .setFooter({ text: 'Collect more Devil Fruits to increase your CP and earn more berries!' })
+                .setFooter({ text: 'Auto income continues every 10 minutes + you can collect this bonus!' })
                 .setTimestamp();
             
             await interaction.reply({ embeds: [embed] });
