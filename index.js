@@ -1,8 +1,9 @@
-// index.js - One Piece Devil Fruit Gacha Bot v2.0
+// index.js - One Piece Devil Fruit Gacha Bot v3.0
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { REST } = require('@discordjs/rest');
+const { Routes } = require('discord-api-types/v9');
 const fs = require('node:fs');
 const path = require('node:path');
-const { Pool } = require('pg');
 
 // Load environment variables
 require('dotenv').config();
@@ -75,8 +76,8 @@ client.once('ready', async () => {
         console.log('⭐ Level system initialized!');
         
         // Initialize automatic income
-        const AutoIncome = require('./src/systems/auto-income');
-        await AutoIncome.initialize(client);
+        const AutoIncomeSystem = require('./src/systems/auto-income');
+        await AutoIncomeSystem.initialize(client);
         console.log('⏰ Automatic income system started!');
         
     } catch (error) {
@@ -93,8 +94,6 @@ client.once('ready', async () => {
             commands.push(command.data.toJSON());
         }
         
-        const { REST } = require('@discordjs/rest');
-        const { Routes } = require('discord-api-types/v9');
         const rest = new REST({ version: '9' }).setToken(process.env.DISCORD_TOKEN);
         
         await rest.put(
@@ -111,13 +110,14 @@ client.once('ready', async () => {
 
     console.log('\n🎉 SYSTEM STARTUP COMPLETE! 🎉');
     console.log('===============================');
-    console.log('🏴‍☠️ One Piece Devil Fruit Gacha Bot v2.0');
+    console.log('🏴‍☠️ One Piece Devil Fruit Gacha Bot v3.0');
     console.log('💰 Economy System: ACTIVE');
-    console.log('⏰ Auto Income: Based on CP');
+    console.log('⏰ Auto Income: Every 10 minutes');
     console.log('🍈 Devil Fruits: 150 available');
-    console.log('⚡ Element System: Active');
+    console.log('⚡ Element System: 50+ elements');
     console.log('📊 Level System: Role-based CP');
-    console.log('🔄 Duplicates: 1% CP bonus each');
+    console.log('🔄 Duplicates: +1% CP per duplicate');
+    console.log('🎮 Commands: pull, income, collection, stats, leaderboard, info');
     console.log('===============================\n');
 });
 
@@ -138,8 +138,8 @@ process.on('SIGINT', async () => {
     console.log('\n🛑 Received SIGINT. Graceful shutdown...');
     
     try {
-        const AutoIncome = require('./src/systems/auto-income');
-        AutoIncome.stop();
+        const AutoIncomeSystem = require('./src/systems/auto-income');
+        AutoIncomeSystem.stop();
         
         const DatabaseManager = require('./src/database/manager');
         await DatabaseManager.close();
