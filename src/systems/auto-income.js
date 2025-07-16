@@ -61,7 +61,7 @@ class AutoIncomeSystem {
             
             for (const user of result.rows) {
                 try {
-                    const income = await this.processUserIncome(user);
+                    const income = await this.processUserIncome(user, processed);
                     if (income > 0) {
                         processed++;
                         totalGenerated += income;
@@ -80,7 +80,7 @@ class AutoIncomeSystem {
         }
     }
 
-    async processUserIncome(user) {
+    async processUserIncome(user, processedCount) {
         try {
             const now = new Date();
             const lastIncome = new Date(user.last_income);
@@ -107,7 +107,7 @@ class AutoIncomeSystem {
             await DatabaseManager.recordIncome(user.user_id, tenMinuteIncome, effectiveCP, 'automatic');
             
             // Debug log for first few users
-            if (processed < 5) {
+            if (processedCount < 5) {
                 console.log(`⏰ ${user.username}: ${tenMinuteIncome} berries (CP: ${effectiveCP}, Minutes: ${minutesElapsed.toFixed(1)})`);
             }
             
