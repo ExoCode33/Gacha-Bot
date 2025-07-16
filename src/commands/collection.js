@@ -1,4 +1,4 @@
-// src/commands/collection.js - Fixed Collection Command
+// src/commands/collection.js - Updated Collection Command
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const { getRarityEmoji, getRarityColor } = require('../data/devil-fruits');
@@ -119,13 +119,13 @@ module.exports = {
                 pageFruits.forEach(fruit => {
                     const name = fruit.count > 1 ? `${fruit.fruit_name} (${fruit.count})` : fruit.fruit_name;
                     const bonus = fruit.count > 1 ? ` • +${((fruit.count - 1) * 1).toFixed(0)}% CP` : '';
-                    const element = fruit.fruit_element ? ` • ${fruit.fruit_element}` : '';
+                    const fruitType = fruit.fruit_fruit_type || fruit.fruit_element || 'Unknown';
                     // Convert stored integer back to decimal for display
                     const multiplier = (fruit.base_cp / 100).toFixed(1);
                     
                     embed.addFields([{
                         name: `${getRarityEmoji(fruit.fruit_rarity)} ${name}`,
-                        value: `${fruit.fruit_rarity.toUpperCase()} • ${multiplier}x CP${bonus}${element}`,
+                        value: `${fruit.fruit_rarity.toUpperCase()} • ${multiplier}x CP${bonus}\n🔹 ${fruitType}`,
                         inline: true
                     }]);
                 });
@@ -181,15 +181,6 @@ module.exports = {
             collector.on('collect', async (buttonInteraction) => {
                 try {
                     switch (buttonInteraction.customId) {
-                        case 'collection_first':
-                            currentPage = 0;
-                            break;
-                        case 'collection_prev':
-                            currentPage = Math.max(0, currentPage - 1);
-                            break;
-                        case 'collection_next':
-                            currentPage = Math.min(totalPages - 1, currentPage + 1);
-                            break;
                         case 'collection_last':
                             currentPage = totalPages - 1;
                             break;
@@ -223,4 +214,13 @@ module.exports = {
             await interaction.reply({ embeds: [embed], ephemeral: true });
         }
     }
-};
+};'collection_first':
+                            currentPage = 0;
+                            break;
+                        case 'collection_prev':
+                            currentPage = Math.max(0, currentPage - 1);
+                            break;
+                        case 'collection_next':
+                            currentPage = Math.min(totalPages - 1, currentPage + 1);
+                            break;
+                        case
