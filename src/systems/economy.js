@@ -1,13 +1,21 @@
-// src/systems/economy.js - Economy System v2.0
+// src/systems/economy.js - Fixed Economy System with Environment Variables
 const DatabaseManager = require('../database/manager');
 
 class EconomySystem {
     constructor() {
-        this.pullCost = 1000; // Cost to pull a devil fruit
-        this.incomeRate = 0.1; // 0.1 berries per CP per hour
-        this.baseIncome = 50; // Base income per hour for everyone
+        // Use environment variables with defaults
+        this.pullCost = parseInt(process.env.DEFAULT_PULL_COST) || 1000;
+        this.incomeRate = parseFloat(process.env.DEFAULT_INCOME_RATE) || 0.1;
+        this.baseIncome = parseInt(process.env.DEFAULT_BASE_INCOME) || 50;
+        this.manualIncomeMultiplier = parseFloat(process.env.MANUAL_INCOME_MULTIPLIER) || 6; // 6 hours worth
+        this.manualIncomeCooldown = parseInt(process.env.MANUAL_INCOME_COOLDOWN) || 60; // 60 minutes
         
-        console.log('💰 Economy System initialized');
+        console.log('💰 Economy System initialized with config:');
+        console.log(`   - Pull Cost: ${this.pullCost} berries`);
+        console.log(`   - Income Rate: ${this.incomeRate} berries per CP per hour`);
+        console.log(`   - Base Income: ${this.baseIncome} berries per hour`);
+        console.log(`   - Manual Income Multiplier: ${this.manualIncomeMultiplier}x`);
+        console.log(`   - Manual Income Cooldown: ${this.manualIncomeCooldown} minutes`);
     }
 
     async initialize() {
@@ -19,6 +27,12 @@ class EconomySystem {
         const baseIncome = this.baseIncome;
         const cpIncome = totalCp * this.incomeRate;
         return Math.floor(baseIncome + cpIncome);
+    }
+
+    // Calculate manual income (larger amount with cooldown)
+    calculateManualIncome(totalCp) {
+        const hourlyIncome = this.calculateHourlyIncome(totalCp);
+        return Math.floor(hourlyIncome * this.manualIncomeMultiplier);
     }
 
     // Add berries to user
@@ -68,7 +82,7 @@ class EconomySystem {
             if (currentBerries < this.pullCost) {
                 return {
                     success: false,
-                    message: `Not enough berries! You need ${this.pullCost} berries but only have ${currentBerries}.`,
+                    message: `Not enough berries! You need ${this.pullCost.toLocaleString()} berries but only have ${currentBerries.toLocaleString()}.`,
                     currentBerries
                 };
             }
@@ -93,61 +107,65 @@ class EconomySystem {
         }
     }
 
-    // Process automatic income
-    async processIncome(userId, username) {
+    // Process manual income collection
+    async processManualIncome(userId, username) {
         try {
             // Get user's current CP
             const user = await DatabaseManager.getUser(userId);
             if (!user) return { success: false, message: 'User not found' };
             
-            const totalCp = user.total_cp;
-            const hourlyIncome = this.calculateHourlyIncome(totalCp);
+            const totalCp = Math.max(user.total_cp, user.base_cp);
+            const manualIncome = this.calculateManualIncome(totalCp);
             
-            // Calculate time since last income
-            const now = new Date();
-            const lastIncome = new Date(user.last_income);
-            const hoursElapsed = (now - lastIncome) / (1000 * 60 * 60); // Convert to hours
+            // Check if user has used manual income recently
+            const result = await DatabaseManager.query(`
+                SELECT created_at 
+                FROM income_history 
+                WHERE user_id = $1 AND income_type = 'manual' 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            `, [userId]);
             
-            // Must wait at least 1 hour
-            if (hoursElapsed < 1) {
-                return {
-                    success: false,
-                    message: `You must wait ${Math.ceil((1 - hoursElapsed) * 60)} more minutes before collecting income.`,
-                    hoursElapsed,
-                    nextIncome: Math.ceil((1 - hoursElapsed) * 60)
-                };
+            if (result.rows.length > 0) {
+                const lastManualIncome = new Date(result.rows[0].created_at);
+                const now = new Date();
+                const minutesElapsed = (now - lastManualIncome) / (1000 * 60);
+                
+                if (minutesElapsed < this.manualIncomeCooldown) {
+                    return {
+                        success: false,
+                        message: `You must wait ${Math.ceil(this.manualIncomeCooldown - minutesElapsed)} more minutes before collecting manual income.`,
+                        minutesElapsed,
+                        nextCollection: Math.ceil(this.manualIncomeCooldown - minutesElapsed)
+                    };
+                }
             }
             
-            // Calculate income (max 24 hours)
-            const maxHours = 24;
-            const cappedHours = Math.min(hoursElapsed, maxHours);
-            const incomeAmount = Math.floor(hourlyIncome * cappedHours);
-            
-            if (incomeAmount <= 0) {
+            if (manualIncome <= 0) {
                 return {
                     success: false,
-                    message: 'No income to collect.',
-                    hoursElapsed: cappedHours
+                    message: 'No income to collect.'
                 };
             }
             
             // Add berries and record income
-            const newBalance = await this.addBerries(userId, incomeAmount, 'Automatic Income');
-            await DatabaseManager.recordIncome(userId, incomeAmount, totalCp, 'manual');
+            const newBalance = await this.addBerries(userId, manualIncome, 'Manual Income Collection');
+            await DatabaseManager.recordIncome(userId, manualIncome, totalCp, 'manual');
             
-            console.log(`💰 ${username} collected ${incomeAmount} berries (${cappedHours.toFixed(1)} hours)`);
+            console.log(`💰 ${username} collected ${manualIncome} berries (manual collection)`);
             
             return {
                 success: true,
-                amount: incomeAmount,
-                hoursElapsed: cappedHours,
-                hourlyRate: hourlyIncome,
+                amount: manualIncome,
+                multiplier: this.manualIncomeMultiplier,
+                hourlyRate: this.calculateHourlyIncome(totalCp),
                 newBalance,
-                totalCp
+                totalCp,
+                cooldownMinutes: this.manualIncomeCooldown
             };
             
         } catch (error) {
-            console.error('Error processing income:', error);
+            console.error('Error processing manual income:', error);
             return {
                 success: false,
                 message: 'An error occurred while processing income.'
@@ -161,26 +179,41 @@ class EconomySystem {
             const user = await DatabaseManager.getUser(userId);
             if (!user) return null;
             
-            const totalCp = user.total_cp;
+            const totalCp = Math.max(user.total_cp, user.base_cp);
             const hourlyIncome = this.calculateHourlyIncome(totalCp);
+            const manualIncome = this.calculateManualIncome(totalCp);
             
-            // Calculate time since last income
-            const now = new Date();
-            const lastIncome = new Date(user.last_income);
-            const hoursElapsed = (now - lastIncome) / (1000 * 60 * 60);
+            // Check last manual income
+            const result = await DatabaseManager.query(`
+                SELECT created_at 
+                FROM income_history 
+                WHERE user_id = $1 AND income_type = 'manual' 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            `, [userId]);
             
-            // Calculate available income
-            const maxHours = 24;
-            const cappedHours = Math.min(hoursElapsed, maxHours);
-            const availableIncome = Math.floor(hourlyIncome * cappedHours);
+            let canCollectManual = true;
+            let nextManualCollection = 0;
+            
+            if (result.rows.length > 0) {
+                const lastManualIncome = new Date(result.rows[0].created_at);
+                const now = new Date();
+                const minutesElapsed = (now - lastManualIncome) / (1000 * 60);
+                
+                if (minutesElapsed < this.manualIncomeCooldown) {
+                    canCollectManual = false;
+                    nextManualCollection = Math.ceil(this.manualIncomeCooldown - minutesElapsed);
+                }
+            }
             
             return {
                 totalCp,
                 hourlyIncome,
-                hoursElapsed,
-                availableIncome,
-                canCollect: hoursElapsed >= 1,
-                nextCollection: hoursElapsed >= 1 ? 0 : Math.ceil((1 - hoursElapsed) * 60),
+                manualIncome,
+                canCollectManual,
+                nextManualCollection,
+                cooldownMinutes: this.manualIncomeCooldown,
+                multiplier: this.manualIncomeMultiplier,
                 currentBerries: user.berries
             };
             
@@ -204,7 +237,8 @@ class EconomySystem {
                 totalCp: user.total_cp,
                 level: user.level,
                 baseCp: user.base_cp,
-                hourlyIncome: this.calculateHourlyIncome(user.total_cp)
+                hourlyIncome: this.calculateHourlyIncome(Math.max(user.total_cp, user.base_cp)),
+                manualIncome: this.calculateManualIncome(Math.max(user.total_cp, user.base_cp))
             };
             
         } catch (error) {
@@ -221,7 +255,9 @@ class EconomySystem {
                 ...stats,
                 pullCost: this.pullCost,
                 incomeRate: this.incomeRate,
-                baseIncome: this.baseIncome
+                baseIncome: this.baseIncome,
+                manualIncomeMultiplier: this.manualIncomeMultiplier,
+                manualIncomeCooldown: this.manualIncomeCooldown
             };
         } catch (error) {
             console.error('Error getting server stats:', error);
@@ -231,7 +267,9 @@ class EconomySystem {
                 totalBerries: 0,
                 pullCost: this.pullCost,
                 incomeRate: this.incomeRate,
-                baseIncome: this.baseIncome
+                baseIncome: this.baseIncome,
+                manualIncomeMultiplier: this.manualIncomeMultiplier,
+                manualIncomeCooldown: this.manualIncomeCooldown
             };
         }
     }
@@ -246,84 +284,9 @@ class EconomySystem {
         }
     }
 
-    // Admin functions
-    async giveBerriesAdmin(userId, amount, reason = 'Admin Grant') {
-        try {
-            const newBalance = await this.addBerries(userId, amount, reason);
-            return {
-                success: true,
-                message: `Successfully gave ${amount} berries.`,
-                newBalance
-            };
-        } catch (error) {
-            console.error('Error giving berries (admin):', error);
-            return {
-                success: false,
-                message: 'Failed to give berries.'
-            };
-        }
-    }
-
-    async takeBerriesAdmin(userId, amount, reason = 'Admin Take') {
-        try {
-            const result = await this.removeBerries(userId, amount, reason);
-            if (result === false) {
-                return {
-                    success: false,
-                    message: 'User does not have enough berries.'
-                };
-            }
-            
-            return {
-                success: true,
-                message: `Successfully removed ${amount} berries.`,
-                newBalance: result
-            };
-        } catch (error) {
-            console.error('Error taking berries (admin):', error);
-            return {
-                success: false,
-                message: 'Failed to remove berries.'
-            };
-        }
-    }
-
-    async resetUserEconomy(userId) {
-        try {
-            // Reset berries to 0
-            await DatabaseManager.query(
-                `UPDATE users 
-                 SET berries = 0, total_earned = 0, total_spent = 0, last_income = NOW()
-                 WHERE user_id = $1`,
-                [userId]
-            );
-            
-            return {
-                success: true,
-                message: 'User economy reset successfully.'
-            };
-            
-        } catch (error) {
-            console.error('Error resetting user economy:', error);
-            return {
-                success: false,
-                message: 'Failed to reset user economy.'
-            };
-        }
-    }
-
     // Utility functions
     formatBerries(amount) {
         return amount.toLocaleString();
-    }
-
-    calculateIncomeForNextHour(totalCp) {
-        return this.calculateHourlyIncome(totalCp);
-    }
-
-    calculateIncomeForTimespan(totalCp, hours) {
-        const hourlyRate = this.calculateHourlyIncome(totalCp);
-        return Math.floor(hourlyRate * Math.min(hours, 24));
     }
 
     getEconomyConfig() {
@@ -331,23 +294,9 @@ class EconomySystem {
             pullCost: this.pullCost,
             incomeRate: this.incomeRate,
             baseIncome: this.baseIncome,
-            maxIncomeHours: 24
+            manualIncomeMultiplier: this.manualIncomeMultiplier,
+            manualIncomeCooldown: this.manualIncomeCooldown
         };
-    }
-
-    // Update economy configuration (admin)
-    updateConfig(config) {
-        if (config.pullCost !== undefined) {
-            this.pullCost = config.pullCost;
-        }
-        if (config.incomeRate !== undefined) {
-            this.incomeRate = config.incomeRate;
-        }
-        if (config.baseIncome !== undefined) {
-            this.baseIncome = config.baseIncome;
-        }
-        
-        console.log('💰 Economy configuration updated:', this.getEconomyConfig());
     }
 
     // Calculate berries needed for specific number of pulls
@@ -360,42 +309,22 @@ class EconomySystem {
         return Math.floor(berries / this.pullCost);
     }
 
-    // Get economic trends (for admin dashboard)
-    async getEconomicTrends() {
-        try {
-            // Get income history for the last 24 hours
-            const result = await DatabaseManager.query(`
-                SELECT 
-                    DATE_TRUNC('hour', created_at) as hour,
-                    SUM(amount) as total_income,
-                    COUNT(*) as income_events,
-                    AVG(cp_at_time) as avg_cp
-                FROM income_history 
-                WHERE created_at >= NOW() - INTERVAL '24 hours'
-                GROUP BY hour
-                ORDER BY hour
-            `);
-            
-            return {
-                hourlyIncome: result.rows,
-                trends: {
-                    totalIncome24h: result.rows.reduce((sum, row) => sum + parseInt(row.total_income), 0),
-                    totalEvents24h: result.rows.reduce((sum, row) => sum + parseInt(row.income_events), 0),
-                    avgCp24h: result.rows.length > 0 ? 
-                        result.rows.reduce((sum, row) => sum + parseFloat(row.avg_cp), 0) / result.rows.length : 0
-                }
-            };
-            
-        } catch (error) {
-            console.error('Error getting economic trends:', error);
-            return {
-                hourlyIncome: [],
-                trends: {
-                    totalIncome24h: 0,
-                    totalEvents24h: 0,
-                    avgCp24h: 0
-                }
-            };
+    // Update configuration from environment variables
+    updateConfigFromEnv() {
+        const oldConfig = this.getEconomyConfig();
+        
+        this.pullCost = parseInt(process.env.DEFAULT_PULL_COST) || this.pullCost;
+        this.incomeRate = parseFloat(process.env.DEFAULT_INCOME_RATE) || this.incomeRate;
+        this.baseIncome = parseInt(process.env.DEFAULT_BASE_INCOME) || this.baseIncome;
+        this.manualIncomeMultiplier = parseFloat(process.env.MANUAL_INCOME_MULTIPLIER) || this.manualIncomeMultiplier;
+        this.manualIncomeCooldown = parseInt(process.env.MANUAL_INCOME_COOLDOWN) || this.manualIncomeCooldown;
+        
+        const newConfig = this.getEconomyConfig();
+        
+        if (JSON.stringify(oldConfig) !== JSON.stringify(newConfig)) {
+            console.log('💰 Economy configuration updated from environment variables:');
+            console.log('   Old config:', oldConfig);
+            console.log('   New config:', newConfig);
         }
     }
 }
