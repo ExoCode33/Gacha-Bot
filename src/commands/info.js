@@ -1,6 +1,6 @@
-// src/commands/info.js - Updated Info Command with Dynamic Variables
+// src/commands/info.js - Updated Info Command with Types System
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getFruitById, RARITY_RATES, ELEMENT_COUNTERS } = require('../data/devil-fruits');
+const { getFruitById, RARITY_RATES, TYPE_COUNTERS, getAllTypes } = require('../data/devil-fruits');
 const DatabaseManager = require('../database/manager');
 const EconomySystem = require('../systems/economy');
 
@@ -18,7 +18,8 @@ module.exports = {
                     { name: 'Rarity Rates', value: 'rates' },
                     { name: 'Level System', value: 'levels' },
                     { name: 'Economy', value: 'economy' },
-                    { name: 'Elements', value: 'elements' },
+                    { name: 'Fruit Types', value: 'types' },
+                    { name: 'Type Counters', value: 'counters' },
                     { name: 'Commands', value: 'commands' }
                 )
         ),
@@ -45,8 +46,11 @@ module.exports = {
                 case 'economy':
                     embed = await this.createEconomyEmbed();
                     break;
-                case 'elements':
-                    embed = await this.createElementsEmbed();
+                case 'types':
+                    embed = await this.createTypesEmbed();
+                    break;
+                case 'counters':
+                    embed = await this.createCountersEmbed();
                     break;
                 case 'commands':
                     embed = await this.createCommandsEmbed();
@@ -80,10 +84,10 @@ module.exports = {
             .setDescription('Welcome to the Grand Line! Collect Devil Fruits, build your power, and become the Pirate King!')
             .addFields([
                 { name: '🎯 Objective', value: 'Collect Devil Fruits to increase your Combat Power (CP) and climb the leaderboards!', inline: false },
-                { name: '🍈 Devil Fruits', value: '150 unique fruits across 7 rarity tiers with different elements and abilities', inline: true },
+                { name: '🍈 Devil Fruits', value: '150 unique fruits across 7 rarity tiers with different types and abilities', inline: true },
                 { name: '⚡ Combat Power', value: 'Your level determines base CP, fruits provide multipliers that stack additively', inline: true },
                 { name: '💰 Economy', value: `Auto income every 10min + manual collection (${config.pullCost.toLocaleString()} berries per pull)`, inline: true },
-                { name: '🎮 Key Features', value: '• Animated gacha pulls\n• Duplicate system (+1% CP per dupe)\n• Element counter system\n• Role-based leveling\n• Automatic + manual income', inline: false },
+                { name: '🎮 Key Features', value: '• Professional animated gacha pulls\n• Duplicate system (+1% CP per dupe)\n• Type advantage system\n• Role-based leveling\n• Automatic + manual income', inline: false },
                 { name: '📊 Server Stats', value: `Users: ${stats.totalUsers}\nFruits Collected: ${stats.totalFruits}\nTotal Berries: ${stats.totalBerries.toLocaleString()}`, inline: true },
                 { name: '🚀 Getting Started', value: `Use \`/pull\` to get your first Devil Fruit (${config.pullCost.toLocaleString()} berries)!\nUse \`/income\` to collect bonus berries every ${config.manualIncomeCooldown} minutes!`, inline: false }
             ])
@@ -101,8 +105,8 @@ module.exports = {
                 { name: '🔄 Duplicates', value: 'Getting the same fruit multiple times gives +1% CP bonus per duplicate\nExample: Gomu Gomu no Mi (3) = +2% CP bonus', inline: false },
                 { name: '⚡ CP Calculation', value: 'Total CP = Base CP + (Base CP × Sum of all fruit multipliers + duplicate bonuses)', inline: false },
                 { name: '🎨 Rarity System', value: '🟫 Common (40%) - 1.0x to 1.5x\n🟩 Uncommon (30%) - 1.5x to 2.5x\n🟦 Rare (20%) - 2.5x to 4.0x\n🟪 Epic (7%) - 4.0x to 6.0x\n🟨 Legendary (2.5%) - 6.0x to 8.0x\n🟧 Mythical (0.4%) - 8.0x to 10.0x\n🌈 Omnipotent (0.1%) - 10.0x to 12.0x', inline: false },
-                { name: '🔥 Elements', value: 'Each fruit has an element that affects combat and strategic gameplay', inline: false },
-                { name: '💡 Tips', value: '• Focus on higher rarity fruits for better CP\n• Duplicates are valuable for the CP bonus\n• Different elements have strategic advantages', inline: false }
+                { name: '🏷️ Fruit Types', value: 'Each fruit has a specific type that affects strategic gameplay and type advantages', inline: false },
+                { name: '💡 Tips', value: '• Focus on higher rarity fruits for better CP\n• Duplicates are valuable for the CP bonus\n• Different types have strategic advantages\n• Use `/info types` to learn about all fruit types', inline: false }
             ])
             .setFooter({ text: 'Use /collection to view your fruits!' });
     },
@@ -125,7 +129,7 @@ module.exports = {
                 { name: '📊 Rarity Distribution', value: rateEntries.join('\n'), inline: false },
                 { name: '💰 Pull Cost', value: `${config.pullCost.toLocaleString()} berries per pull`, inline: true },
                 { name: '🎯 Expected Pulls', value: '• Common: Every 2-3 pulls\n• Rare: Every 5 pulls\n• Epic: Every 14 pulls\n• Legendary: Every 40 pulls\n• Mythical: Every 250 pulls\n• Omnipotent: Every 1,000 pulls', inline: false },
-                { name: '💡 Strategy Tips', value: '• Save berries for multiple pulls\n• Higher CP = more income = more pulls\n• Duplicates are still valuable!', inline: false }
+                { name: '💡 Strategy Tips', value: '• Save berries for multiple pulls\n• Higher CP = more income = more pulls\n• Duplicates are still valuable!\n• Focus on collecting diverse types', inline: false }
             ])
             .setFooter({ text: 'RNG is RNG - good luck, pirate!' });
     },
@@ -164,22 +168,68 @@ module.exports = {
             .setFooter({ text: 'Build your CP to become rich!' });
     },
 
-    async createElementsEmbed() {
-        const elements = Object.keys(ELEMENT_COUNTERS);
-        const elementList = elements.slice(0, 15).join(', ');
+    async createTypesEmbed() {
+        const allTypes = getAllTypes();
+        const typesByCategory = {
+            'Logia Elements': allTypes.filter(type => ['Fire', 'Water', 'Ice', 'Lightning', 'Earth', 'Wind', 'Light', 'Darkness', 'Magma', 'Sand', 'Smoke', 'Snow', 'Gas', 'Swamp', 'Forest', 'Blood', 'Electricity', 'Air', 'Void', 'Pure Light'].includes(type)),
+            'Paramecia Powers': allTypes.filter(type => ['Body Alteration', 'Production', 'Explosive', 'Weight Control', 'Defensive', 'Consumption', 'Binding', 'Time Manipulation', 'Spatial', 'Cleansing', 'Vibration', 'Gravity', 'Repulsion', 'Poison', 'Healing'].includes(type)),
+            'Zoan Animals': allTypes.filter(type => ['Mammal', 'Carnivore', 'Herbivore', 'Flying', 'Aquatic', 'Insect', 'Amphibian', 'Burrowing', 'Companion', 'Evolution'].includes(type)),
+            'Ancient Zoan': allTypes.filter(type => type.startsWith('Ancient')),
+            'Mythical Beings': allTypes.filter(type => ['Mythical Dragon', 'Divine Wolf', 'Mythical Serpent', 'Mythical Bird', 'Mythical Spirit', 'Mythical Fox', 'Mythical Horse', 'Mythical Bat', 'Mythical Demon', 'Divine Angel'].includes(type)),
+            'Divine Powers': allTypes.filter(type => ['Sun God', 'Thunder God', 'Storm God', 'Sun Goddess', 'Moon God', 'Divine Tiger', 'Death God', 'Divine Buddha', 'True Deity'].includes(type))
+        };
+        
+        let description = 'Devil Fruits are categorized by their power types, which determine strategic advantages and weaknesses.\n\n';
+        
+        Object.entries(typesByCategory).forEach(([category, types]) => {
+            if (types.length > 0) {
+                description += `**${category}:**\n${types.slice(0, 5).join(', ')}${types.length > 5 ? '...' : ''}\n\n`;
+            }
+        });
         
         return new EmbedBuilder()
             .setColor(0x8000FF)
-            .setTitle('🔥 Element System')
-            .setDescription('Devil Fruits have elements that will affect future combat systems')
+            .setTitle('🏷️ Fruit Types System')
+            .setDescription(description)
             .addFields([
-                { name: '🌟 Available Elements', value: elementList + '\n...and many more!', inline: false },
-                { name: '⚔️ Element Counters', value: 'Each element has strengths and weaknesses against other elements', inline: false },
-                { name: '🎯 Strategic Value', value: 'Different elements will provide advantages in future combat features', inline: false },
-                { name: '💡 Examples', value: '• Fire vs Ice: Fire wins\n• Water vs Fire: Water wins\n• Lightning vs Water: Lightning wins\n• Earth vs Lightning: Earth wins', inline: false },
-                { name: '🔮 Future Features', value: 'Element advantages will be important for:\n• PvP Combat\n• Boss Battles\n• Special Events\n• Team Compositions', inline: false }
+                { name: '⚔️ Type Advantages', value: 'Different types have strengths and weaknesses against other types', inline: false },
+                { name: '🎯 Strategic Value', value: 'Type advantages will affect future combat features and special events', inline: false },
+                { name: '💡 Examples', value: '• Fire beats Ice\n• Water beats Fire\n• Lightning beats Water\n• Earth beats Lightning', inline: false },
+                { name: '🔮 Future Features', value: 'Type advantages will be important for:\n• PvP Combat\n• Boss Battles\n• Special Events\n• Team Compositions', inline: false },
+                { name: '📊 Total Types', value: `${allTypes.length} different fruit types available`, inline: false }
             ])
-            .setFooter({ text: 'Collect diverse elements for future advantages!' });
+            .setFooter({ text: 'Use /info counters to see type advantages!' });
+    },
+
+    async createCountersEmbed() {
+        const exampleCounters = [
+            { type: 'Fire', strong: ['Ice', 'Forest', 'Gas'], weak: ['Water', 'Magma', 'Sand'] },
+            { type: 'Water', strong: ['Fire', 'Magma', 'Earth'], weak: ['Ice', 'Lightning', 'Forest'] },
+            { type: 'Lightning', strong: ['Water', 'Wind', 'Air'], weak: ['Body Alteration', 'Earth', 'Defensive'] },
+            { type: 'Body Alteration', strong: ['Lightning', 'Cutting', 'Piercing'], weak: ['Vibration', 'Explosive', 'Gravity'] },
+            { type: 'Carnivore', strong: ['Herbivore', 'Insect', 'Small'], weak: ['Ancient Carnivore', 'Mythical', 'Divine'] },
+            { type: 'Mythical Dragon', strong: ['Ancient', 'Modern', 'Mortal'], weak: ['Divine Dragon', 'True Deity', 'God Slayer'] }
+        ];
+        
+        let counterText = '';
+        exampleCounters.forEach(counter => {
+            counterText += `**${counter.type}:**\n`;
+            counterText += `Strong vs: ${counter.strong.join(', ')}\n`;
+            counterText += `Weak vs: ${counter.weak.join(', ')}\n\n`;
+        });
+        
+        return new EmbedBuilder()
+            .setColor(0xFF1493)
+            .setTitle('⚔️ Type Counter System')
+            .setDescription('How different fruit types interact with each other in combat')
+            .addFields([
+                { name: '🎯 How It Works', value: 'Each fruit type has advantages and disadvantages against other types', inline: false },
+                { name: '📊 Damage Modifiers', value: '• **Strong vs:** +50% damage bonus\n• **Normal vs:** No modifier\n• **Weak vs:** -30% damage reduction', inline: false },
+                { name: '💡 Example Counters', value: counterText, inline: false },
+                { name: '🔮 Strategic Planning', value: 'Understanding type matchups will be crucial for:\n• Choosing which fruits to prioritize\n• Building balanced teams\n• Preparing for specific opponents\n• Planning combat strategies', inline: false },
+                { name: '📈 Advanced Strategy', value: 'Higher tier types (Mythical, Divine) generally beat lower tier types, but specific matchups can override this rule', inline: false }
+            ])
+            .setFooter({ text: 'Collect diverse types for maximum strategic advantage!' });
     },
 
     async createCommandsEmbed() {
@@ -192,10 +242,12 @@ module.exports = {
             .addFields([
                 { name: '🎮 Core Commands', value: `\`/pull\` - Pull a Devil Fruit (${config.pullCost.toLocaleString()} berries)\n\`/income\` - Collect ${config.manualIncomeMultiplier}x berry bonus (${config.manualIncomeCooldown}min cooldown)\n\`/collection\` - View your Devil Fruit collection\n\`/stats\` - View your pirate stats`, inline: false },
                 { name: '🏆 Social Commands', value: '`/leaderboard` - View server leaderboards\n`/info` - Get game information', inline: false },
-                { name: '🎯 Collection Features', value: '• Filter by rarity\n• Sort by CP, rarity, name, or date\n• Pagination for large collections\n• Duplicate tracking', inline: false },
-                { name: '📊 Stats Features', value: '• View your own or others\' stats\n• CP breakdown and income info\n• Fruit collection summary\n• Level progression', inline: false },
+                { name: '🔧 Admin Commands', value: '`/admin-gacha add_berries` - Add berries to user\n`/admin-gacha remove_berries` - Remove berries from user\n`/admin-gacha set_berries` - Set exact berry amount\n`/admin-gacha user_info` - Get detailed user info\n`/admin-gacha server_stats` - View server statistics\n`/admin-gacha reset_income` - Reset income cooldown', inline: false },
+                { name: '🎯 Collection Features', value: '• Filter by rarity\n• Sort by CP, rarity, name, or date\n• Pagination for large collections\n• Duplicate tracking with bonuses', inline: false },
+                { name: '📊 Stats Features', value: '• View your own or others\' stats\n• CP breakdown and income info\n• Fruit collection summary\n• Level progression tracking', inline: false },
                 { name: '🏅 Leaderboard Types', value: '• Combat Power (CP)\n• Berry wealth\n• Fruit collection size\n• Level rankings', inline: false },
-                { name: '💰 Economy Info', value: `• Auto income every 10 minutes\n• Manual income: ${config.manualIncomeMultiplier}x hourly rate\n• Pull cost: ${config.pullCost.toLocaleString()} berries\n• Manual cooldown: ${config.manualIncomeCooldown} minutes`, inline: false }
+                { name: '💰 Economy Info', value: `• Auto income every 10 minutes\n• Manual income: ${config.manualIncomeMultiplier}x hourly rate\n• Pull cost: ${config.pullCost.toLocaleString()} berries\n• Manual cooldown: ${config.manualIncomeCooldown} minutes`, inline: false },
+                { name: '🏷️ Type System', value: `• ${getAllTypes().length}+ different fruit types\n• Type advantages in combat\n• Strategic team building\n• Future PvP features`, inline: false }
             ])
             .setFooter({ text: 'Start your adventure with /pull!' });
     },
