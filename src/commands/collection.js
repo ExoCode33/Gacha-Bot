@@ -122,4 +122,103 @@ module.exports = {
                     const element = fruit.element ? ` • ${fruit.element}` : '';
                     
                     embed.addFields([{
-                        name
+                        name: `${getRarityEmoji(fruit.rarity)} ${name}`,
+                        value: `${fruit.rarity.toUpperCase()} • ${fruit.cp_multiplier}x CP${bonus}${element}`,
+                        inline: true
+                    }]);
+                });
+                
+                return embed;
+            };
+            
+            const embed = generateEmbed(currentPage);
+            
+            if (totalPages <= 1) {
+                await interaction.reply({ embeds: [embed] });
+                return;
+            }
+            
+            // Create navigation buttons
+            const createButtons = (page) => {
+                return new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('collection_first')
+                            .setLabel('⏮️ First')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(page === 0),
+                        new ButtonBuilder()
+                            .setCustomId('collection_prev')
+                            .setLabel('⬅️ Previous')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(page === 0),
+                        new ButtonBuilder()
+                            .setCustomId('collection_next')
+                            .setLabel('➡️ Next')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(page === totalPages - 1),
+                        new ButtonBuilder()
+                            .setCustomId('collection_last')
+                            .setLabel('⏭️ Last')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(page === totalPages - 1)
+                    );
+            };
+            
+            const response = await interaction.reply({ 
+                embeds: [embed], 
+                components: [createButtons(currentPage)] 
+            });
+            
+            // Set up button collector
+            const collector = response.createMessageComponentCollector({ 
+                filter: (i) => i.user.id === interaction.user.id,
+                time: 300000 // 5 minutes
+            });
+            
+            collector.on('collect', async (buttonInteraction) => {
+                try {
+                    switch (buttonInteraction.customId) {
+                        case 'collection_first':
+                            currentPage = 0;
+                            break;
+                        case 'collection_prev':
+                            currentPage = Math.max(0, currentPage - 1);
+                            break;
+                        case 'collection_next':
+                            currentPage = Math.min(totalPages - 1, currentPage + 1);
+                            break;
+                        case 'collection_last':
+                            currentPage = totalPages - 1;
+                            break;
+                    }
+                    
+                    const newEmbed = generateEmbed(currentPage);
+                    await buttonInteraction.update({ 
+                        embeds: [newEmbed], 
+                        components: [createButtons(currentPage)] 
+                    });
+                    
+                } catch (error) {
+                    console.error('Collection button error:', error);
+                }
+            });
+            
+            collector.on('end', () => {
+                // Remove buttons after timeout
+                interaction.editReply({ components: [] }).catch(() => {});
+            });
+            
+        } catch (error) {
+            console.error('Error in collection command:', error);
+            
+            const embed = new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle('❌ Error')
+                .setDescription('Something went wrong while loading your collection!')
+                .setFooter({ text: 'Please try again later.' });
+            
+            await interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+    }
+};
