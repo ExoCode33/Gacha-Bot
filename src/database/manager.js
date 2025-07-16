@@ -1,4 +1,4 @@
-// src/database/manager.js - Database Manager v2.0 - Fixed for Integer Multipliers
+// src/database/manager.js - Database Manager v2.1 - Updated for fruitType
 const { Pool } = require('pg');
 
 class DatabaseManager {
@@ -62,7 +62,7 @@ class DatabaseManager {
                 )
             `);
             
-            // Devil Fruits collection table
+            // Devil Fruits collection table - Updated with fruitType
             await this.query(`
                 CREATE TABLE IF NOT EXISTS user_devil_fruits (
                     id SERIAL PRIMARY KEY,
@@ -71,7 +71,8 @@ class DatabaseManager {
                     fruit_name VARCHAR(255) NOT NULL,
                     fruit_type VARCHAR(50) NOT NULL,
                     fruit_rarity VARCHAR(50) NOT NULL,
-                    fruit_element VARCHAR(50) NOT NULL,
+                    fruit_element VARCHAR(50) NOT NULL DEFAULT 'Unknown',
+                    fruit_fruit_type VARCHAR(50) NOT NULL DEFAULT 'Unknown',
                     fruit_power TEXT NOT NULL,
                     fruit_description TEXT,
                     base_cp INTEGER NOT NULL,
@@ -79,6 +80,12 @@ class DatabaseManager {
                     total_cp INTEGER NOT NULL,
                     obtained_at TIMESTAMP DEFAULT NOW()
                 )
+            `);
+            
+            // Add new column if it doesn't exist (for migration)
+            await this.query(`
+                ALTER TABLE user_devil_fruits 
+                ADD COLUMN IF NOT EXISTS fruit_fruit_type VARCHAR(50) DEFAULT 'Unknown'
             `);
             
             // User level tracking
@@ -110,6 +117,7 @@ class DatabaseManager {
             await this.query(`CREATE INDEX IF NOT EXISTS idx_devil_fruits_user ON user_devil_fruits(user_id)`);
             await this.query(`CREATE INDEX IF NOT EXISTS idx_devil_fruits_fruit_id ON user_devil_fruits(fruit_id)`);
             await this.query(`CREATE INDEX IF NOT EXISTS idx_devil_fruits_element ON user_devil_fruits(fruit_element)`);
+            await this.query(`CREATE INDEX IF NOT EXISTS idx_devil_fruits_fruit_type ON user_devil_fruits(fruit_fruit_type)`);
             await this.query(`CREATE INDEX IF NOT EXISTS idx_income_history_user ON income_history(user_id)`);
             
             console.log('✅ Database tables created successfully');
@@ -233,7 +241,7 @@ class DatabaseManager {
         }
     }
 
-    // Devil Fruit management
+    // Devil Fruit management - Updated for new structure
     async addDevilFruit(userId, fruitData) {
         try {
             // Check if user already has this fruit
@@ -260,16 +268,16 @@ class DatabaseManager {
             const multiplierAsInt = Math.floor(fruitData.multiplier * 100);
             const totalCp = baseCp * fruitData.multiplier;
             
-            // Add the fruit
+            // Add the fruit with both element (legacy) and fruitType (new)
             const result = await this.query(
                 `INSERT INTO user_devil_fruits (
                     user_id, fruit_id, fruit_name, fruit_type, fruit_rarity, 
-                    fruit_element, fruit_power, fruit_description, base_cp, 
+                    fruit_element, fruit_fruit_type, fruit_power, fruit_description, base_cp, 
                     duplicate_count, total_cp, obtained_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
                  RETURNING *`,
                 [userId, fruitData.id, fruitData.name, fruitData.type, fruitData.rarity,
-                 fruitData.element, fruitData.power, fruitData.description, 
+                 fruitData.element || fruitData.fruitType, fruitData.fruitType, fruitData.power, fruitData.description, 
                  multiplierAsInt, duplicateCount, totalCp]
             );
             
@@ -311,7 +319,7 @@ class DatabaseManager {
         try {
             const result = await this.query(
                 `SELECT * FROM user_devil_fruits 
-                 WHERE user_id = $1 AND fruit_element = $2`,
+                 WHERE user_id = $1 AND (fruit_element = $2 OR fruit_fruit_type = $2)`,
                 [userId, element]
             );
             return result.rows;
