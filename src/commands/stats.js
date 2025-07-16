@@ -1,4 +1,4 @@
-// src/commands/stats.js - Stats Command
+// src/commands/stats.js - Fixed Stats Command
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const EconomySystem = require('../systems/economy');
@@ -55,12 +55,12 @@ module.exports = {
             // Calculate rarity distribution
             const rarityCount = {};
             fruits.forEach(fruit => {
-                rarityCount[fruit.rarity] = (rarityCount[fruit.rarity] || 0) + 1;
+                rarityCount[fruit.fruit_rarity] = (rarityCount[fruit.fruit_rarity] || 0) + 1;
             });
             
             // Find highest multiplier fruit
             const highestFruit = fruits.reduce((max, fruit) => 
-                fruit.cp_multiplier > (max?.cp_multiplier || 0) ? fruit : max, null);
+                fruit.base_cp > (max?.base_cp || 0) ? fruit : max, null);
             
             // Calculate level progress
             const nextLevel = LevelSystem.getNextLevel(user.level);
@@ -69,9 +69,9 @@ module.exports = {
                 `${user.level} (MAX)`;
             
             // Format income info
-            const nextIncome = incomeInfo?.canCollect ? 
+            const nextIncome = incomeInfo?.canCollectManual ? 
                 'Available now!' : 
-                `${incomeInfo?.nextCollection || 0} minutes`;
+                `${incomeInfo?.nextManualCollection || 0} minutes`;
             
             const embed = new EmbedBuilder()
                 .setColor(LevelSystem.getRoleColor(user.level))
@@ -83,7 +83,7 @@ module.exports = {
                     { name: '🔥 Total CP', value: `${user.total_cp.toLocaleString()}`, inline: true },
                     { name: '💰 Berries', value: `${user.berries.toLocaleString()}`, inline: true },
                     { name: '📈 Hourly Income', value: `${incomeInfo?.hourlyIncome.toLocaleString() || 0}`, inline: true },
-                    { name: '⏰ Next Income', value: nextIncome, inline: true },
+                    { name: '⏰ Next Manual Income', value: nextIncome, inline: true },
                     { name: '🍈 Total Fruits', value: `${totalFruits}`, inline: true },
                     { name: '🆔 Unique Fruits', value: `${uniqueFruits}`, inline: true },
                     { name: '📊 Duplicates', value: `${duplicates}`, inline: true },
@@ -94,8 +94,10 @@ module.exports = {
             
             // Add highest fruit if exists
             if (highestFruit) {
+                // Convert stored integer back to decimal for display
+                const multiplier = (highestFruit.base_cp / 100).toFixed(1);
                 embed.addFields([
-                    { name: '👑 Strongest Fruit', value: `${highestFruit.fruit_name} (${highestFruit.cp_multiplier}x)`, inline: false }
+                    { name: '👑 Strongest Fruit', value: `${highestFruit.fruit_name} (${multiplier}x)`, inline: false }
                 ]);
             }
             
