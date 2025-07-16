@@ -5,8 +5,8 @@ const EconomySystem = require('../systems/economy');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('admin')
-        .setDescription('🔧 Admin commands for server management')
+        .setName('admin-gacha')
+        .setDescription('🔧 Admin commands for One Piece Gacha Bot management')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addSubcommand(subcommand =>
             subcommand
