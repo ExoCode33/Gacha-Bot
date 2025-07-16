@@ -1,4 +1,4 @@
-// src/commands/collection.js - Collection Command
+// src/commands/collection.js - Fixed Collection Command
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const { getRarityEmoji, getRarityColor } = require('../data/devil-fruits');
@@ -58,7 +58,7 @@ module.exports = {
             
             // Filter by rarity if specified
             if (filter) {
-                fruits = fruits.filter(fruit => fruit.rarity === filter);
+                fruits = fruits.filter(fruit => fruit.fruit_rarity === filter);
                 
                 if (fruits.length === 0) {
                     const embed = new EmbedBuilder()
@@ -86,11 +86,11 @@ module.exports = {
             // Sort fruits
             switch (sort) {
                 case 'cp':
-                    uniqueFruits.sort((a, b) => b.cp_multiplier - a.cp_multiplier);
+                    uniqueFruits.sort((a, b) => b.base_cp - a.base_cp);
                     break;
                 case 'rarity':
                     const rarityOrder = { 'omnipotent': 7, 'mythical': 6, 'legendary': 5, 'epic': 4, 'rare': 3, 'uncommon': 2, 'common': 1 };
-                    uniqueFruits.sort((a, b) => (rarityOrder[b.rarity] || 0) - (rarityOrder[a.rarity] || 0));
+                    uniqueFruits.sort((a, b) => (rarityOrder[b.fruit_rarity] || 0) - (rarityOrder[a.fruit_rarity] || 0));
                     break;
                 case 'name':
                     uniqueFruits.sort((a, b) => a.fruit_name.localeCompare(b.fruit_name));
@@ -119,11 +119,13 @@ module.exports = {
                 pageFruits.forEach(fruit => {
                     const name = fruit.count > 1 ? `${fruit.fruit_name} (${fruit.count})` : fruit.fruit_name;
                     const bonus = fruit.count > 1 ? ` • +${((fruit.count - 1) * 1).toFixed(0)}% CP` : '';
-                    const element = fruit.element ? ` • ${fruit.element}` : '';
+                    const element = fruit.fruit_element ? ` • ${fruit.fruit_element}` : '';
+                    // Convert stored integer back to decimal for display
+                    const multiplier = (fruit.base_cp / 100).toFixed(1);
                     
                     embed.addFields([{
-                        name: `${getRarityEmoji(fruit.rarity)} ${name}`,
-                        value: `${fruit.rarity.toUpperCase()} • ${fruit.cp_multiplier}x CP${bonus}${element}`,
+                        name: `${getRarityEmoji(fruit.fruit_rarity)} ${name}`,
+                        value: `${fruit.fruit_rarity.toUpperCase()} • ${multiplier}x CP${bonus}${element}`,
                         inline: true
                     }]);
                 });
