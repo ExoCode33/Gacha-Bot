@@ -1,12 +1,12 @@
-// src/commands/admin.js - Admin Commands for Berry Management
+// src/commands/admin-gacha.js - Admin Commands for Berry Management (Renamed to avoid conflicts)
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const EconomySystem = require('../systems/economy');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('admin')
-        .setDescription('🔧 Admin commands for server management')
+        .setName('admin-gacha')
+        .setDescription('🔧 Admin commands for gacha server management')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addSubcommand(subcommand =>
             subcommand
@@ -139,7 +139,7 @@ module.exports = {
             }
             
         } catch (error) {
-            console.error('Error in admin command:', error);
+            console.error('Error in admin-gacha command:', error);
             
             const embed = new EmbedBuilder()
                 .setColor(0xFF0000)
@@ -222,7 +222,7 @@ module.exports = {
                     .setColor(0xFF8000)
                     .setTitle('⚠️ Insufficient Berries')
                     .setDescription(`${targetUser.username} only has **${currentBerries.toLocaleString()}** berries!\nCannot remove **${amount.toLocaleString()}** berries.`)
-                    .setFooter({ text: 'Use /admin set_berries to set a specific amount instead.' });
+                    .setFooter({ text: 'Use /admin-gacha set_berries to set a specific amount instead.' });
                 
                 return await interaction.reply({ embeds: [embed], ephemeral: true });
             }
