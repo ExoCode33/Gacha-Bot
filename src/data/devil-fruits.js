@@ -1,7 +1,7 @@
 // src/data/devil-fruits.js - Main devil fruits data module
 
 // Import all fruit data
-const { commonFruits, uncommonFruits, rareFruits, epicFruits, legendaryFruits, mythicalFruits, omnipotentFruits } = require('./fruit');
+const { commonFruits, uncommonFruits, rareFruits, epicFruits, legendaryFruits, mythicalFruits, omnipotentFruits } = require('./fruit-cp');
 const { fruitTypes } = require('./fruit-types');
 const { devilFruitAbilities } = require('./devil-fruit-abilities');
 
