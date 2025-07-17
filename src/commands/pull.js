@@ -1,4 +1,4 @@
-// src/commands/pull.js - Main Pull Command (Lightweight)
+// src/commands/pull.js - Enhanced Pull Command
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getRandomFruit } = require('../data/devil-fruits');
 const DatabaseManager = require('../database/manager');
@@ -34,6 +34,8 @@ module.exports = {
             // Deduct berries
             await DatabaseManager.updateUserBerries(interaction.user.id, -totalCost, `${pullCount}x Pull`);
             const newBalance = balanceCheck.currentBalance - totalCost;
+
+            console.log(`💸 Removed ${totalCost} berries. New balance: ${newBalance}`);
 
             // Run animation
             if (pullCount === 1) {
