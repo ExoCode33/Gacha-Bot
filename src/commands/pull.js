@@ -94,10 +94,10 @@ module.exports = {
 
     async startImprovedAnimation(interaction, targetFruit, newBalance) {
         try {
-            const frameDelay = 900; // 0.9 seconds per frame (1 second longer total)
+            const frameDelay = 900; // 0.9 seconds per frame
             const animationFrames = 4; // 4 animation frames
             const outwardFrames = 10; // 10 frames for outward color spread
-            const textRevealFrames = 6; // 6 frames for text reveal
+            const textRevealFrames = 8; // 8 frames for text reveal (removed category)
 
             // Phase 1: Rainbow Hunt Animation (3.2 seconds)
             let currentFrame = 0;
@@ -143,8 +143,8 @@ module.exports = {
                 };
             }
 
-            // Phase 4: Progressive Text Reveal (4.5 seconds) - More frames for more fields
-            for (let textFrame = 0; textFrame < 9; textFrame++) {
+            // Phase 4: Progressive Text Reveal (4 seconds) - Adjusted for 8 fields
+            for (let textFrame = 0; textFrame < 8; textFrame++) {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, result, newBalance);
                 await interaction.editReply({ embeds: [textEmbed] });
@@ -393,8 +393,8 @@ module.exports = {
             // Use the best fruit's result for animation
             const bestResult = results[0] || { duplicate_count: 1, total_cp: 250 };
 
-            // Phase 4: Progressive Text Reveal for best fruit
-            for (let textFrame = 0; textFrame < 9; textFrame++) {
+            // Phase 4: Progressive Text Reveal for best fruit (4 seconds)
+            for (let textFrame = 0; textFrame < 8; textFrame++) {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 const textEmbed = this.createTextRevealFrame(textFrame, bestFruit, rewardColor, rewardEmoji, bestResult, newBalance);
                 await interaction.editReply({ embeds: [textEmbed] });
@@ -563,8 +563,8 @@ module.exports = {
             };
         }
 
-        // Phase 4: Progressive Text Reveal (4.5 seconds)
-        for (let textFrame = 0; textFrame < 9; textFrame++) {
+        // Phase 4: Progressive Text Reveal (4 seconds)
+        for (let textFrame = 0; textFrame < 8; textFrame++) {
             await new Promise(resolve => setTimeout(resolve, 500));
             const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, result, newBalance);
             await buttonInteraction.editReply({ embeds: [textEmbed] });
@@ -681,16 +681,16 @@ module.exports = {
         const embedColor = this.getEmbedColorSyncedToFirst(frame);
         const description = HUNT_DESCRIPTIONS[frame] || HUNT_DESCRIPTIONS[HUNT_DESCRIPTIONS.length - 1];
         
-        // Show final layout but with ??? hiding the information
+        // Show final layout but with ??? hiding the information - NEW ORDER
         const mysteriousInfo = `✨ **Devil Fruit Discovered!** ✨\n\n${rainbowPattern}\n\n` +
+            `📊 **Status:** ???\n` +
             `🍃 **Name:** ???\n` +
             `🔮 **Type:** ???\n` +
             `⭐ **Rarity:** ???\n` +
             `💪 **CP Multiplier:** ???\n` +
-            `🌊 **Category:** ???\n` +
-            `📊 **Status:** ???\n` +
             `⚡ **Power:** ???\n` +
-            `🎯 **Total CP:** ???\n` +
+            `🎯 **Abilities:** ???\n` +
+            `🔥 **Total CP:** ???\n` +
             `💰 **Remaining Berries:** ???\n\n` +
             `${rainbowPattern}`;
 
@@ -742,16 +742,16 @@ module.exports = {
         const rainbowColor = 0x9932CC; // Purple from rainbow
         const embedColor = this.blendColors(rainbowColor, rewardColor, blendRatio);
 
-        // Show final layout but still with ??? during color spread
+        // Show final layout but still with ??? during color spread - NEW ORDER
         const mysteriousInfo = `✨ **Devil Fruit Discovered!** ✨\n\n${pattern}\n\n` +
+            `📊 **Status:** ???\n` +
             `🍃 **Name:** ???\n` +
             `🔮 **Type:** ???\n` +
             `⭐ **Rarity:** ???\n` +
             `💪 **CP Multiplier:** ???\n` +
-            `🌊 **Category:** ???\n` +
-            `📊 **Status:** ???\n` +
             `⚡ **Power:** ???\n` +
-            `🎯 **Total CP:** ???\n` +
+            `🎯 **Abilities:** ???\n` +
+            `🔥 **Total CP:** ???\n` +
             `💰 **Remaining Berries:** ???\n\n` +
             `${pattern}`;
 
@@ -772,19 +772,26 @@ module.exports = {
         const duplicateText = isNewDiscovery ? '✨ New Discovery!' : `📚 Total Owned: ${duplicateCount}`;
         const totalCp = result.total_cp || result.totalCp || 250;
         
+        // Get ability details from balanced abilities system
+        const { balancedDevilFruitAbilities } = require('../data/balanced-devil-fruit-abilities');
+        const ability = balancedDevilFruitAbilities[targetFruit.name];
+        const abilityText = ability ? 
+            `${ability.name} (${ability.damage} dmg, ${ability.cooldown}cd)` : 
+            'Basic Devil Fruit Power';
+        
         // Progressive text reveal with better formatting and spacing
         let description = `✨ **Devil Fruit Acquired!** ✨\n\n${rewardBar}\n\n`;
         
-        // Reveal fields one by one with consistent formatting
-        description += `🍃 **Name:** ${textFrame >= 0 ? targetFruit.name : '???'}\n`;
-        description += `🔮 **Type:** ${textFrame >= 1 ? targetFruit.type : '???'}\n`;
-        description += `⭐ **Rarity:** ${textFrame >= 2 ? targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1) : '???'}\n`;
-        description += `💪 **CP Multiplier:** ${textFrame >= 3 ? `${targetFruit.multiplier}x` : '???'}\n`;
-        description += `🌊 **Category:** ${textFrame >= 4 ? (targetFruit.category || 'Unknown') : '???'}\n`;
-        description += `📊 **Status:** ${textFrame >= 5 ? duplicateText : '???'}\n`;
-        description += `⚡ **Power:** ${textFrame >= 6 ? targetFruit.power : '???'}\n`;
-        description += `🎯 **Total CP:** ${textFrame >= 7 ? `${totalCp.toLocaleString()} CP` : '???'}\n`;
-        description += `💰 **Remaining Berries:** ${textFrame >= 8 ? `${newBalance.toLocaleString()} berries` : '???'}\n\n`;
+        // NEW REVEAL ORDER - Status first, berries always visible
+        description += `📊 **Status:** ${textFrame >= 0 ? duplicateText : '???'}\n`;
+        description += `🍃 **Name:** ${textFrame >= 1 ? targetFruit.name : '???'}\n`;
+        description += `🔮 **Type:** ${textFrame >= 2 ? targetFruit.type : '???'}\n`;
+        description += `⭐ **Rarity:** ${textFrame >= 3 ? targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1) : '???'}\n`;
+        description += `💪 **CP Multiplier:** ${textFrame >= 4 ? `${targetFruit.multiplier}x` : '???'}\n`;
+        description += `⚡ **Power:** ${textFrame >= 5 ? targetFruit.power : '???'}\n`;
+        description += `🎯 **Abilities:** ${textFrame >= 6 ? abilityText : '???'}\n`;
+        description += `🔥 **Total CP:** ${textFrame >= 7 ? `${totalCp.toLocaleString()} CP` : '???'}\n`;
+        description += `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries\n\n`; // Always visible
         
         description += `${rewardBar}`;
 
@@ -808,15 +815,22 @@ module.exports = {
         // Use the total CP from database result - handle both formats
         const totalCp = result.total_cp || result.totalCp || 250;
 
+        // Get ability details from balanced abilities system
+        const { balancedDevilFruitAbilities } = require('../data/balanced-devil-fruit-abilities');
+        const ability = balancedDevilFruitAbilities[targetFruit.name];
+        const abilityText = ability ? 
+            `${ability.name} (${ability.damage} dmg, ${ability.cooldown}cd)` : 
+            'Basic Devil Fruit Power';
+
         const description = `🎉 **Congratulations!** You've obtained a magnificent Devil Fruit!\n\n${rewardBar}\n\n` +
+            `📊 **Status:** ${duplicateText}\n` +
             `🍃 **Name:** ${targetFruit.name}\n` +
             `🔮 **Type:** ${targetFruit.type}\n` +
             `⭐ **Rarity:** ${targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1)}\n` +
             `💪 **CP Multiplier:** ${targetFruit.multiplier}x\n` +
-            `🌊 **Category:** ${targetFruit.category || 'Unknown'}\n` +
-            `📊 **Status:** ${duplicateText}\n` +
             `⚡ **Power:** ${targetFruit.power}\n` +
-            `🎯 **Total CP:** ${totalCp.toLocaleString()} CP\n` +
+            `🎯 **Abilities:** ${abilityText}\n` +
+            `🔥 **Total CP:** ${totalCp.toLocaleString()} CP\n` +
             `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries\n\n` +
             `${rewardBar}`;
 
