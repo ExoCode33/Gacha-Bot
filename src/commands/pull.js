@@ -72,7 +72,7 @@ module.exports = {
     },
 
     async startImprovedAnimation(interaction, targetFruit, newBalance) {
-        const frameDelay = 800; // 0.8 seconds per frame (much faster!)
+        const frameDelay = 800; // 0.8 seconds per frame
         const animationFrames = 4; // 4 animation frames
         const transitionFrames = 3; // 3 transition frames for outward reveal
         
@@ -100,17 +100,14 @@ module.exports = {
                 const embed = this.createTransitionFrame(transFrame, targetFruit, rewardColor, rewardEmoji);
                 
                 await interaction.editReply({ embeds: [embed] });
-                await new Promise(resolve => setTimeout(resolve, 600)); // Slightly faster transition
+                await new Promise(resolve => setTimeout(resolve, 600));
             }
             
-            // Brief pause before final reveal
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Save fruit to database
+            // NOW save to database AFTER the visual reveal is complete
             console.log(`💾 Saving fruit to database: ${targetFruit.name}`);
             const result = await DatabaseManager.addDevilFruit(interaction.user.id, targetFruit);
             
-            // Calculate user stats for final reveal
+            // Calculate user stats for progressive reveal
             const userStats = {
                 duplicateCount: result.duplicateCount,
                 isNewFruit: result.isNewFruit,
@@ -118,7 +115,22 @@ module.exports = {
                 newBalance: newBalance
             };
             
-            // Final reveal with enhanced embed
+            // Phase 3: Progressive information reveal (3 frames, 1.8 seconds)
+            for (let infoFrame = 0; infoFrame < 3; infoFrame++) {
+                const embed = this.createInfoRevealFrame(infoFrame, targetFruit, userStats, newBalance, rewardColor, rewardEmoji);
+                
+                await interaction.editReply({ embeds: [embed] });
+                
+                // Don't wait after the last frame
+                if (infoFrame < 2) {
+                    await new Promise(resolve => setTimeout(resolve, 600));
+                }
+            }
+            
+            // Brief pause before final reveal with buttons
+            await new Promise(resolve => setTimeout(resolve, 400));
+            
+            // Final reveal with buttons
             console.log(`🎊 Final reveal: ${targetFruit.name}`);
             
             const finalEmbed = await this.createFinalRevealEmbed(targetFruit, userStats, newBalance);
@@ -239,41 +251,23 @@ module.exports = {
         
         const transitionTexts = [
             "💎 The Devil Fruit's power materializes into reality...",
-            "🌟 Your legend as a Devil Fruit user begins this moment...",
-            "🏴‍☠️ The Grand Line grants you a power beyond imagination!"
+            "🌟 Legendary energy crystallizing before your eyes...",
+            "🏴‍☠️ The Grand Line reveals its mysterious gift!"
         ];
         
         const description = transitionTexts[Math.min(transFrame, transitionTexts.length - 1)];
         
-        // Show partial fruit info as it reveals
-        let statusDisplay;
-        if (transFrame === 0) {
-            statusDisplay = [
-                `🍈 **Devil Fruit:** ${targetFruit.name}`,
-                `⭐ **Rarity Level:** ${targetFruit.rarity.toUpperCase()}`,
-                `🌟 **Power Class:** TRANSCENDENT`
-            ].join('\n');
-        } else if (transFrame === 1) {
-            statusDisplay = [
-                `🍈 **Devil Fruit:** ${targetFruit.name}`,
-                `⭐ **Rarity Level:** ${targetFruit.rarity.toUpperCase()}`,
-                `🌟 **Fruit Type:** ${targetFruit.type.toUpperCase()}`,
-                `🔥 **CP Multiplier:** ${(targetFruit.multiplier || 1.0).toFixed(2)}x`
-            ].join('\n');
-        } else {
-            statusDisplay = [
-                `🍈 **Devil Fruit:** ${targetFruit.name}`,
-                `⭐ **Rarity Level:** ${targetFruit.rarity.toUpperCase()}`,
-                `🌟 **Fruit Type:** ${targetFruit.type.toUpperCase()}`,
-                `🔥 **CP Multiplier:** ${(targetFruit.multiplier || 1.0).toFixed(2)}x`,
-                `🎯 **Power:** ${targetFruit.power ? targetFruit.power.substring(0, 50) + '...' : 'Mysterious power...'}`
-            ].join('\n');
-        }
+        // NO detailed fruit info during transition - keep it mysterious
+        const statusDisplay = [
+            `🍈 **DEVIL FRUIT DISCOVERED**`,
+            `⭐ **Analyzing Power Signature...**`,
+            `🌟 **Classification In Progress...**`
+        ].join('\n');
         
         const content = [
             `${transitionBar}`,
             "",
-            `💎 **LEGENDARY MANIFESTATION SEQUENCE** 💎`,
+            `💎 **LEGENDARY MANIFESTATION** 💎`,
             "",
             statusDisplay,
             "",
@@ -291,9 +285,91 @@ module.exports = {
         
         return new EmbedBuilder()
             .setColor(blendedColor)
-            .setTitle("💎 Devil Fruit Hunt - Manifestation Phase")
+            .setTitle("💎 Devil Fruit Hunt - Power Crystallizing")
             .setDescription(content)
-            .setFooter({ text: "💎 Power crystallizing..." })
+            .setFooter({ text: "💎 Manifestation completing..." })
+            .setTimestamp();
+    },
+
+    createInfoRevealFrame(infoFrame, targetFruit, userStats, newBalance, rewardColor, rewardEmoji) {
+        const rewardBar = Array(20).fill(rewardEmoji).join(' ');
+        
+        const rarityTitles = {
+            common: "Common Discovery",
+            uncommon: "Uncommon Treasure",
+            rare: "Rare Artifact", 
+            epic: "Epic Legend",
+            legendary: "Legendary Relic",
+            mythical: "Mythical Wonder",
+            omnipotent: "Omnipotent Force"
+        };
+        
+        const typeEmojis = {
+            'Paramecia': '🔮',
+            'Zoan': '🐺', 
+            'Logia': '🌪️',
+            'Ancient Zoan': '🦕',
+            'Mythical Zoan': '🐉',
+            'Special Paramecia': '✨'
+        };
+        
+        // Progressive information reveal
+        let infoContent = [
+            `${rewardBar}`,
+            "",
+            `🎉 **${rarityTitles[targetFruit.rarity] || 'Mysterious Discovery'}**`,
+            ""
+        ];
+        
+        // Frame 0: Basic info
+        if (infoFrame >= 0) {
+            infoContent.push(
+                `🍈 **${targetFruit.name}**`,
+                `${typeEmojis[targetFruit.type] || '🍈'} **Type:** ${targetFruit.type}`,
+                `⭐ **Rarity:** ${targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1)}`
+            );
+        }
+        
+        // Frame 1: Add power stats
+        if (infoFrame >= 1) {
+            infoContent.push(
+                `🔥 **CP Multiplier:** ${(targetFruit.multiplier || 1.0).toFixed(2)}x`,
+                `🌟 **Category:** ${targetFruit.fruitType || 'Unknown'}`
+            );
+        }
+        
+        // Frame 2: Add duplicate info and power description
+        if (infoFrame >= 2) {
+            const duplicateCount = userStats.duplicateCount || 1;
+            const duplicateInfo = duplicateCount > 1 ? 
+                `🔄 **Duplicate #${duplicateCount}** (+${((duplicateCount - 1) * 1).toFixed(0)}% CP Bonus!)` : 
+                `✨ **New Discovery!** First time obtaining this fruit!`;
+            
+            infoContent.push(
+                "",
+                duplicateInfo,
+                "",
+                `📖 **Power Description:**`,
+                `*${targetFruit.power || 'A mysterious power awaits discovery...'}*`,
+                "",
+                `💰 **New Balance:** ${newBalance.toLocaleString()} berries`,
+                `🎯 **Total Owned:** ${duplicateCount}`
+            );
+        }
+        
+        infoContent.push("", `${rewardBar}`);
+        
+        const footerTexts = [
+            "🌊 Devil Fruit identified!",
+            "🌊 Power analysis complete!",
+            "🌊 Your legend grows stronger!"
+        ];
+        
+        return new EmbedBuilder()
+            .setColor(rewardColor)
+            .setTitle(userStats.isNewFruit ? "🏴‍☠️ New Devil Fruit Discovered!" : "🏴‍☠️ Devil Fruit Enhanced!")
+            .setDescription(infoContent.join('\n'))
+            .setFooter({ text: footerTexts[Math.min(infoFrame, footerTexts.length - 1)] })
             .setTimestamp();
     },
 
