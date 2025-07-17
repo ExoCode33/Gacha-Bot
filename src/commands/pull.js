@@ -1,4 +1,4 @@
-// src/commands/pull.js - Complete Pull Command with Mystery Layout
+// src/commands/pull.js - Complete Pull Command with Mystery Layout (FIXED)
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getRandomFruit, getRarityColor, getRarityEmoji } = require('../data/devil-fruits');
 const DatabaseManager = require('../database/manager');
@@ -315,7 +315,7 @@ module.exports = {
         }
 
         // Deduct berries
-        await DatabaseManager.updateUserBerries(userId, guildId, -totalCost);
+        await DatabaseManager.updateUserBerries(userId, -totalCost, '10x Pull');
         const newBalance = userStats.berries - totalCost;
 
         // Show animation for best fruit
@@ -512,6 +512,8 @@ module.exports = {
             throw error;
         }
     },
+
+    async startButtonAnimation(buttonInteraction, targetFruit, newBalance) {
         // Same full animation as regular pull but for button interactions
         const frameDelay = 900; // Match main animation timing
         const animationFrames = 4;
