@@ -1,4 +1,4 @@
-// src/commands/pull.js - Restored Original Animation Layout
+// src/commands/pull.js - Complete Pull Command with Mystery Layout
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getRandomFruit, getRarityColor, getRarityEmoji } = require('../data/devil-fruits');
 const DatabaseManager = require('../database/manager');
@@ -90,7 +90,7 @@ module.exports = {
             
             let result;
             try {
-                result = await DatabaseManager.addDevilFruit(interaction.user.id, interaction.guild.id, targetFruit);
+                result = await DatabaseManager.addDevilFruit(interaction.user.id, targetFruit);
             } catch (dbError) {
                 console.error('Error adding devil fruit:', dbError);
                 // Fallback result
@@ -266,7 +266,7 @@ module.exports = {
             try {
                 // Save all fruits to database
                 for (const fruit of fruits) {
-                    await DatabaseManager.addDevilFruit(userId, guildId, fruit);
+                    await DatabaseManager.addDevilFruit(userId, fruit);
                 }
 
                 // Create summary embed
@@ -314,7 +314,7 @@ module.exports = {
         }
 
         // Phase 3: Save to database
-        const result = await DatabaseManager.addDevilFruit(buttonInteraction.user.id, buttonInteraction.guild.id, targetFruit);
+        const result = await DatabaseManager.addDevilFruit(buttonInteraction.user.id, targetFruit);
 
         // Phase 4: Progressive Text Reveal (4.5 seconds)
         for (let textFrame = 0; textFrame < 9; textFrame++) {
@@ -425,10 +425,23 @@ module.exports = {
         const rainbowPattern = this.getSyncedRainbowPattern(frame);
         const embedColor = this.getEmbedColorSyncedToFirst(frame);
         const description = HUNT_DESCRIPTIONS[frame] || HUNT_DESCRIPTIONS[HUNT_DESCRIPTIONS.length - 1];
+        
+        // Show final layout but with ??? hiding the information
+        const mysteriousInfo = `✨ **Devil Fruit Discovered!** ✨\n\n${rainbowPattern}\n\n` +
+            `🍃 **Name:** ???\n` +
+            `🔮 **Type:** ???\n` +
+            `⭐ **Rarity:** ???\n` +
+            `💪 **CP Multiplier:** ???\n` +
+            `🌊 **Category:** ???\n` +
+            `📊 **Status:** ???\n` +
+            `⚡ **Power:** ???\n` +
+            `🎯 **Total CP:** ???\n` +
+            `💰 **Remaining Berries:** ???\n\n` +
+            `${rainbowPattern}`;
 
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
-            .setDescription(`${description}\n\n${rainbowPattern}\n\n${rainbowPattern}`)
+            .setDescription(`${description}\n\n${mysteriousInfo}`)
             .setColor(embedColor)
             .setFooter({ text: '🌊 Searching the mysterious seas...' });
     },
@@ -466,9 +479,22 @@ module.exports = {
         const rainbowColor = 0x9932CC; // Purple from rainbow
         const embedColor = this.blendColors(rainbowColor, rewardColor, blendRatio);
 
+        // Show final layout but still with ??? during color spread
+        const mysteriousInfo = `✨ **Devil Fruit Discovered!** ✨\n\n${pattern}\n\n` +
+            `🍃 **Name:** ???\n` +
+            `🔮 **Type:** ???\n` +
+            `⭐ **Rarity:** ???\n` +
+            `💪 **CP Multiplier:** ???\n` +
+            `🌊 **Category:** ???\n` +
+            `📊 **Status:** ???\n` +
+            `⚡ **Power:** ???\n` +
+            `🎯 **Total CP:** ???\n` +
+            `💰 **Remaining Berries:** ???\n\n` +
+            `${pattern}`;
+
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
-            .setDescription(`🔮 Mysterious power manifesting...\n\n${pattern}\n\n${pattern}`)
+            .setDescription(`🔮 Mysterious power manifesting...\n\n${mysteriousInfo}`)
             .setColor(embedColor)
             .setFooter({ text: '⚡ Power crystallizing...' });
     },
@@ -487,15 +513,15 @@ module.exports = {
         let description = `✨ **Devil Fruit Acquired!** ✨\n\n${rewardBar}\n\n`;
         
         // Reveal fields one by one with consistent formatting
-        description += `**Name:** ${textFrame >= 0 ? targetFruit.name : '???'}\n\n`;
-        description += `**Type:** ${textFrame >= 1 ? targetFruit.type : '???'}\n\n`;
-        description += `**Rarity:** ${textFrame >= 2 ? targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1) : '???'}\n\n`;
-        description += `**CP Multiplier:** ${textFrame >= 3 ? `${targetFruit.multiplier}x` : '???'}\n\n`;
-        description += `**Category:** ${textFrame >= 4 ? (targetFruit.category || 'Unknown') : '???'}\n\n`;
-        description += `**Status:** ${textFrame >= 5 ? duplicateText : '???'}\n\n`;
-        description += `**Power:** ${textFrame >= 6 ? targetFruit.power : '???'}\n\n`;
-        description += `**Total CP:** ${textFrame >= 7 ? `${totalCp.toLocaleString()} CP` : '???'}\n\n`;
-        description += `**Remaining Berries:** ${textFrame >= 8 ? `${newBalance.toLocaleString()} berries` : '???'}\n\n`;
+        description += `🍃 **Name:** ${textFrame >= 0 ? targetFruit.name : '???'}\n`;
+        description += `🔮 **Type:** ${textFrame >= 1 ? targetFruit.type : '???'}\n`;
+        description += `⭐ **Rarity:** ${textFrame >= 2 ? targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1) : '???'}\n`;
+        description += `💪 **CP Multiplier:** ${textFrame >= 3 ? `${targetFruit.multiplier}x` : '???'}\n`;
+        description += `🌊 **Category:** ${textFrame >= 4 ? (targetFruit.category || 'Unknown') : '???'}\n`;
+        description += `📊 **Status:** ${textFrame >= 5 ? duplicateText : '???'}\n`;
+        description += `⚡ **Power:** ${textFrame >= 6 ? targetFruit.power : '???'}\n`;
+        description += `🎯 **Total CP:** ${textFrame >= 7 ? `${totalCp.toLocaleString()} CP` : '???'}\n`;
+        description += `💰 **Remaining Berries:** ${textFrame >= 8 ? `${newBalance.toLocaleString()} berries` : '???'}\n\n`;
         
         description += `${rewardBar}`;
 
