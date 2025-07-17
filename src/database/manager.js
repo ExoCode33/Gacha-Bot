@@ -1,4 +1,4 @@
-// src/database/manager.js - Database Manager v2.2 - Fixed exports
+// src/database/manager.js - Database Manager v2.3 - Fixed CP Integer Handling
 const { Pool } = require('pg');
 
 class DatabaseManager {
@@ -237,13 +237,14 @@ class DatabaseManager {
                 totalCp += fruitCp;
             });
             
-            // Update user's total CP
+            // Update user's total CP (ensure it's an integer)
+            const finalTotalCp = Math.floor(totalCp);
             await this.query(
                 `UPDATE users SET total_cp = $2, updated_at = NOW() WHERE user_id = $1`,
-                [userId, Math.floor(totalCp)]
+                [userId, finalTotalCp]
             );
             
-            return Math.floor(totalCp);
+            return finalTotalCp;
             
         } catch (error) {
             console.error('Error recalculating user CP:', error);
@@ -251,9 +252,12 @@ class DatabaseManager {
         }
     }
 
-    // Devil Fruit management - Updated for new structure
+    // Devil Fruit management - Fixed CP integer handling
     async addDevilFruit(userId, fruitData) {
         try {
+            console.log(`💾 Adding fruit: ${fruitData.name} for user ${userId}`);
+            console.log(`💾 Fruit data:`, fruitData);
+            
             // Check if user already has this fruit
             const existing = await this.query(
                 `SELECT * FROM user_devil_fruits 
@@ -274,11 +278,37 @@ class DatabaseManager {
             const user = await this.getUser(userId);
             const baseCp = user.base_cp;
             
-            // Store multiplier as integer (multiply by 100)
-            const multiplierAsInt = Math.floor((fruitData.multiplier || 1.0) * 100);
-            const totalCp = baseCp * (fruitData.multiplier || 1.0);
+            // Ensure multiplier is a valid number
+            const multiplier = parseFloat(fruitData.multiplier) || 1.0;
+            console.log(`💾 Multiplier: ${multiplier}`);
             
-            // Add the fruit with both element (legacy) and fruitType (new)
+            // Store multiplier as integer (multiply by 100) - ENSURE IT'S AN INTEGER
+            const multiplierAsInt = Math.floor(multiplier * 100);
+            console.log(`💾 Multiplier as int: ${multiplierAsInt}`);
+            
+            // Calculate total CP - ENSURE IT'S AN INTEGER
+            const totalCp = Math.floor(baseCp * multiplier);
+            console.log(`💾 Total CP: ${totalCp}`);
+            
+            // Prepare all values and ensure they're the correct type
+            const insertValues = [
+                userId, // $1
+                fruitData.id || 'unknown_fruit', // $2
+                fruitData.name || 'Unknown Fruit', // $3
+                fruitData.type || 'Paramecia', // $4
+                fruitData.rarity || 'common', // $5
+                fruitData.element || fruitData.fruitType || 'Unknown', // $6
+                fruitData.fruitType || 'Unknown', // $7
+                fruitData.power || 'Unknown power', // $8
+                fruitData.description || fruitData.power || 'Unknown power', // $9
+                multiplierAsInt, // $10 - INTEGER
+                duplicateCount, // $11 - INTEGER
+                totalCp // $12 - INTEGER
+            ];
+            
+            console.log(`💾 Insert values:`, insertValues);
+            
+            // Add the fruit with all properly typed values
             const result = await this.query(
                 `INSERT INTO user_devil_fruits (
                     user_id, fruit_id, fruit_name, fruit_type, fruit_rarity, 
@@ -286,12 +316,10 @@ class DatabaseManager {
                     duplicate_count, total_cp, obtained_at
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
                  RETURNING *`,
-                [userId, fruitData.id, fruitData.name, fruitData.type, fruitData.rarity,
-                 fruitData.element || fruitData.fruitType || 'Unknown', 
-                 fruitData.fruitType || 'Unknown', 
-                 fruitData.power, fruitData.description || fruitData.power, 
-                 multiplierAsInt, duplicateCount, totalCp]
+                insertValues
             );
+            
+            console.log(`💾 Insert result:`, result.rows[0]);
             
             // Recalculate user's total CP
             const newTotalCp = await this.recalculateUserCP(userId);
@@ -305,6 +333,7 @@ class DatabaseManager {
             
         } catch (error) {
             console.error('Error adding devil fruit:', error);
+            console.error('Fruit data that caused error:', fruitData);
             throw error;
         }
     }
@@ -382,10 +411,13 @@ class DatabaseManager {
     // Income tracking
     async recordIncome(userId, amount, cpAtTime, incomeType = 'automatic') {
         try {
+            // Ensure cpAtTime is an integer
+            const cpAtTimeInt = Math.floor(cpAtTime);
+            
             await this.query(
                 `INSERT INTO income_history (user_id, amount, cp_at_time, income_type, created_at)
                  VALUES ($1, $2, $3, $4, NOW())`,
-                [userId, amount, cpAtTime, incomeType]
+                [userId, amount, cpAtTimeInt, incomeType]
             );
             
             // Update last income time
