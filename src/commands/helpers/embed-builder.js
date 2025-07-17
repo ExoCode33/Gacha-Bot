@@ -1,4 +1,4 @@
-// src/commands/helpers/embed-builder.js - Embed Creator (Lightweight)
+// src/commands/helpers/embed-builder.js - Embed Creator
 const { EmbedBuilder } = require('discord.js');
 const { getRarityColor, getRarityEmoji } = require('../../data/devil-fruits');
 
