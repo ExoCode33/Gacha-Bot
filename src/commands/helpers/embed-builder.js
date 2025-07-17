@@ -34,9 +34,22 @@ class EmbedCreator {
         const color = this.getRainbowColor(frame);
         const description = HUNT_DESCRIPTIONS[frame] || HUNT_DESCRIPTIONS[3];
         
+        // Show FULL layout from the start, but everything is ???
+        const mysteriousInfo = `✨ **Devil Fruit Hunt in Progress** ✨\n\n${pattern}\n\n` +
+            `📊 **Status:** ???\n` +
+            `🍃 **Name:** ???\n` +
+            `🔮 **Type:** ???\n` +
+            `⭐ **Rarity:** ???\n` +
+            `💪 **CP Multiplier:** ???\n` +
+            `⚡ **Power:** ???\n` +
+            `🎯 **Abilities:** ???\n\n` +
+            `🔥 **Total CP:** ???\n` +
+            `💰 **Remaining Berries:** ???\n\n` +
+            `${pattern}`;
+        
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
-            .setDescription(`${description}\n\n✨ **Devil Fruit Hunt in Progress** ✨\n\n${pattern}\n\n📊 **Status:** Scanning...\n🍃 **Name:** ???\n🔮 **Type:** ???\n⭐ **Rarity:** ???\n💪 **CP Multiplier:** ???\n⚡ **Power:** ???\n\n${pattern}`)
+            .setDescription(`${description}\n\n${mysteriousInfo}`)
             .setColor(color)
             .setFooter({ text: '🌊 Searching the mysterious seas...' });
     }
@@ -62,9 +75,22 @@ class EmbedCreator {
 
         const pattern = bar.join(' ');
         
+        // Show FULL layout during color spread too, still all ???
+        const mysteriousInfo = `✨ **Devil Fruit Manifestation** ✨\n\n${pattern}\n\n` +
+            `📊 **Status:** ???\n` +
+            `🍃 **Name:** ???\n` +
+            `🔮 **Type:** ???\n` +
+            `⭐ **Rarity:** ???\n` +
+            `💪 **CP Multiplier:** ???\n` +
+            `⚡ **Power:** ???\n` +
+            `🎯 **Abilities:** ???\n\n` +
+            `🔥 **Total CP:** ???\n` +
+            `💰 **Remaining Berries:** ???\n\n` +
+            `${pattern}`;
+        
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
-            .setDescription(`🔮 Mysterious power manifesting...\n\n✨ **Devil Fruit Manifestation** ✨\n\n${pattern}\n\n📊 **Status:** Crystallizing...\n🍃 **Name:** ???\n🔮 **Type:** ???\n⭐ **Rarity:** ???\n💪 **CP Multiplier:** ???\n⚡ **Power:** ???\n\n${pattern}`)
+            .setDescription(`🔮 Mysterious power manifesting...\n\n${mysteriousInfo}`)
             .setColor(rewardColor)
             .setFooter({ text: '⚡ Power crystallizing...' });
     }
@@ -76,7 +102,7 @@ class EmbedCreator {
         const duplicateText = duplicateCount === 1 ? '✨ New Discovery!' : `📚 Total Owned: ${duplicateCount}`;
         const totalCp = result.total_cp || 250;
         
-        // Get ability details - show progression: ??? -> detailed info -> Analysis complete
+        // Get ability details - show progression: ??? -> basic name -> detailed info -> Analysis complete
         let abilityText = '???';
         if (frame === 6) {
             // Frame 6: Show basic ability name
@@ -90,6 +116,7 @@ class EmbedCreator {
             abilityText = 'Analysis complete';
         }
         
+        // Show COMPLETE layout with progressive reveals
         let description = `✨ **Devil Fruit Acquired!** ✨\n\n${pattern}\n\n`;
         description += `📊 **Status:** ${frame >= 0 ? duplicateText : '???'}\n`;
         description += `🍃 **Name:** ${frame >= 1 ? fruit.name : '???'}\n`;
@@ -99,7 +126,8 @@ class EmbedCreator {
         description += `⚡ **Power:** ${frame >= 5 ? fruit.power : '???'}\n`;
         description += `🎯 **Abilities:** ${abilityText}\n\n`;
         description += `🔥 **Total CP:** ${frame >= 7 ? `${totalCp.toLocaleString()} CP` : '???'}\n`;
-        description += `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries\n\n${pattern}`;
+        description += `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries\n\n`;
+        description += `${pattern}`;
 
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
