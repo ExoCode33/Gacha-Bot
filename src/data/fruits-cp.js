@@ -51,8 +51,10 @@ const FRUIT_CP_MULTIPLIERS = {
     'fruit_048': 1.3, // Mini Mini no Mi
     'fruit_049': 1.4, // Ton Ton no Mi
     'fruit_050': 1.5, // Mero Mero no Mi
+};
 
-    // UNCOMMON FRUITS (1.5x - 2.5x)
+// UNCOMMON FRUITS (1.5x - 2.5x)
+const UNCOMMON_FRUITS = {
     'fruit_051': 2.5, // Gomu Gomu no Mi
     'fruit_052': 2.1, // Hana Hana no Mi
     'fruit_053': 2.3, // Bari Bari no Mi
@@ -78,8 +80,10 @@ const FRUIT_CP_MULTIPLIERS = {
     'fruit_073': 2.2, // Ryu Ryu no Mi, Model: Pachycephalosaurus
     'fruit_074': 2.3, // Ryu Ryu no Mi, Model: Saber-tooth Tiger
     'fruit_075': 2.1, // Kumo Kumo no Mi, Model: Rosamygale Grauvogeli
+};
 
-    // RARE FRUITS (2.5x - 4.0x)
+// RARE FRUITS (2.5x - 4.0x)
+const RARE_FRUITS = {
     'fruit_076': 3.2, // Moku Moku no Mi
     'fruit_077': 3.8, // Mera Mera no Mi
     'fruit_078': 3.5, // Suna Suna no Mi
@@ -105,8 +109,10 @@ const FRUIT_CP_MULTIPLIERS = {
     'fruit_098': 3.1, // Chi Chi no Mi
     'fruit_099': 3.2, // Kori Kori no Mi
     'fruit_100': 3.8, // Mizu Mizu no Mi
+};
 
-    // EPIC FRUITS (4.0x - 6.0x)
+// EPIC FRUITS (4.0x - 6.0x)
+const EPIC_FRUITS = {
     'fruit_101': 5.8, // Hito Hito no Mi, Model: Daibutsu
     'fruit_102': 5.5, // Zushi Zushi no Mi
     'fruit_103': 5.7, // Nikyu Nikyu no Mi
@@ -122,8 +128,10 @@ const FRUIT_CP_MULTIPLIERS = {
     'fruit_113': 5.6, // Sei Sei no Mi
     'fruit_114': 5.4, // Kokoro Kokoro no Mi
     'fruit_115': 5.8, // Gensou Gensou no Mi
+};
 
-    // LEGENDARY FRUITS (6.0x - 8.0x)
+// LEGENDARY FRUITS (6.0x - 8.0x)
+const LEGENDARY_FRUITS = {
     'fruit_116': 8.0, // Uo Uo no Mi, Model: Seiryu
     'fruit_117': 7.5, // Inu Inu no Mi, Model: Okuchi no Makami
     'fruit_118': 7.8, // Hebi Hebi no Mi, Model: Yamata-no-Orochi
@@ -139,8 +147,10 @@ const FRUIT_CP_MULTIPLIERS = {
     'fruit_128': 7.5, // Akuma Akuma no Mi
     'fruit_129': 7.6, // Tenshi Tenshi no Mi
     'fruit_130': 7.9, // Ryuu Ryuu no Mi, Model: Eastern Dragon
+};
 
-    // MYTHICAL FRUITS (8.0x - 10.0x)
+// MYTHICAL FRUITS (8.0x - 10.0x)
+const MYTHICAL_FRUITS = {
     'fruit_131': 10.0, // Hito Hito no Mi, Model: Nika
     'fruit_132': 9.5, // Hito Hito no Mi, Model: Raijin
     'fruit_133': 9.7, // Hito Hito no Mi, Model: Susanoo
@@ -156,14 +166,28 @@ const FRUIT_CP_MULTIPLIERS = {
     'fruit_143': 9.2, // Yuugou Yuugou no Mi
     'fruit_144': 9.3, // Bunretsu Bunretsu no Mi
     'fruit_145': 9.5, // Zouryoku Zouryoku no Mi
+};
 
-    // OMNIPOTENT FRUITS (10.0x - 12.0x)
+// OMNIPOTENT FRUITS (10.0x - 12.0x)
+const OMNIPOTENT_FRUITS = {
     'fruit_146': 12.0, // Kami Kami no Mi
     'fruit_147': 11.5, // Sekai Sekai no Mi
     'fruit_148': 11.8, // Uchuu Uchuu no Mi
     'fruit_149': 11.9, // Sonzai Sonzai no Mi
     'fruit_150': 11.7  // Subete Subete no Mi
 };
+
+// Combine all fruits into main multipliers object
+Object.assign(FRUIT_CP_MULTIPLIERS, UNCOMMON_FRUITS, RARE_FRUITS, EPIC_FRUITS, LEGENDARY_FRUITS, MYTHICAL_FRUITS, OMNIPOTENT_FRUITS);
+
+// Export fruit arrays for devil-fruits.js
+const commonFruits = Object.keys(FRUIT_CP_MULTIPLIERS).filter(id => parseInt(id.split('_')[1]) <= 50);
+const uncommonFruits = Object.keys(UNCOMMON_FRUITS);
+const rareFruits = Object.keys(RARE_FRUITS);
+const epicFruits = Object.keys(EPIC_FRUITS);
+const legendaryFruits = Object.keys(LEGENDARY_FRUITS);
+const mythicalFruits = Object.keys(MYTHICAL_FRUITS);
+const omnipotentFruits = Object.keys(OMNIPOTENT_FRUITS);
 
 // CP Ranges by rarity
 const CP_RANGES = {
@@ -289,6 +313,16 @@ function getCPTierDescription(cp) {
 }
 
 module.exports = {
+    // Fruit arrays for devil-fruits.js
+    commonFruits,
+    uncommonFruits,
+    rareFruits,
+    epicFruits,
+    legendaryFruits,
+    mythicalFruits,
+    omnipotentFruits,
+    
+    // CP system
     FRUIT_CP_MULTIPLIERS,
     CP_RANGES,
     getFruitCP,
