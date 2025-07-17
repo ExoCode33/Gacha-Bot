@@ -1,4 +1,4 @@
-// src/commands/pull.js - Complete Fixed Pull Command
+// src/commands/pull.js - Fixed Pull Command (Keeping Original Animation Layout)
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getRandomFruit, getRarityColor, getRarityEmoji } = require('../data/devil-fruits');
 const DatabaseManager = require('../database/manager');
@@ -56,36 +56,36 @@ module.exports = {
 
     async startImprovedAnimation(interaction, targetFruit, newBalance) {
         try {
-            const frameDelay = 800; // 0.8 seconds per frame
+            const frameDelay = 800; // 0.8 seconds per frame (much faster!)
             const animationFrames = 4; // 4 animation frames
             const outwardFrames = 10; // 10 frames for outward color spread
             const textRevealFrames = 6; // 6 frames for text reveal
 
-            // Phase 1: Rainbow Hunt Animation
+            // Phase 1: Rainbow Hunt Animation (3.2 seconds)
             let currentFrame = 0;
             const initialEmbed = this.createAnimationFrame(currentFrame, targetFruit, animationFrames);
             await interaction.reply({ embeds: [initialEmbed] });
 
             console.log(`🎯 Starting improved animation: ${targetFruit.name} (${targetFruit.rarity})`);
 
-            // Rainbow hunt frames
+            // Continue rainbow hunt frames
             for (currentFrame = 1; currentFrame < animationFrames; currentFrame++) {
                 await new Promise(resolve => setTimeout(resolve, frameDelay));
                 const frameEmbed = this.createAnimationFrame(currentFrame, targetFruit, animationFrames);
                 await interaction.editReply({ embeds: [frameEmbed] });
             }
 
-            // Phase 2: Outward Color Spread (Frozen Rainbow)
+            // Phase 2: Outward Color Spread (4 seconds) - Rainbow FREEZES
             const rewardColor = getRarityColor(targetFruit.rarity);
             const rewardEmoji = getRarityEmoji(targetFruit.rarity);
 
             for (let outFrame = 0; outFrame < outwardFrames; outFrame++) {
-                await new Promise(resolve => setTimeout(resolve, 400)); // Faster outward spread
+                await new Promise(resolve => setTimeout(resolve, 400)); // 0.4s per frame
                 const outwardEmbed = this.createOutwardColorFrame(outFrame, rewardColor, rewardEmoji);
                 await interaction.editReply({ embeds: [outwardEmbed] });
             }
 
-            // Phase 3: Save to database (silent)
+            // Phase 3: Save to database (silent, happens after outward reveal)
             const userStats = await DatabaseManager.getUser(interaction.user.id, interaction.guild.id);
             console.log(`💾 Saving fruit to database: ${targetFruit.name}`);
             
@@ -95,7 +95,7 @@ module.exports = {
                 console.error('Error adding devil fruit:', dbError);
             }
 
-            // Phase 4: Progressive Text Reveal
+            // Phase 4: Progressive Text Reveal (3 seconds)
             for (let textFrame = 0; textFrame < textRevealFrames; textFrame++) {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, userStats, newBalance);
@@ -214,7 +214,7 @@ module.exports = {
         const newBalance = userStats.berries - pullCost;
         const targetFruit = getRandomFruit();
 
-        // Start animation for button interaction
+        // Start full animation for button interaction
         await this.startButtonAnimation(buttonInteraction, targetFruit, newBalance);
     },
 
@@ -277,7 +277,7 @@ module.exports = {
     },
 
     async startButtonAnimation(buttonInteraction, targetFruit, newBalance) {
-        // Same animation as regular pull but for button interactions
+        // Same full animation as regular pull but for button interactions
         const frameDelay = 800;
         const animationFrames = 4;
         const outwardFrames = 10;
@@ -388,16 +388,6 @@ module.exports = {
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
             .setDescription(`${description}\n\n${rainbowPattern}`)
             .setColor(embedColor)
-            .addFields(
-                { name: '🍃 Fruit Name', value: '???', inline: true },
-                { name: '🔮 Type', value: '???', inline: true },
-                { name: '⭐ Rarity', value: '???', inline: true },
-                { name: '💪 CP Multiplier', value: '???', inline: true },
-                { name: '🌊 Category', value: '???', inline: true },
-                { name: '📊 Status', value: '???', inline: true },
-                { name: '⚡ Power', value: '???', inline: false },
-                { name: '💰 Berries', value: '???', inline: true }
-            )
             .setFooter({ text: '🌊 Searching the mysterious seas...' });
     },
 
@@ -438,16 +428,6 @@ module.exports = {
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
             .setDescription(`🔮 Mysterious power manifesting...\n\n${pattern}`)
             .setColor(embedColor)
-            .addFields(
-                { name: '🍃 Fruit Name', value: '???', inline: true },
-                { name: '🔮 Type', value: '???', inline: true },
-                { name: '⭐ Rarity', value: '???', inline: true },
-                { name: '💪 CP Multiplier', value: '???', inline: true },
-                { name: '🌊 Category', value: '???', inline: true },
-                { name: '📊 Status', value: '???', inline: true },
-                { name: '⚡ Power', value: '???', inline: false },
-                { name: '💰 Berries', value: '???', inline: true }
-            )
             .setFooter({ text: '⚡ Power crystallizing...' });
     },
 
@@ -455,23 +435,24 @@ module.exports = {
         const barLength = 20;
         const rewardBar = Array(barLength).fill(rewardEmoji).join('');
         
-        // Progressive text reveal
-        const fields = [
-            { name: '🍃 Fruit Name', value: textFrame >= 0 ? targetFruit.name : '???', inline: true },
-            { name: '🔮 Type', value: textFrame >= 1 ? targetFruit.type : '???', inline: true },
-            { name: '⭐ Rarity', value: textFrame >= 2 ? targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1) : '???', inline: true },
-            { name: '💪 CP Multiplier', value: textFrame >= 3 ? `${targetFruit.multiplier}x` : '???', inline: true },
-            { name: '🌊 Category', value: textFrame >= 4 ? (targetFruit.category || 'Unknown') : '???', inline: true },
-            { name: '📊 Status', value: textFrame >= 5 ? 'New Discovery!' : '???', inline: true },
-            { name: '⚡ Power', value: textFrame >= 5 ? targetFruit.power : '???', inline: false },
-            { name: '💰 Berries', value: textFrame >= 5 ? `${newBalance.toLocaleString()} berries` : '???', inline: true }
-        ];
+        // Progressive text reveal - build description based on current frame
+        let description = `✨ **Devil Fruit Acquired!** ✨\n\n${rewardBar}\n\n`;
+        
+        if (textFrame >= 0) description += `🍃 **Name:** ${targetFruit.name}\n`;
+        if (textFrame >= 1) description += `🔮 **Type:** ${targetFruit.type}\n`;
+        if (textFrame >= 2) description += `⭐ **Rarity:** ${targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1)}\n`;
+        if (textFrame >= 3) description += `💪 **CP Multiplier:** ${targetFruit.multiplier}x\n`;
+        if (textFrame >= 4) description += `🌊 **Category:** ${targetFruit.category || 'Unknown'}\n`;
+        if (textFrame >= 5) {
+            description += `📊 **Status:** New Discovery!\n`;
+            description += `⚡ **Power:** ${targetFruit.power}\n`;
+            description += `💰 **Berries:** ${newBalance.toLocaleString()} berries`;
+        }
 
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
-            .setDescription(`✨ **Devil Fruit Acquired!** ✨\n\n${rewardBar}`)
+            .setDescription(description)
             .setColor(rewardColor)
-            .addFields(fields)
             .setFooter({ text: '🎉 Added to your collection!' });
     },
 
@@ -489,21 +470,21 @@ module.exports = {
         const baseCp = targetFruit.baseCp || 300;
         const totalCp = Math.floor(baseCp * targetFruit.multiplier * (1 + (totalOwned - 1) * 0.01));
 
+        const description = `🎉 **Congratulations!** You've obtained a magnificent Devil Fruit!\n\n${rewardBar}\n\n` +
+            `🍃 **Name:** ${targetFruit.name}\n` +
+            `🔮 **Type:** ${targetFruit.type}\n` +
+            `⭐ **Rarity:** ${targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1)}\n` +
+            `💪 **CP Multiplier:** ${targetFruit.multiplier}x\n` +
+            `🌊 **Category:** ${targetFruit.category || 'Unknown'}\n` +
+            `📊 **Status:** ${duplicateText}\n` +
+            `⚡ **Power:** ${targetFruit.power}\n` +
+            `🎯 **Total CP:** ${totalCp.toLocaleString()} CP\n` +
+            `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries`;
+
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt Complete!')
-            .setDescription(`🎉 **Congratulations!** You've obtained a magnificent Devil Fruit!\n\n${rewardBar}`)
+            .setDescription(description)
             .setColor(rarityColor)
-            .addFields(
-                { name: '🍃 Fruit Name', value: targetFruit.name, inline: true },
-                { name: '🔮 Type', value: targetFruit.type, inline: true },
-                { name: '⭐ Rarity', value: targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1), inline: true },
-                { name: '💪 CP Multiplier', value: `${targetFruit.multiplier}x`, inline: true },
-                { name: '🌊 Category', value: targetFruit.category || 'Unknown', inline: true },
-                { name: '📊 Status', value: duplicateText, inline: true },
-                { name: '⚡ Power Description', value: targetFruit.power, inline: false },
-                { name: '🎯 Total CP', value: `${totalCp.toLocaleString()} CP`, inline: true },
-                { name: '💰 Remaining Berries', value: `${newBalance.toLocaleString()} berries`, inline: true }
-            )
             .setFooter({ text: '🏴‍☠️ Your journey continues on the Grand Line!' })
             .setTimestamp();
     },
