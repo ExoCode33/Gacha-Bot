@@ -689,7 +689,7 @@ module.exports = {
             `⭐ **Rarity:** ???\n` +
             `💪 **CP Multiplier:** ???\n` +
             `⚡ **Power:** ???\n` +
-            `🎯 **Abilities:** ???\n` +
+            `🎯 **Abilities:** ???\n\n` + // Added space after abilities
             `🔥 **Total CP:** ???\n` +
             `💰 **Remaining Berries:** ???\n\n` +
             `${rainbowPattern}`;
@@ -750,7 +750,7 @@ module.exports = {
             `⭐ **Rarity:** ???\n` +
             `💪 **CP Multiplier:** ???\n` +
             `⚡ **Power:** ???\n` +
-            `🎯 **Abilities:** ???\n` +
+            `🎯 **Abilities:** ???\n\n` + // Added space after abilities
             `🔥 **Total CP:** ???\n` +
             `💰 **Remaining Berries:** ???\n\n` +
             `${pattern}`;
@@ -772,9 +772,25 @@ module.exports = {
         const duplicateText = isNewDiscovery ? '✨ New Discovery!' : `📚 Total Owned: ${duplicateCount}`;
         const totalCp = result.total_cp || result.totalCp || 250;
         
-        // Get ability details from balanced abilities system
+        // Get ability details from balanced abilities system with fallback
         const { balancedDevilFruitAbilities } = require('../data/balanced-devil-fruit-abilities');
-        const ability = balancedDevilFruitAbilities[targetFruit.name];
+        let ability = balancedDevilFruitAbilities[targetFruit.name];
+        
+        // If not found by exact name, try to create a fallback ability based on rarity
+        if (!ability) {
+            const rarityAbilities = {
+                'common': { damage: 55, cooldown: 1, name: 'Basic Attack' },
+                'uncommon': { damage: 70, cooldown: 2, name: 'Enhanced Strike' },
+                'rare': { damage: 100, cooldown: 3, name: 'Powerful Blow' },
+                'epic': { damage: 140, cooldown: 4, name: 'Devastating Strike' },
+                'legendary': { damage: 180, cooldown: 5, name: 'Legendary Technique' },
+                'mythical': { damage: 220, cooldown: 6, name: 'Mythical Power' },
+                'omnipotent': { damage: 260, cooldown: 7, name: 'Divine Technique' }
+            };
+            
+            ability = rarityAbilities[targetFruit.rarity] || rarityAbilities['common'];
+        }
+        
         const abilityText = ability ? 
             `${ability.name} (${ability.damage} dmg, ${ability.cooldown}cd)` : 
             'Basic Devil Fruit Power';
@@ -789,7 +805,7 @@ module.exports = {
         description += `⭐ **Rarity:** ${textFrame >= 3 ? targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1) : '???'}\n`;
         description += `💪 **CP Multiplier:** ${textFrame >= 4 ? `${targetFruit.multiplier}x` : '???'}\n`;
         description += `⚡ **Power:** ${textFrame >= 5 ? targetFruit.power : '???'}\n`;
-        description += `🎯 **Abilities:** ${textFrame >= 6 ? abilityText : '???'}\n`;
+        description += `🎯 **Abilities:** ${textFrame >= 6 ? abilityText : '???'}\n\n`; // Added space after abilities
         description += `🔥 **Total CP:** ${textFrame >= 7 ? `${totalCp.toLocaleString()} CP` : '???'}\n`;
         description += `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries\n\n`; // Always visible
         
@@ -815,9 +831,29 @@ module.exports = {
         // Use the total CP from database result - handle both formats
         const totalCp = result.total_cp || result.totalCp || 250;
 
-        // Get ability details from balanced abilities system
+        // Get ability details from balanced abilities system with fallback
         const { balancedDevilFruitAbilities } = require('../data/balanced-devil-fruit-abilities');
-        const ability = balancedDevilFruitAbilities[targetFruit.name];
+        let ability = balancedDevilFruitAbilities[targetFruit.name];
+        
+        console.log(`🎯 Looking up ability for: "${targetFruit.name}"`);
+        console.log(`🎯 Available abilities:`, Object.keys(balancedDevilFruitAbilities).slice(0, 10));
+        
+        // If not found by exact name, try to create a fallback ability based on rarity
+        if (!ability) {
+            const rarityAbilities = {
+                'common': { damage: 55, cooldown: 1, name: 'Basic Attack' },
+                'uncommon': { damage: 70, cooldown: 2, name: 'Enhanced Strike' },
+                'rare': { damage: 100, cooldown: 3, name: 'Powerful Blow' },
+                'epic': { damage: 140, cooldown: 4, name: 'Devastating Strike' },
+                'legendary': { damage: 180, cooldown: 5, name: 'Legendary Technique' },
+                'mythical': { damage: 220, cooldown: 6, name: 'Mythical Power' },
+                'omnipotent': { damage: 260, cooldown: 7, name: 'Divine Technique' }
+            };
+            
+            ability = rarityAbilities[targetFruit.rarity] || rarityAbilities['common'];
+            console.log(`🎯 Using fallback ability for ${targetFruit.rarity}:`, ability);
+        }
+        
         const abilityText = ability ? 
             `${ability.name} (${ability.damage} dmg, ${ability.cooldown}cd)` : 
             'Basic Devil Fruit Power';
@@ -829,7 +865,7 @@ module.exports = {
             `⭐ **Rarity:** ${targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1)}\n` +
             `💪 **CP Multiplier:** ${targetFruit.multiplier}x\n` +
             `⚡ **Power:** ${targetFruit.power}\n` +
-            `🎯 **Abilities:** ${abilityText}\n` +
+            `🎯 **Abilities:** ${abilityText}\n\n` + // Added space after abilities
             `🔥 **Total CP:** ${totalCp.toLocaleString()} CP\n` +
             `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries\n\n` +
             `${rewardBar}`;
