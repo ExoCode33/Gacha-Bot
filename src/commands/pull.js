@@ -96,8 +96,10 @@ module.exports = {
         try {
             const frameDelay = 900; // 0.9 seconds per frame
             const animationFrames = 4; // 4 animation frames
-            const outwardFrames = 10; // 10 frames for outward color spread
+            const outwardFrames = 10; // 10 frames for outward color spread (improved sync)
+            const outwardDelay = 350; // 0.35 seconds per frame (improved sync)
             const textRevealFrames = 8; // 8 frames for text reveal (removed category)
+            const textRevealDelay = 500; // 0.5 seconds per frame
 
             // Phase 1: Rainbow Hunt Animation (3.2 seconds)
             let currentFrame = 0;
@@ -113,12 +115,12 @@ module.exports = {
                 await interaction.editReply({ embeds: [frameEmbed] });
             }
 
-            // Phase 2: Outward Color Spread (4 seconds) - Rainbow FREEZES
+            // Phase 2: Outward Color Spread (4 seconds) - Rainbow FREEZES - IMPROVED SYNC
             const rewardColor = getRarityColor(targetFruit.rarity);
             const rewardEmoji = getRarityEmoji(targetFruit.rarity);
 
             for (let outFrame = 0; outFrame < outwardFrames; outFrame++) {
-                await new Promise(resolve => setTimeout(resolve, 400)); // 0.4s per frame
+                await new Promise(resolve => setTimeout(resolve, outwardDelay)); // Use constant
                 const outwardEmbed = this.createOutwardColorFrame(outFrame, rewardColor, rewardEmoji);
                 await interaction.editReply({ embeds: [outwardEmbed] });
             }
@@ -143,9 +145,9 @@ module.exports = {
                 };
             }
 
-            // Phase 4: Progressive Text Reveal (4 seconds) - Adjusted for 8 fields
+            // Phase 4: Progressive Text Reveal (4 seconds) - Improved ability details
             for (let textFrame = 0; textFrame < 8; textFrame++) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, textRevealDelay)); // Use constant
                 const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, result, newBalance);
                 await interaction.editReply({ embeds: [textEmbed] });
             }
@@ -345,8 +347,8 @@ module.exports = {
         try {
             const frameDelay = 900; // Match single pull timing
             const animationFrames = 4;
-            const outwardFrames = 10;
-            const textRevealFrames = 6;
+            const outwardFrames = 10; // Improved sync
+            const textRevealFrames = 8; // Improved ability details
 
             // Phase 1: Rainbow Hunt Animation for best fruit
             let currentFrame = 0;
@@ -362,12 +364,12 @@ module.exports = {
                 await interaction.editReply({ embeds: [frameEmbed] });
             }
 
-            // Phase 2: Outward Color Spread
+            // Phase 2: Outward Color Spread - IMPROVED SYNC
             const rewardColor = getRarityColor(bestFruit.rarity);
             const rewardEmoji = getRarityEmoji(bestFruit.rarity);
 
             for (let outFrame = 0; outFrame < outwardFrames; outFrame++) {
-                await new Promise(resolve => setTimeout(resolve, 400));
+                await new Promise(resolve => setTimeout(resolve, 350)); // Consistent timing
                 const outwardEmbed = this.createOutwardColorFrame(outFrame, rewardColor, rewardEmoji);
                 await interaction.editReply({ embeds: [outwardEmbed] });
             }
@@ -393,9 +395,9 @@ module.exports = {
             // Use the best fruit's result for animation
             const bestResult = results[0] || { duplicate_count: 1, total_cp: 250 };
 
-            // Phase 4: Progressive Text Reveal for best fruit (4 seconds)
+            // Phase 4: Progressive Text Reveal for best fruit (4 seconds) - Improved ability details
             for (let textFrame = 0; textFrame < 8; textFrame++) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 500)); // Consistent timing
                 const textEmbed = this.createTextRevealFrame(textFrame, bestFruit, rewardColor, rewardEmoji, bestResult, newBalance);
                 await interaction.editReply({ embeds: [textEmbed] });
             }
@@ -517,8 +519,8 @@ module.exports = {
         // Same full animation as regular pull but for button interactions
         const frameDelay = 900; // Match main animation timing
         const animationFrames = 4;
-        const outwardFrames = 10;
-        const textRevealFrames = 6;
+        const outwardFrames = 10; // Improved sync
+        const textRevealFrames = 8; // Improved ability details
 
         // Defer the reply to avoid timeout
         await buttonInteraction.deferReply();
@@ -535,12 +537,12 @@ module.exports = {
             await buttonInteraction.editReply({ embeds: [frameEmbed] });
         }
 
-        // Phase 2: Outward Color Spread
+        // Phase 2: Outward Color Spread - IMPROVED SYNC
         const rewardColor = getRarityColor(targetFruit.rarity);
         const rewardEmoji = getRarityEmoji(targetFruit.rarity);
 
         for (let outFrame = 0; outFrame < outwardFrames; outFrame++) {
-            await new Promise(resolve => setTimeout(resolve, 400));
+            await new Promise(resolve => setTimeout(resolve, 350)); // Consistent timing
             const outwardEmbed = this.createOutwardColorFrame(outFrame, rewardColor, rewardEmoji);
             await buttonInteraction.editReply({ embeds: [outwardEmbed] });
         }
@@ -563,9 +565,9 @@ module.exports = {
             };
         }
 
-        // Phase 4: Progressive Text Reveal (4 seconds)
+        // Phase 4: Progressive Text Reveal (4 seconds) - Improved ability details
         for (let textFrame = 0; textFrame < 8; textFrame++) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 500)); // Consistent timing
             const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, result, newBalance);
             await buttonInteraction.editReply({ embeds: [textEmbed] });
         }
@@ -703,42 +705,31 @@ module.exports = {
 
     createOutwardColorFrame(outFrame, rewardColor, rewardEmoji) {
         const barLength = 20;
+        const center = 10; // Use single center point for more predictable animation
         
-        // For a 20-length bar, center is between positions 9 and 10
-        // So we start with both 9 and 10 as the center
-        const positions = [];
+        // Calculate how far the color should spread from center
+        const spreadRadius = Math.floor(outFrame * 1.2); // Slightly faster spread
         
-        if (outFrame === 0) {
-            // Frame 0: Both center positions
-            positions.push(9, 10);
-        } else {
-            // Frame 1+: Center + expanding outward
-            for (let i = 0; i <= outFrame; i++) {
-                const leftPos = 9 - i;   // Expand left from position 9
-                const rightPos = 10 + i; // Expand right from position 10
-                
-                if (leftPos >= 0) positions.push(leftPos);
-                if (rightPos < barLength) positions.push(rightPos);
-            }
-        }
-
         const bar = Array(barLength).fill('⬛');
         
-        // Fill positions with rarity emoji, keep rest as frozen rainbow
+        // Fill positions with rarity emoji based on distance from center
         for (let i = 0; i < barLength; i++) {
-            if (positions.includes(i)) {
+            const distanceFromCenter = Math.abs(i - center);
+            
+            if (distanceFromCenter <= spreadRadius) {
                 bar[i] = rewardEmoji;
             } else {
-                // Frozen rainbow pattern
+                // Frozen rainbow pattern - more consistent
                 const rainbowColors = ['🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '🟫'];
-                bar[i] = rainbowColors[(i + 7 * 100) % 7]; // Frozen at frame 100
+                const rainbowIndex = (i * 2) % rainbowColors.length; // More even distribution
+                bar[i] = rainbowColors[rainbowIndex];
             }
         }
 
         const pattern = bar.join('');
         
-        // Calculate embed color blend
-        const blendRatio = Math.min(outFrame / 9, 1);
+        // Smooth color transition - more predictable
+        const blendRatio = Math.min(outFrame / 8, 1.0); // Smoother blend over 8 frames
         const rainbowColor = 0x9932CC; // Purple from rainbow
         const embedColor = this.blendColors(rainbowColor, rewardColor, blendRatio);
 
@@ -773,27 +764,48 @@ module.exports = {
         const totalCp = result.total_cp || result.totalCp || 250;
         
         // Get ability details from balanced abilities system with fallback
-        const { balancedDevilFruitAbilities } = require('../data/balanced-devil-fruit-abilities');
+        const { balancedDevilFruitAbilities, statusEffects } = require('../data/balanced-devil-fruit-abilities');
         let ability = balancedDevilFruitAbilities[targetFruit.name];
         
         // If not found by exact name, try to create a fallback ability based on rarity
         if (!ability) {
             const rarityAbilities = {
-                'common': { damage: 55, cooldown: 1, name: 'Basic Attack' },
-                'uncommon': { damage: 70, cooldown: 2, name: 'Enhanced Strike' },
-                'rare': { damage: 100, cooldown: 3, name: 'Powerful Blow' },
-                'epic': { damage: 140, cooldown: 4, name: 'Devastating Strike' },
-                'legendary': { damage: 180, cooldown: 5, name: 'Legendary Technique' },
-                'mythical': { damage: 220, cooldown: 6, name: 'Mythical Power' },
-                'omnipotent': { damage: 260, cooldown: 7, name: 'Divine Technique' }
+                'common': { damage: 55, cooldown: 1, name: 'Basic Attack', effect: null },
+                'uncommon': { damage: 70, cooldown: 2, name: 'Enhanced Strike', effect: 'dodge_boost' },
+                'rare': { damage: 100, cooldown: 3, name: 'Powerful Blow', effect: 'burn_3_turns' },
+                'epic': { damage: 140, cooldown: 4, name: 'Devastating Strike', effect: 'freeze_2_turns' },
+                'legendary': { damage: 180, cooldown: 5, name: 'Legendary Technique', effect: 'shield_medium' },
+                'mythical': { damage: 220, cooldown: 6, name: 'Mythical Power', effect: 'nullify_abilities' },
+                'omnipotent': { damage: 260, cooldown: 7, name: 'Divine Technique', effect: 'reality_fracture' }
             };
             
             ability = rarityAbilities[targetFruit.rarity] || rarityAbilities['common'];
         }
         
-        const abilityText = ability ? 
-            `${ability.name} (${ability.damage} dmg, ${ability.cooldown}cd)` : 
-            'Basic Devil Fruit Power';
+        // Create detailed ability text with effects
+        let abilityText = ability ? `${ability.name} (${ability.damage} dmg, ${ability.cooldown}cd)` : 'Basic Devil Fruit Power';
+        
+        // Add effect details if present
+        if (ability && ability.effect && statusEffects[ability.effect]) {
+            const effect = statusEffects[ability.effect];
+            let effectDesc = effect.description;
+            
+            // Add duration and damage info if available
+            if (effect.duration) {
+                effectDesc += ` (${effect.duration} turns)`;
+            }
+            if (effect.damage) {
+                effectDesc += ` - ${effect.damage} dmg`;
+            }
+            if (effect.damageReduction) {
+                effectDesc += ` - ${effect.damageReduction}% damage reduction`;
+            }
+            if (effect.accuracyPenalty) {
+                effectDesc += ` - ${effect.accuracyPenalty}% accuracy penalty`;
+            }
+            
+            abilityText += `\n   • ${effectDesc}`;
+        }
         
         // Progressive text reveal with better formatting and spacing
         let description = `✨ **Devil Fruit Acquired!** ✨\n\n${rewardBar}\n\n`;
