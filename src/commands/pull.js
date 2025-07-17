@@ -98,7 +98,15 @@ module.exports = {
             } catch (dbError) {
                 console.error('Error adding devil fruit:', dbError);
                 // Fallback result
-                result = { duplicate_count: 1, total_cp: 250 };
+                result = { 
+                    duplicate_count: 1, 
+                    total_cp: 250,
+                    fruit: {
+                        fruit_name: targetFruit.name,
+                        fruit_rarity: targetFruit.rarity,
+                        base_cp: Math.floor(targetFruit.multiplier * 100)
+                    }
+                };
             }
 
             // Phase 4: Progressive Text Reveal (4.5 seconds) - More frames for more fields
@@ -135,8 +143,9 @@ module.exports = {
                 components: [actionRow]
             });
 
-            // Setup button collector
-            const collector = interaction.createMessageComponentCollector({
+            // Setup button collector - Fix for Discord.js v14
+            const response = await interaction.fetchReply();
+            const collector = response.createMessageComponentCollector({
                 time: 300000 // 5 minutes
             });
 
@@ -198,7 +207,8 @@ module.exports = {
 
                     await interaction.editReply({ components: [disabledRow] });
                 } catch (error) {
-                    // Ignore errors when disabling buttons
+                    // Ignore errors when disabling buttons - interaction might have been deleted
+                    console.log('Could not disable buttons - interaction may have been deleted');
                 }
             });
 
@@ -330,7 +340,22 @@ module.exports = {
         }
 
         // Phase 3: Save to database
-        const result = await DatabaseManager.addDevilFruit(buttonInteraction.user.id, targetFruit);
+        let result;
+        try {
+            result = await DatabaseManager.addDevilFruit(buttonInteraction.user.id, targetFruit);
+        } catch (dbError) {
+            console.error('Error adding devil fruit in button animation:', dbError);
+            // Fallback result
+            result = { 
+                duplicate_count: 1, 
+                total_cp: 250,
+                fruit: {
+                    fruit_name: targetFruit.name,
+                    fruit_rarity: targetFruit.rarity,
+                    base_cp: Math.floor(targetFruit.multiplier * 100)
+                }
+            };
+        }
 
         // Phase 4: Progressive Text Reveal (4.5 seconds)
         for (let textFrame = 0; textFrame < 9; textFrame++) {
@@ -535,11 +560,11 @@ module.exports = {
         const barLength = 20;
         const rewardBar = Array(barLength).fill(rewardEmoji).join('');
         
-        // Get values for reveal
-        const totalOwned = result.duplicate_count || 1;
-        const isNewDiscovery = totalOwned === 1;
-        const duplicateText = isNewDiscovery ? '✨ New Discovery!' : `📚 Total Owned: ${totalOwned}`;
-        const totalCp = result.total_cp || 250;
+        // Get values for reveal - handle both database result and fallback
+        const duplicateCount = result.duplicate_count || 1;
+        const isNewDiscovery = duplicateCount === 1;
+        const duplicateText = isNewDiscovery ? '✨ New Discovery!' : `📚 Total Owned: ${duplicateCount}`;
+        const totalCp = result.total_cp || result.totalCp || 250;
         
         // Progressive text reveal with better formatting and spacing
         let description = `✨ **Devil Fruit Acquired!** ✨\n\n${rewardBar}\n\n`;
@@ -569,13 +594,13 @@ module.exports = {
         const rarityColor = getRarityColor(targetFruit.rarity);
         const rewardBar = Array(20).fill(rarityEmoji).join('');
         
-        // Get duplicate count from the database result
-        const totalOwned = result.duplicate_count || 1;
-        const isNewDiscovery = totalOwned === 1;
-        const duplicateText = isNewDiscovery ? '✨ New Discovery!' : `📚 Total Owned: ${totalOwned}`;
+        // Get duplicate count from the database result - handle both formats
+        const duplicateCount = result.duplicate_count || 1;
+        const isNewDiscovery = duplicateCount === 1;
+        const duplicateText = isNewDiscovery ? '✨ New Discovery!' : `📚 Total Owned: ${duplicateCount}`;
         
-        // Use the total CP from database result
-        const totalCp = result.total_cp || 250;
+        // Use the total CP from database result - handle both formats
+        const totalCp = result.total_cp || result.totalCp || 250;
 
         const description = `🎉 **Congratulations!** You've obtained a magnificent Devil Fruit!\n\n${rewardBar}\n\n` +
             `🍃 **Name:** ${targetFruit.name}\n` +
