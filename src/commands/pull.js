@@ -1,4 +1,4 @@
-// src/commands/pull.js - Fixed Pull Command (Keeping Original Animation Layout)
+// src/commands/pull.js - Restored Original Animation Layout
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getRandomFruit, getRarityColor, getRarityEmoji } = require('../data/devil-fruits');
 const DatabaseManager = require('../database/manager');
@@ -386,7 +386,7 @@ module.exports = {
 
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
-            .setDescription(`${description}\n\n${rainbowPattern}`)
+            .setDescription(`${description}\n\n${rainbowPattern}\n\n${rainbowPattern}`)
             .setColor(embedColor)
             .setFooter({ text: '🌊 Searching the mysterious seas...' });
     },
@@ -426,7 +426,7 @@ module.exports = {
 
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
-            .setDescription(`🔮 Mysterious power manifesting...\n\n${pattern}`)
+            .setDescription(`🔮 Mysterious power manifesting...\n\n${pattern}\n\n${pattern}`)
             .setColor(embedColor)
             .setFooter({ text: '⚡ Power crystallizing...' });
     },
@@ -448,6 +448,8 @@ module.exports = {
             description += `⚡ **Power:** ${targetFruit.power}\n`;
             description += `💰 **Berries:** ${newBalance.toLocaleString()} berries`;
         }
+
+        description += `\n\n${rewardBar}`;
 
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
@@ -479,7 +481,8 @@ module.exports = {
             `📊 **Status:** ${duplicateText}\n` +
             `⚡ **Power:** ${targetFruit.power}\n` +
             `🎯 **Total CP:** ${totalCp.toLocaleString()} CP\n` +
-            `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries`;
+            `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries\n\n` +
+            `${rewardBar}`;
 
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt Complete!')
