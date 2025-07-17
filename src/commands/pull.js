@@ -251,7 +251,8 @@ module.exports = {
             `🍈 **${targetFruit.name}**`,
             `${typeEmojis[targetFruit.type] || '🍈'} **Type:** ${targetFruit.type}`,
             `⭐ **Rarity:** ${targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1)}`,
-            `🔥 **CP Multiplier:** ${targetFruit.multiplier}x`,
+            `🔥 **CP Multiplier:** ${(targetFruit.multiplier || 1.0).toFixed(2)}x`,
+            `🌟 **Category:** ${targetFruit.fruitType || 'Unknown'}`,
             "",
             duplicateInfo,
             "",
@@ -259,6 +260,7 @@ module.exports = {
             `*${targetFruit.power || 'A mysterious power awaits discovery...'}*`,
             "",
             `💰 **New Balance:** ${newBalance.toLocaleString()} berries`,
+            `🎯 **Total Owned:** ${duplicateCount}`,
             "",
             `${rewardBar}`
         ].join('\n');
@@ -269,8 +271,8 @@ module.exports = {
             .setDescription(content)
             .setFooter({ 
                 text: result.isNewFruit ? 
-                    "🌊 Your legend grows stronger!" :
-                    "🌊 Duplicate mastery increases your power!"
+                    "🌊 Your legend grows stronger | Set sail with your new power!" :
+                    "🌊 Duplicate mastery increases your power! | Set sail stronger than before!"
             })
             .setTimestamp();
     },
