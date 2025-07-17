@@ -1,8 +1,8 @@
 // src/commands/collection.js - Fixed collection command
 
 const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
-const { DatabaseManager } = require('../database/manager');
-const { getRarityEmoji, getAllFruits, getFruitsByRarity, calculateTotalCP, calculateBaseCPFromLevel } = require('../data/devil-fruits');
+const DatabaseManager = require('../database/manager');
+const { getRarityEmoji, calculateTotalCP, calculateBaseCPFromLevel } = require('../data/devil-fruits');
 
 const FRUITS_PER_PAGE = 10;
 
@@ -50,15 +50,15 @@ module.exports = {
       // Filter by rarity if specified
       let filteredFruits = userFruits;
       if (rarityFilter) {
-        filteredFruits = userFruits.filter(fruit => fruit.rarity === rarityFilter);
+        filteredFruits = userFruits.filter(fruit => fruit.fruit_rarity === rarityFilter);
       }
 
       // Sort by rarity and name
       const rarityOrder = ['omnipotent', 'mythical', 'legendary', 'epic', 'rare', 'uncommon', 'common'];
       filteredFruits.sort((a, b) => {
-        const rarityDiff = rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity);
+        const rarityDiff = rarityOrder.indexOf(a.fruit_rarity) - rarityOrder.indexOf(b.fruit_rarity);
         if (rarityDiff !== 0) return rarityDiff;
-        return a.name.localeCompare(b.name);
+        return a.fruit_name.localeCompare(b.fruit_name);
       });
 
       // Calculate pagination
@@ -113,9 +113,9 @@ async function generateCollectionEmbed(user, userData, fruits, page, totalPages,
   const pageFruits = fruits.slice(startIndex, endIndex);
 
   // Calculate user's total CP
-  const userLevel = await DatabaseManager.getUserLevel(user.id);
+  const userLevel = userData.level || 0;
   const baseCPFromLevel = calculateBaseCPFromLevel(userLevel);
-  const totalCP = calculateTotalCP(baseCPFromLevel, fruits);
+  const totalCP = userData.total_cp || baseCPFromLevel;
 
   // Create embed
   const embed = new EmbedBuilder()
@@ -147,13 +147,14 @@ async function generateCollectionEmbed(user, userData, fruits, page, totalPages,
   // Add fruits for current page
   if (pageFruits.length > 0) {
     const fruitsText = pageFruits.map((fruit, index) => {
-      const emoji = getRarityEmoji(fruit.rarity);
-      const cpMultiplier = fruit.cpMultiplier || 1.0;
-      const duplicates = fruit.duplicates || 0;
-      const duplicateText = duplicates > 0 ? ` (+${duplicates})` : '';
+      const emoji = getRarityEmoji(fruit.fruit_rarity);
+      // Convert stored integer back to decimal for display
+      const cpMultiplier = (fruit.base_cp / 100).toFixed(2);
+      const duplicates = fruit.duplicate_count || 1;
+      const duplicateText = duplicates > 1 ? ` (+${duplicates - 1})` : '';
       
-      return `${emoji} **${fruit.name}**${duplicateText}\n` +
-             `   *${fruit.type}* • ${cpMultiplier.toFixed(2)}x CP`;
+      return `${emoji} **${fruit.fruit_name}**${duplicateText}\n` +
+             `   *${fruit.fruit_type}* • ${cpMultiplier}x CP`;
     }).join('\n\n');
 
     embed.addFields({
@@ -195,8 +196,8 @@ function getRarityBreakdown(fruits) {
   };
 
   fruits.forEach(fruit => {
-    if (rarityCount.hasOwnProperty(fruit.rarity)) {
-      rarityCount[fruit.rarity]++;
+    if (rarityCount.hasOwnProperty(fruit.fruit_rarity)) {
+      rarityCount[fruit.fruit_rarity]++;
     }
   });
 
@@ -204,4 +205,4 @@ function getRarityBreakdown(fruits) {
     .filter(([rarity, count]) => count > 0)
     .map(([rarity, count]) => `${getRarityEmoji(rarity)} ${count}`)
     .join('\n') || 'No fruits yet';
-}v
+}
