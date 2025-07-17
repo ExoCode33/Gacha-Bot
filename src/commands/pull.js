@@ -74,7 +74,8 @@ module.exports = {
     async startImprovedAnimation(interaction, targetFruit, newBalance) {
         const frameDelay = 800; // 0.8 seconds per frame
         const animationFrames = 4; // 4 animation frames
-        const transitionFrames = 3; // 3 transition frames for outward reveal
+        const outwardFrames = 10; // 10 frames for outward color spread (center to edges)
+        const textRevealFrames = 6; // 6 frames for text revelation
         
         try {
             console.log(`🎯 Starting improved animation: ${targetFruit.name} (${targetFruit.rarity})`);
@@ -84,7 +85,7 @@ module.exports = {
             
             // Phase 1: Animation frames (0-3, total 3.2 seconds)
             for (let frame = 0; frame < animationFrames; frame++) {
-                const embed = this.createAnimationFrame(frame, targetFruit, animationFrames);
+                const embed = this.createFixedSizeAnimationFrame(frame);
                 
                 if (frame === 0) {
                     await interaction.reply({ embeds: [embed] });
@@ -95,19 +96,19 @@ module.exports = {
                 await new Promise(resolve => setTimeout(resolve, frameDelay));
             }
             
-            // Phase 2: Outward reveal transition (3 frames, 1.8 seconds)
-            for (let transFrame = 0; transFrame < transitionFrames; transFrame++) {
-                const embed = this.createTransitionFrame(transFrame, targetFruit, rewardColor, rewardEmoji);
+            // Phase 2: Outward color spread (10 frames, 4 seconds)
+            for (let outFrame = 0; outFrame < outwardFrames; outFrame++) {
+                const embed = this.createOutwardColorFrame(outFrame, rewardColor, rewardEmoji);
                 
                 await interaction.editReply({ embeds: [embed] });
-                await new Promise(resolve => setTimeout(resolve, 600));
+                await new Promise(resolve => setTimeout(resolve, 400)); // Faster for smooth spread
             }
             
             // NOW save to database AFTER the visual reveal is complete
             console.log(`💾 Saving fruit to database: ${targetFruit.name}`);
             const result = await DatabaseManager.addDevilFruit(interaction.user.id, targetFruit);
             
-            // Calculate user stats for progressive reveal
+            // Calculate user stats
             const userStats = {
                 duplicateCount: result.duplicateCount,
                 isNewFruit: result.isNewFruit,
@@ -115,15 +116,14 @@ module.exports = {
                 newBalance: newBalance
             };
             
-            // Phase 3: Progressive information reveal (3 frames, 1.8 seconds)
-            for (let infoFrame = 0; infoFrame < 3; infoFrame++) {
-                const embed = this.createInfoRevealFrame(infoFrame, targetFruit, userStats, newBalance, rewardColor, rewardEmoji);
+            // Phase 3: Progressive text reveal (6 frames, 3 seconds)
+            for (let textFrame = 0; textFrame < textRevealFrames; textFrame++) {
+                const embed = this.createProgressiveTextReveal(textFrame, targetFruit, userStats, newBalance, rewardColor, rewardEmoji);
                 
                 await interaction.editReply({ embeds: [embed] });
                 
-                // Don't wait after the last frame
-                if (infoFrame < 2) {
-                    await new Promise(resolve => setTimeout(resolve, 600));
+                if (textFrame < textRevealFrames - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
             }
             
@@ -131,8 +131,6 @@ module.exports = {
             await new Promise(resolve => setTimeout(resolve, 400));
             
             // Final reveal with buttons
-            console.log(`🎊 Final reveal: ${targetFruit.name}`);
-            
             const finalEmbed = await this.createFinalRevealEmbed(targetFruit, userStats, newBalance);
             const actionRow = new ActionRowBuilder()
                 .addComponents(
@@ -158,7 +156,7 @@ module.exports = {
             // Set up button collector
             const collector = interaction.channel.createMessageComponentCollector({ 
                 filter: (i) => i.user.id === interaction.user.id,
-                time: 300000 // 5 minutes
+                time: 300000
             });
             
             collector.on('collect', async (buttonInteraction) => {
@@ -176,7 +174,6 @@ module.exports = {
             });
             
             collector.on('end', () => {
-                // Remove buttons after timeout
                 interaction.editReply({ components: [] }).catch(() => {});
             });
             
@@ -185,12 +182,175 @@ module.exports = {
         } catch (error) {
             console.error('🚨 Animation Error:', error);
             
-            // Fallback - still give the fruit
+            // Fallback
             const result = await DatabaseManager.addDevilFruit(interaction.user.id, targetFruit);
             const fallbackEmbed = await this.createFinalRevealEmbed(targetFruit, result, newBalance);
-            
             await interaction.editReply({ embeds: [fallbackEmbed] });
         }
+    },
+
+    createFixedSizeAnimationFrame(frame) {
+        const rainbowPattern = this.getSyncedRainbowPattern(frame);
+        const embedColor = this.getEmbedColorSyncedToFirst(frame);
+        const description = HUNT_DESCRIPTIONS[frame] || HUNT_DESCRIPTIONS[HUNT_DESCRIPTIONS.length - 1];
+        
+        // Fixed size content that matches final reveal size
+        const content = [
+            `${rainbowPattern}`,
+            "",
+            `🏴‍☠️ **DEVIL FRUIT HUNT** 🏴‍☠️`,
+            "",
+            `*${description}*`,
+            "",
+            `🍈 **Fruit:** ???`,
+            `⭐ **Type:** ???`,
+            `🎯 **Rarity:** ???`,
+            `🔥 **CP Multiplier:** ???`,
+            `🌟 **Category:** ???`,
+            "",
+            `🔄 **Status:** ???`,
+            "",
+            `📖 **Power Description:**`,
+            `*Scanning...*`,
+            "",
+            `💰 **Balance:** ???`,
+            `🎯 **Total Owned:** ???`,
+            "",
+            `${rainbowPattern}`
+        ].join('\n');
+        
+        return new EmbedBuilder()
+            .setColor(embedColor)
+            .setTitle("🌊 Scanning the Grand Line...")
+            .setDescription(content)
+            .setFooter({ text: "🍈 Devil Fruit materializing..." })
+            .setTimestamp();
+    },
+
+    createOutwardColorFrame(outFrame, rewardColor, rewardEmoji) {
+        const barLength = 20;
+        const centerPosition = 9.5;
+        const spread = outFrame; // 0 = center only, 1 = center + 1 each side, etc.
+        
+        const positions = [];
+        for (let i = 0; i < barLength; i++) {
+            const distanceFromCenter = Math.abs(i - centerPosition);
+            
+            if (distanceFromCenter <= spread) {
+                positions.push(rewardEmoji);
+            } else {
+                const colorIndex = (i - outFrame + 7 * 100) % 7;
+                positions.push(rainbowColors[colorIndex]);
+            }
+        }
+        
+        const transitionBar = positions.join(' ');
+        
+        // Same fixed size content, no fruit info yet
+        const content = [
+            `${transitionBar}`,
+            "",
+            `💎 **LEGENDARY MANIFESTATION** 💎`,
+            "",
+            `🍈 **Fruit:** ???`,
+            `⭐ **Type:** ???`,
+            `🎯 **Rarity:** ???`,
+            `🔥 **CP Multiplier:** ???`,
+            `🌟 **Category:** ???`,
+            "",
+            `🔄 **Status:** ???`,
+            "",
+            `📖 **Power Description:**`,
+            `*Power crystallizing...*`,
+            "",
+            `💰 **Balance:** ???`,
+            `🎯 **Total Owned:** ???`,
+            "",
+            `${transitionBar}`
+        ].join('\n');
+        
+        // Gradually blend colors
+        const progress = Math.min(outFrame / (10 - 1), 1);
+        const currentRainbowColor = this.getEmbedColorSyncedToFirst(outFrame);
+        const blendedColor = this.blendColors(currentRainbowColor, rewardColor, progress);
+        
+        return new EmbedBuilder()
+            .setColor(blendedColor)
+            .setTitle("💎 Devil Fruit Hunt - Power Crystallizing")
+            .setDescription(content)
+            .setFooter({ text: "💎 Manifestation in progress..." })
+            .setTimestamp();
+    },
+
+    createProgressiveTextReveal(textFrame, targetFruit, userStats, newBalance, rewardColor, rewardEmoji) {
+        const rewardBar = Array(20).fill(rewardEmoji).join(' ');
+        
+        const rarityTitles = {
+            common: "Common Discovery",
+            uncommon: "Uncommon Treasure", 
+            rare: "Rare Artifact",
+            epic: "Epic Legend",
+            legendary: "Legendary Relic",
+            mythical: "Mythical Wonder",
+            omnipotent: "Omnipotent Force"
+        };
+        
+        const typeEmojis = {
+            'Paramecia': '🔮',
+            'Zoan': '🐺',
+            'Logia': '🌪️',
+            'Ancient Zoan': '🦕',
+            'Mythical Zoan': '🐉',
+            'Special Paramecia': '✨'
+        };
+        
+        // Progressive reveal based on frame
+        let fruitName = textFrame >= 0 ? targetFruit.name : "???";
+        let fruitType = textFrame >= 1 ? targetFruit.type : "???";
+        let fruitRarity = textFrame >= 2 ? targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1) : "???";
+        let cpMultiplier = textFrame >= 3 ? `${(targetFruit.multiplier || 1.0).toFixed(2)}x` : "???";
+        let category = textFrame >= 4 ? (targetFruit.fruitType || 'Unknown') : "???";
+        
+        const duplicateCount = userStats.duplicateCount || 1;
+        let status = textFrame >= 5 ? 
+            (duplicateCount > 1 ? 
+                `🔄 **Duplicate #${duplicateCount}** (+${((duplicateCount - 1) * 1).toFixed(0)}% CP Bonus!)` : 
+                `✨ **New Discovery!** First time obtaining this fruit!`) : "???";
+        
+        let powerDesc = textFrame >= 5 ? 
+            (targetFruit.power || 'A mysterious power awaits discovery...') : "???";
+        
+        let balance = textFrame >= 5 ? newBalance.toLocaleString() : "???";
+        let totalOwned = textFrame >= 5 ? duplicateCount.toString() : "???";
+        
+        const content = [
+            `${rewardBar}`,
+            "",
+            `🎉 **${rarityTitles[targetFruit.rarity] || 'Mysterious Discovery'}**`,
+            "",
+            `🍈 **Fruit:** ${fruitName}`,
+            `${typeEmojis[targetFruit.type] || '⭐'} **Type:** ${fruitType}`,
+            `🎯 **Rarity:** ${fruitRarity}`,
+            `🔥 **CP Multiplier:** ${cpMultiplier}`,
+            `🌟 **Category:** ${category}`,
+            "",
+            `${status}`,
+            "",
+            `📖 **Power Description:**`,
+            `*${powerDesc}*`,
+            "",
+            `💰 **Balance:** ${balance} berries`,
+            `🎯 **Total Owned:** ${totalOwned}`,
+            "",
+            `${rewardBar}`
+        ].join('\n');
+        
+        return new EmbedBuilder()
+            .setColor(rewardColor)
+            .setTitle(userStats.isNewFruit ? "🏴‍☠️ New Devil Fruit Discovered!" : "🏴‍☠️ Devil Fruit Enhanced!")
+            .setDescription(content)
+            .setFooter({ text: "🌊 Information materializing..." })
+            .setTimestamp();
     },
 
     getSyncedRainbowPattern(frame, barLength = 20) {
