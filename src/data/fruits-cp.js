@@ -1,141 +1,265 @@
+// src/data/fruit-cp.js - Devil Fruit CP Multipliers
+
+// Common Fruits (1.0x - 1.2x multiplier)
+const commonFruits = [
+    { id: 'gomu_gomu', name: 'Gomu Gomu no Mi', type: 'Paramecia', power: 'Grants rubber properties to the user\'s body' },
+    { id: 'kilo_kilo', name: 'Kilo Kilo no Mi', type: 'Paramecia', power: 'Allows the user to change their weight' },
+    { id: 'chop_chop', name: 'Bara Bara no Mi', type: 'Paramecia', power: 'Allows the user to split their body into pieces' },
+    { id: 'slip_slip', name: 'Sube Sube no Mi', type: 'Paramecia', power: 'Makes the user\'s skin slippery' },
+    { id: 'boom_boom', name: 'Bomu Bomu no Mi', type: 'Paramecia', power: 'Makes the user a bomb human' },
+    { id: 'wax_wax', name: 'Doru Doru no Mi', type: 'Paramecia', power: 'Allows the user to create and control wax' },
+    { id: 'spring_spring', name: 'Bane Bane no Mi', type: 'Paramecia', power: 'Turns the user\'s legs into springs' },
+    { id: 'dice_dice', name: 'Supa Supa no Mi', type: 'Paramecia', power: 'Turns the user\'s body into blades' },
+    { id: 'spin_spin', name: 'Ori Ori no Mi', type: 'Paramecia', power: 'Allows the user to bind opponents with iron' },
+    { id: 'jacket_jacket', name: 'Jaku Jaku no Mi', type: 'Paramecia', power: 'Allows the user to become a jacket' },
+    { id: 'berry_berry', name: 'Beri Beri no Mi', type: 'Paramecia', power: 'Allows the user to turn into berries' },
+    { id: 'rust_rust', name: 'Sabi Sabi no Mi', type: 'Paramecia', power: 'Allows the user to rust metal' },
+    { id: 'wheel_wheel', name: 'Sharin Sharin no Mi', type: 'Paramecia', power: 'Turns the user\'s limbs into wheels' },
+    { id: 'wash_wash', name: 'Woshu Woshu no Mi', type: 'Paramecia', power: 'Allows the user to wash and fold anything' },
+    { id: 'brush_brush', name: 'Fude Fude no Mi', type: 'Paramecia', power: 'Allows the user to create paintings that come to life' }
+];
+
+// Uncommon Fruits (1.2x - 1.4x multiplier)
+const uncommonFruits = [
+    { id: 'spike_spike', name: 'Toge Toge no Mi', type: 'Paramecia', power: 'Allows the user to grow spikes from their body' },
+    { id: 'hollow_hollow', name: 'Horo Horo no Mi', type: 'Paramecia', power: 'Allows the user to create and control ghosts' },
+    { id: 'barrier_barrier', name: 'Bari Bari no Mi', type: 'Paramecia', power: 'Allows the user to create barriers' },
+    { id: 'hobby_hobby', name: 'Hobi Hobi no Mi', type: 'Paramecia', power: 'Allows the user to turn people into toys' },
+    { id: 'clear_clear', name: 'Suke Suke no Mi', type: 'Paramecia', power: 'Grants the user invisibility' },
+    { id: 'flower_flower', name: 'Hana Hana no Mi', type: 'Paramecia', power: 'Allows the user to sprout body parts anywhere' },
+    { id: 'revive_revive', name: 'Yomi Yomi no Mi', type: 'Paramecia', power: 'Grants the user a second life' },
+    { id: 'shadow_shadow', name: 'Kage Kage no Mi', type: 'Paramecia', power: 'Allows the user to control shadows' },
+    { id: 'slow_slow', name: 'Noro Noro no Mi', type: 'Paramecia', power: 'Allows the user to slow down anything' },
+    { id: 'door_door', name: 'Doa Doa no Mi', type: 'Paramecia', power: 'Allows the user to create doors anywhere' },
+    { id: 'bubble_bubble', name: 'Awa Awa no Mi', type: 'Paramecia', power: 'Allows the user to create and control bubbles' },
+    { id: 'rust_rust', name: 'Sabi Sabi no Mi', type: 'Paramecia', power: 'Allows the user to rust anything' },
+    { id: 'string_string', name: 'Ito Ito no Mi', type: 'Paramecia', power: 'Allows the user to create and control strings' },
+    { id: 'paw_paw', name: 'Nikyu Nikyu no Mi', type: 'Paramecia', power: 'Grants paw pads that can repel anything' },
+    { id: 'love_love', name: 'Mero Mero no Mi', type: 'Paramecia', power: 'Allows the user to turn people to stone with love' }
+];
+
+// Rare Fruits (1.4x - 1.7x multiplier)
+const rareFruits = [
+    { id: 'flame_flame', name: 'Mera Mera no Mi', type: 'Logia', power: 'Allows the user to create and control fire' },
+    { id: 'smoke_smoke', name: 'Moku Moku no Mi', type: 'Logia', power: 'Allows the user to create and control smoke' },
+    { id: 'sand_sand', name: 'Suna Suna no Mi', type: 'Logia', power: 'Allows the user to create and control sand' },
+    { id: 'rumble_rumble', name: 'Goro Goro no Mi', type: 'Logia', power: 'Allows the user to create and control lightning' },
+    { id: 'ice_ice', name: 'Hie Hie no Mi', type: 'Logia', power: 'Allows the user to create and control ice' },
+    { id: 'dark_dark', name: 'Yami Yami no Mi', type: 'Logia', power: 'Allows the user to create and control darkness' },
+    { id: 'light_light', name: 'Pika Pika no Mi', type: 'Logia', power: 'Allows the user to create and control light' },
+    { id: 'magma_magma', name: 'Magu Magu no Mi', type: 'Logia', power: 'Allows the user to create and control magma' },
+    { id: 'marsh_marsh', name: 'Numa Numa no Mi', type: 'Logia', power: 'Allows the user to create and control swamps' },
+    { id: 'gas_gas', name: 'Gasu Gasu no Mi', type: 'Logia', power: 'Allows the user to create and control gas' },
+    { id: 'snow_snow', name: 'Yuki Yuki no Mi', type: 'Logia', power: 'Allows the user to create and control snow' },
+    { id: 'tremor_tremor', name: 'Gura Gura no Mi', type: 'Paramecia', power: 'Allows the user to create earthquakes' },
+    { id: 'venom_venom', name: 'Doku Doku no Mi', type: 'Paramecia', power: 'Allows the user to create and control poison' },
+    { id: 'chop_chop', name: 'Ope Ope no Mi', type: 'Paramecia', power: 'Grants surgical powers within a "Room"' },
+    { id: 'gravity_gravity', name: 'Zushi Zushi no Mi', type: 'Paramecia', power: 'Allows the user to control gravity' }
+];
+
+// Epic Fruits (1.7x - 2.1x multiplier)
+const epicFruits = [
+    { id: 'human_buddha', name: 'Hito Hito no Mi, Model: Daibutsu', type: 'Mythical Zoan', power: 'Transforms the user into a giant golden Buddha' },
+    { id: 'dragon_eastern', name: 'Uo Uo no Mi, Model: Seiryu', type: 'Mythical Zoan', power: 'Transforms the user into an Eastern Dragon' },
+    { id: 'bird_phoenix', name: 'Tori Tori no Mi, Model: Phoenix', type: 'Mythical Zoan', power: 'Transforms the user into a phoenix with regeneration' },
+    { id: 'dog_kyubi', name: 'Inu Inu no Mi, Model: Kyubi no Kitsune', type: 'Mythical Zoan', power: 'Transforms the user into a nine-tailed fox' },
+    { id: 'spider_rosamygale', name: 'Kumo Kumo no Mi, Model: Rosamygale Grauvogeli', type: 'Ancient Zoan', power: 'Transforms the user into an ancient spider' },
+    { id: 'castle_castle', name: 'Shiro Shiro no Mi', type: 'Paramecia', power: 'Allows the user to become a living fortress' },
+    { id: 'soul_soul', name: 'Soru Soru no Mi', type: 'Paramecia', power: 'Allows the user to manipulate souls' },
+    { id: 'mirror_mirror', name: 'Mira Mira no Mi', type: 'Paramecia', power: 'Allows the user to create and travel through mirrors' },
+    { id: 'biscuit_biscuit', name: 'Bisu Bisu no Mi', type: 'Paramecia', power: 'Allows the user to create and control biscuits' },
+    { id: 'mochi_mochi', name: 'Mochi Mochi no Mi', type: 'Special Paramecia', power: 'Allows the user to create and control mochi' },
+    { id: 'memory_memory', name: 'Memo Memo no Mi', type: 'Paramecia', power: 'Allows the user to manipulate memories' },
+    { id: 'time_time', name: 'Toki Toki no Mi', type: 'Paramecia', power: 'Allows the user to travel through time' },
+    { id: 'float_float', name: 'Fuwa Fuwa no Mi', type: 'Paramecia', power: 'Allows the user to make objects float' },
+    { id: 'push_push', name: 'Oshi Oshi no Mi', type: 'Paramecia', power: 'Allows the user to push anything' },
+    { id: 'heal_heal', name: 'Chiyu Chiyu no Mi', type: 'Paramecia', power: 'Allows the user to heal any injury' }
+];
+
+// Legendary Fruits (2.1x - 2.6x multiplier)
+const legendaryFruits = [
+    { id: 'nika_nika', name: 'Hito Hito no Mi, Model: Nika', type: 'Mythical Zoan', power: 'Sun God Nika - grants rubber powers and reality manipulation' },
+    { id: 'yamata_orochi', name: 'Hebi Hebi no Mi, Model: Yamata-no-Orochi', type: 'Mythical Zoan', power: 'Transforms the user into the eight-headed serpent' },
+    { id: 'azure_dragon', name: 'Uo Uo no Mi, Model: Seiryu', type: 'Mythical Zoan', power: 'Transforms the user into Kaido\'s Azure Dragon form' },
+    { id: 'white_tiger', name: 'Neko Neko no Mi, Model: Byakko', type: 'Mythical Zoan', power: 'Transforms the user into the White Tiger god' },
+    { id: 'black_tortoise', name: 'Kame Kame no Mi, Model: Genbu', type: 'Mythical Zoan', power: 'Transforms the user into the Black Tortoise god' },
+    { id: 'vermillion_bird', name: 'Tori Tori no Mi, Model: Suzaku', type: 'Mythical Zoan', power: 'Transforms the user into the Vermillion Bird god' },
+    { id: 'grim_reaper', name: 'Shin Shin no Mi, Model: Shinigami', type: 'Mythical Zoan', power: 'Transforms the user into the Grim Reaper' },
+    { id: 'void_void', name: 'Kuu Kuu no Mi', type: 'Special Paramecia', power: 'Allows the user to control the void and nothingness' },
+    { id: 'space_space', name: 'Kukan Kukan no Mi', type: 'Special Paramecia', power: 'Allows the user to manipulate space itself' },
+    { id: 'creation_creation', name: 'Souzou Souzou no Mi', type: 'Special Paramecia', power: 'Allows the user to create anything from imagination' }
+];
+
+// Mythical Fruits (2.6x - 3.2x multiplier)
+const mythicalFruits = [
+    { id: 'world_world', name: 'Sekai Sekai no Mi', type: 'Special Paramecia', power: 'Grants control over entire worlds and dimensions' },
+    { id: 'reality_reality', name: 'Genjitsu Genjitsu no Mi', type: 'Special Paramecia', power: 'Allows the user to alter reality itself' },
+    { id: 'concept_concept', name: 'Gainen Gainen no Mi', type: 'Special Paramecia', power: 'Allows the user to manipulate abstract concepts' },
+    { id: 'infinity_infinity', name: 'Mugen Mugen no Mi', type: 'Special Paramecia', power: 'Grants infinite power and possibilities' },
+    { id: 'alpha_alpha', name: 'Arufa Arufa no Mi', type: 'Mythical Zoan', power: 'Transforms the user into the Alpha of all existence' },
+    { id: 'omega_omega', name: 'Omega Omega no Mi', type: 'Mythical Zoan', power: 'Transforms the user into the Omega, the end of all things' },
+    { id: 'primordial_chaos', name: 'Konton Konton no Mi', type: 'Mythical Zoan', power: 'Transforms the user into Primordial Chaos itself' }
+];
+
+// Omnipotent Fruits (3.2x - 4.0x multiplier)
+const omnipotentFruits = [
+    { id: 'god_god', name: 'Kami Kami no Mi', type: 'Divine Fruit', power: 'Grants true omnipotence and godhood' },
+    { id: 'all_all', name: 'Zen Zen no Mi', type: 'Divine Fruit', power: 'Grants power over all existence, past, present, and future' },
+    { id: 'one_one', name: 'Ichi Ichi no Mi', type: 'Divine Fruit', power: 'Makes the user the One Above All, supreme over everything' }
+];
+
 // CP Multipliers for each fruit
-const fruitMultipliers = {
-    // Common Fruits (1.0x base)
-    "Gomu Gomu no Mi": 1.0,
-    "Kilo Kilo no Mi": 1.0,
-    "Chop Chop no Mi": 1.0,
-    "Slip Slip no Mi": 1.0,
-    "Boom Boom no Mi": 1.0,
-    "Wax Wax no Mi": 1.0,
-    "Spring Spring no Mi": 1.0,
-    "Dice Dice no Mi": 1.0,
-    "Spin Spin no Mi": 1.0,
-    "Jacket Jacket no Mi": 1.0,
-    "Berry Berry no Mi": 1.0,
-    "Rust Rust no Mi": 1.0,
-    "Wheel Wheel no Mi": 1.0,
-    "Wash Wash no Mi": 1.0,
-    "Brush Brush no Mi": 1.0,
-    "Swim Swim no Mi": 1.0,
-    "Arms Arms no Mi": 1.0,
-    "Munch Munch no Mi": 1.0,
-    "Bind Bind no Mi": 1.0,
-    "Biscuit Biscuit no Mi": 1.0,
-    "Cream Cream no Mi": 1.0,
-    "Butter Butter no Mi": 1.0,
-    "Book Book no Mi": 1.0,
-    "Memo Memo no Mi": 1.0,
-    "Mirror Mirror no Mi": 1.0,
-    "Slow Slow no Mi": 1.0,
-    "Sick Sick no Mi": 1.0,
-    "Glare Glare no Mi": 1.0,
-    "Millet Millet no Mi": 1.0,
-    "Puff Puff no Mi": 1.0,
-    "Calm Calm no Mi": 1.0,
-    "Cage Cage no Mi": 1.0,
-    "Clank Clank no Mi": 1.0,
-    "Pocket Pocket no Mi": 1.0,
-    "Costume Costume no Mi": 1.0,
-    "Cheer Cheer no Mi": 1.0,
-    "Lick Lick no Mi": 1.0,
-    "Smelt Smelt no Mi": 1.0,
-    "Eat Eat no Mi": 1.0,
-    "Cooking Cooking no Mi": 1.0,
+const FRUIT_CP_MULTIPLIERS = {};
 
-    // Uncommon Fruits (1.1x base)
-    "Spike Spike no Mi": 1.1,
-    "Hollow Hollow no Mi": 1.1,
-    "Barrier Barrier no Mi": 1.1,
-    "Hobby Hobby no Mi": 1.1,
-    "Paw Paw no Mi": 1.1,
-    "Clear Clear no Mi": 1.1,
-    "Flower Flower no Mi": 1.1,
-    "Revive Revive no Mi": 1.1,
-    "Shadow Shadow no Mi": 1.1,
-    "Chilly Chilly no Mi": 1.1,
-    "Smoke Smoke no Mi": 1.1,
-    "Flame Flame no Mi": 1.1,
-    "Sand Sand no Mi": 1.1,
-    "Rumble Rumble no Mi": 1.1,
-    "Dark Dark no Mi": 1.1,
-    "Love Love no Mi": 1.1,
-    "Venom Venom no Mi": 1.1,
-    "Warp Warp no Mi": 1.1,
-    "Scissor Scissor no Mi": 1.1,
-    "Clone Clone no Mi": 1.1,
-    "Straw Straw no Mi": 1.1,
-    "Heal Heal no Mi": 1.1,
-    "Glint Glint no Mi": 1.1,
-    "Magnet Magnet no Mi": 1.1,
-    "Castle Castle no Mi": 1.1,
-    "Float Float no Mi": 1.1,
-    "Mark Mark no Mi": 1.1,
-    "String String no Mi": 1.1,
-    "Poke Poke no Mi": 1.1,
-    "Ope Ope no Mi": 1.1,
+// Assign multipliers based on rarity
+const assignMultipliers = (fruits, minMultiplier, maxMultiplier) => {
+    fruits.forEach(fruit => {
+        const randomMultiplier = Math.random() * (maxMultiplier - minMultiplier) + minMultiplier;
+        FRUIT_CP_MULTIPLIERS[fruit.id] = parseFloat(randomMultiplier.toFixed(2));
+    });
+};
 
-    // Rare Fruits (1.3x base)
-    "Human Human no Mi": 1.3,
-    "Ox Ox no Mi": 1.3,
-    "Falcon Falcon no Mi": 1.3,
-    "Mole Mole no Mi": 1.3,
-    "Dog Dog no Mi": 1.3,
-    "Elephant Elephant no Mi": 1.3,
-    "Giraffe Giraffe no Mi": 1.3,
-    "Horse Horse no Mi": 1.3,
-    "Cat Cat no Mi": 1.3,
-    "Snake Snake no Mi": 1.3,
-    "Turtle Turtle no Mi": 1.3,
-    "Hippo Hippo no Mi": 1.3,
-    "Rhino Rhino no Mi": 1.3,
-    "Spider Spider no Mi": 1.3,
-    "Insect Insect no Mi": 1.3,
-    "Salamander Salamander no Mi": 1.3,
-    "Axolotl Axolotl no Mi": 1.3,
-    "Deer Deer no Mi": 1.3,
-    "Cow Cow no Mi": 1.3,
-    "Sheep Sheep no Mi": 1.3,
-    "Pig Pig no Mi": 1.3,
-    "Chicken Chicken no Mi": 1.3,
-    "Eagle Eagle no Mi": 1.3,
-    "Hawk Hawk no Mi": 1.3,
-    "Owl Owl no Mi": 1.3,
-    "Rabbit Rabbit no Mi": 1.3,
-    "Rat Rat no Mi": 1.3,
-    "Monkey Monkey no Mi": 1.3,
-    "Bear Bear no Mi": 1.3,
-    "Lion Lion no Mi": 1.3,
-    "Tiger Tiger no Mi": 1.3,
+// Assign multipliers for each rarity tier
+assignMultipliers(commonFruits, 1.0, 1.2);
+assignMultipliers(uncommonFruits, 1.2, 1.4);
+assignMultipliers(rareFruits, 1.4, 1.7);
+assignMultipliers(epicFruits, 1.7, 2.1);
+assignMultipliers(legendaryFruits, 2.1, 2.6);
+assignMultipliers(mythicalFruits, 2.6, 3.2);
+assignMultipliers(omnipotentFruits, 3.2, 4.0);
 
-    // Epic Fruits (1.6x base)
-    "Ice Ice no Mi": 1.6,
-    "Magma Magma no Mi": 1.6,
-    "Swamp Swamp no Mi": 1.6,
-    "Gas Gas no Mi": 1.6,
-    "Snow Snow no Mi": 1.6,
-    "Mud Mud no Mi": 1.6,
-    "Candy Candy no Mi": 1.6,
-    "Mochi Mochi no Mi": 1.6,
-    "Tremor Tremor no Mi": 1.6,
-    "Soul Soul no Mi": 1.6,
-    "Time Time no Mi": 1.6,
-    "Gravity Gravity no Mi": 1.6,
-    "Push Push no Mi": 1.6,
-    "Repel Repel no Mi": 1.6,
-    "Slow Slow no Mi": 1.6,
-    "Slip Slip no Mi": 1.6,
-    "Smooth Smooth no Mi": 1.6,
-    "Spike Spike no Mi": 1.6,
-    "Hollow Hollow no Mi": 1.6,
-    "Barrier Barrier no Mi": 1.6,
-    "Hobby Hobby no Mi": 1.6,
+// CP ranges for validation
+const CP_RANGES = {
+    common: { min: 1.0, max: 1.2 },
+    uncommon: { min: 1.2, max: 1.4 },
+    rare: { min: 1.4, max: 1.7 },
+    epic: { min: 1.7, max: 2.1 },
+    legendary: { min: 2.1, max: 2.6 },
+    mythical: { min: 2.6, max: 3.2 },
+    omnipotent: { min: 3.2, max: 4.0 }
+};
 
-    // Legendary Fruits (2.0x base)
-    "Phoenix Phoenix no Mi": 2.0,
-    "Buddha Buddha no Mi": 2.0,
-    "Dragon Dragon no Mi": 2.0,
-    "Mythical Zoan Model: Phoenix": 2.0,
-    "Mythical Zoan Model: Buddha": 2.0,
-    "Mythical Zoan Model: Dragon": 2.0,
-    "Mythical Zoan Model: Yamata-no-Orochi": 2.0,
-    "Mythical Zoan Model: Nine-Tailed Fox": 2.0,
+// Utility functions
+function getFruitCP(fruitId) {
+    return FRUIT_CP_MULTIPLIERS[fruitId] || 1.0;
+}
+
+function getFruitCPAsInt(fruitId) {
+    return Math.floor(getFruitCP(fruitId) * 100);
+}
+
+function intToCP(intValue) {
+    return intValue / 100;
+}
+
+function getCPRange(rarity) {
+    return CP_RANGES[rarity] || { min: 1.0, max: 1.2 };
+}
+
+function isValidCP(cp, rarity) {
+    const range = getCPRange(rarity);
+    return cp >= range.min && cp <= range.max;
+}
+
+function getRandomCPForRarity(rarity) {
+    const range = getCPRange(rarity);
+    return Math.random() * (range.max - range.min) + range.min;
+}
+
+function getRarityFromCP(cp) {
+    for (const [rarity, range] of Object.entries(CP_RANGES)) {
+        if (cp >= range.min && cp <= range.max) {
+            return rarity;
+        }
+    }
+    return 'common';
+}
+
+function getCPTierDescription(cp) {
+    if (cp >= 3.2) return 'Divine';
+    if (cp >= 2.6) return 'Mythical';
+    if (cp >= 2.1) return 'Legendary';
+    if (cp >= 1.7) return 'Epic';
+    if (cp >= 1.4) return 'Rare';
+    if (cp >= 1.2) return 'Uncommon';
+    return 'Common';
+}
+
+function calculateTotalCP(baseCPFromLevel, fruits) {
+    if (!fruits || fruits.length === 0) return baseCPFromLevel;
+    
+    const fruitGroups = {};
+    
+    // Group fruits by ID to handle duplicates
+    fruits.forEach(fruit => {
+        if (!fruitGroups[fruit.fruit_id]) {
+            fruitGroups[fruit.fruit_id] = {
+                cpMultiplier: fruit.cpMultiplier || getFruitCP(fruit.fruit_id),
+                count: 0
+            };
+        }
+        fruitGroups[fruit.fruit_id].count++;
+    });
+    
+    // Calculate total CP with duplicates
+    let totalMultiplier = 0;
+    Object.values(fruitGroups).forEach(group => {
+        const baseMultiplier = group.cpMultiplier;
+        const duplicateBonus = (group.count - 1) * 0.01; // 1% per duplicate
+        totalMultiplier += baseMultiplier + duplicateBonus;
+    });
+    
+    return Math.floor(baseCPFromLevel * (1 + totalMultiplier));
+}
+
+function calculateDuplicateBonus(duplicateCount) {
+    return 1 + ((duplicateCount - 1) * 0.01);
+}
+
+function getCPStats() {
+    const allCPs = Object.values(FRUIT_CP_MULTIPLIERS);
+    return {
+        total: allCPs.length,
+        average: allCPs.reduce((sum, cp) => sum + cp, 0) / allCPs.length,
+        min: Math.min(...allCPs),
+        max: Math.max(...allCPs)
+    };
+}
+
+function getTopCPFruits(limit = 10) {
+    return Object.entries(FRUIT_CP_MULTIPLIERS)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, limit)
+        .map(([fruitId, cp]) => ({ fruitId, cp }));
+}
+
+function getFruitsByCPRange(minCP, maxCP) {
+    return Object.entries(FRUIT_CP_MULTIPLIERS)
+        .filter(([,cp]) => cp >= minCP && cp <= maxCP)
+        .map(([fruitId, cp]) => ({ fruitId, cp }));
+}
+
+module.exports = {
+    commonFruits,
+    uncommonFruits,
+    rareFruits,
+    epicFruits,
+    legendaryFruits,
+    mythicalFruits,
+    omnipotentFruits,
+    FRUIT_CP_MULTIPLIERS,
+    CP_RANGES,
+    getFruitCP,
+    getFruitCPAsInt,
+    intToCP,
+    getCPRange,
+    getFruitsByCPRange,
+    getTopCPFruits,
+    calculateTotalCP,
+    calculateDuplicateBonus,
+    getCPStats,
+    getRandomCPForRarity,
+    getRarityFromCP,
+    isValidCP,
+    getCPTierDescription
+};
