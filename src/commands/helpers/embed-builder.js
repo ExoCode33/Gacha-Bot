@@ -1,4 +1,4 @@
-// src/commands/helpers/embed-builder.js - Embed Creator
+// src/commands/helpers/embed-builder.js - Fixed Embed Creator
 const { EmbedBuilder } = require('discord.js');
 const { getRarityColor, getRarityEmoji } = require('../../data/devil-fruits');
 
@@ -54,22 +54,25 @@ class EmbedCreator {
             .setFooter({ text: '🌊 Searching the mysterious seas...' });
     }
 
-    // Color spread frame
+    // Fixed color spread frame with proper center calculation
     static createColorSpreadFrame(frame, fruit, rewardColor, rewardEmoji) {
         const barLength = 20;
-        const center = 10;
+        const center = 9.5; // Proper center for 0-19 indexed array
         const spreadRadius = Math.floor(frame * 1.2);
         
         const bar = Array(barLength).fill('⬛');
         const rainbowColors = ['🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '🟫'];
         
+        // Fixed symmetrical spreading from center
         for (let i = 0; i < barLength; i++) {
             const distanceFromCenter = Math.abs(i - center);
             
             if (distanceFromCenter <= spreadRadius) {
                 bar[i] = rewardEmoji;
             } else {
-                bar[i] = rainbowColors[(i * 2) % rainbowColors.length];
+                // Ensure rainbow colors are synced from both ends
+                const colorIndex = Math.floor(distanceFromCenter) % rainbowColors.length;
+                bar[i] = rainbowColors[colorIndex];
             }
         }
 
@@ -95,25 +98,22 @@ class EmbedCreator {
             .setFooter({ text: '⚡ Power crystallizing...' });
     }
 
-    // Text reveal frame
+    // Fixed text reveal frame - keeps detailed ability info visible
     static createTextRevealFrame(frame, fruit, result, newBalance, rewardColor, rewardEmoji) {
         const pattern = Array(20).fill(rewardEmoji).join(' ');
         const duplicateCount = result.duplicate_count || 1;
         const duplicateText = duplicateCount === 1 ? '✨ New Discovery!' : `📚 Total Owned: ${duplicateCount}`;
         const totalCp = result.total_cp || 250;
         
-        // Get ability details - show progression: ??? -> basic name -> detailed info -> Analysis complete
+        // Get ability details - FIXED: Keep detailed info visible after frame 7
         let abilityText = '???';
         if (frame === 6) {
             // Frame 6: Show basic ability name
             const basicAbility = this.getBasicAbilityText(fruit);
             abilityText = basicAbility.name;
-        } else if (frame === 7) {
-            // Frame 7: Show full detailed ability with effects
+        } else if (frame >= 7) {
+            // Frame 7+: Show full detailed ability with effects and KEEP IT VISIBLE
             abilityText = this.getDetailedAbilityText(fruit);
-        } else if (frame >= 8) {
-            // Frame 8+: Analysis complete
-            abilityText = 'Analysis complete';
         }
         
         // Show COMPLETE layout with progressive reveals
@@ -145,13 +145,17 @@ class EmbedCreator {
         const duplicateText = duplicateCount === 1 ? '✨ New Discovery!' : `📚 Total Owned: ${duplicateCount}`;
         const totalCp = result.total_cp || 250;
 
+        // Show detailed ability info in final reveal too
+        const detailedAbility = this.getDetailedAbilityText(fruit);
+
         const description = `🎉 **Congratulations!** You've obtained a magnificent Devil Fruit!\n\n${pattern}\n\n` +
             `📊 **Status:** ${duplicateText}\n` +
             `🍃 **Name:** ${fruit.name}\n` +
             `🔮 **Type:** ${fruit.type}\n` +
             `⭐ **Rarity:** ${fruit.rarity.charAt(0).toUpperCase() + fruit.rarity.slice(1)}\n` +
             `💪 **CP Multiplier:** ${fruit.multiplier}x\n` +
-            `⚡ **Power:** ${fruit.power}\n\n` +
+            `⚡ **Power:** ${fruit.power}\n` +
+            `🎯 **Abilities:** ${detailedAbility}\n\n` +
             `🔥 **Total CP:** ${totalCp.toLocaleString()} CP\n` +
             `💰 **Remaining Berries:** ${newBalance.toLocaleString()} berries\n\n` +
             `${pattern}`;
@@ -249,7 +253,7 @@ class EmbedCreator {
         }
     }
 
-    // Get detailed ability text for frame 7
+    // Get detailed ability text for frame 7+ (FIXED: Now persists)
     static getDetailedAbilityText(fruit) {
         try {
             const { balancedDevilFruitAbilities, statusEffects } = require('../../data/balanced-devil-fruit-abilities');
