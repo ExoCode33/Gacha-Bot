@@ -1,47 +1,106 @@
-// src/data/devil-fruits.js - Main Devil Fruit System (Updated)
-const { 
+// src/data/devil-fruits.js - Main Devil Fruit System (Fixed CommonJS imports)
+const fruitsModule = require('./fruits');
+
+// Try to load optional modules with fallbacks
+let typesModule, cpModule;
+try {
+    typesModule = require('./fruit-types');
+} catch (error) {
+    console.warn('fruit-types module not found, using fallbacks');
+    typesModule = null;
+}
+
+try {
+    cpModule = require('./fruit-cp');
+} catch (error) {
+    console.warn('fruit-cp module not found, using fallbacks');
+    cpModule = null;
+}
+
+// Extract functions from fruits module
+const {
     DEVIL_FRUITS, 
     RARITY_RATES, 
-    getRandomFruit as getRandomFruitFromDB,
-    getFruitById as getFruitByIdFromDB,
+    getRandomFruit: getRandomFruitFromDB,
+    getFruitById: getFruitByIdFromDB,
     getFruitsByRarity,
     getRarityColor,
     getRarityEmoji,
     getAllFruits,
-    getStats as getFruitStats
-} = require('./fruits');
+    getStats: getFruitStats
+} = fruitsModule;
 
-const {
-    FRUIT_TYPES,
-    TYPE_COUNTERS,
-    TYPE_EFFECTIVENESS,
-    getTypeMatchup,
-    getFruitType,
-    getFruitsByType,
-    getAllFruitTypes,
-    getTypeEmoji,
-    calculateBattleEffectiveness,
-    getTypeInfo,
-    getTypeStats
-} = require('./fruit-types');
+// Extract functions from types module (with fallbacks in case module doesn't exist)
+let FRUIT_TYPES, TYPE_COUNTERS, TYPE_EFFECTIVENESS, getTypeMatchup, getFruitType, 
+    getFruitsByType, getAllFruitTypes, getTypeEmoji, calculateBattleEffectiveness, 
+    getTypeInfo, getTypeStats;
 
-const {
-    FRUIT_CP_MULTIPLIERS,
-    CP_RANGES,
-    getFruitCP,
-    getFruitCPAsInt,
-    intToCP,
-    getCPRange,
-    getFruitsByCPRange,
-    getTopCPFruits,
-    calculateTotalCP,
-    calculateDuplicateBonus,
-    getCPStats,
-    getRandomCPForRarity,
-    getRarityFromCP,
-    isValidCP,
-    getCPTierDescription
-} = require('./fruit-cp');
+if (typesModule) {
+    FRUIT_TYPES = typesModule.FRUIT_TYPES;
+    TYPE_COUNTERS = typesModule.TYPE_COUNTERS;
+    TYPE_EFFECTIVENESS = typesModule.TYPE_EFFECTIVENESS;
+    getTypeMatchup = typesModule.getTypeMatchup;
+    getFruitType = typesModule.getFruitType;
+    getFruitsByType = typesModule.getFruitsByType;
+    getAllFruitTypes = typesModule.getAllFruitTypes;
+    getTypeEmoji = typesModule.getTypeEmoji;
+    calculateBattleEffectiveness = typesModule.calculateBattleEffectiveness;
+    getTypeInfo = typesModule.getTypeInfo;
+    getTypeStats = typesModule.getTypeStats;
+} else {
+    // Fallback implementations
+    FRUIT_TYPES = {};
+    TYPE_COUNTERS = {};
+    TYPE_EFFECTIVENESS = { NORMAL: 1.0 };
+    getTypeMatchup = () => 1.0;
+    getFruitType = (id) => ({ type: 'Paramecia', fruitType: 'Unknown' });
+    getFruitsByType = () => [];
+    getAllFruitTypes = () => ['Unknown'];
+    getTypeEmoji = () => '❓';
+    calculateBattleEffectiveness = () => ({ effectiveness: 1.0, message: 'Normal' });
+    getTypeInfo = () => ({ name: 'Unknown', emoji: '❓' });
+    getTypeStats = () => ({ totalTypes: 0 });
+}
+
+// Extract functions from CP module (with fallbacks in case module doesn't exist)
+let FRUIT_CP_MULTIPLIERS, CP_RANGES, getFruitCP, getFruitCPAsInt, intToCP, getCPRange, 
+    getFruitsByCPRange, getTopCPFruits, calculateTotalCP, calculateDuplicateBonus, 
+    getCPStats, getRandomCPForRarity, getRarityFromCP, isValidCP, getCPTierDescription;
+
+if (cpModule) {
+    FRUIT_CP_MULTIPLIERS = cpModule.FRUIT_CP_MULTIPLIERS;
+    CP_RANGES = cpModule.CP_RANGES;
+    getFruitCP = cpModule.getFruitCP;
+    getFruitCPAsInt = cpModule.getFruitCPAsInt;
+    intToCP = cpModule.intToCP;
+    getCPRange = cpModule.getCPRange;
+    getFruitsByCPRange = cpModule.getFruitsByCPRange;
+    getTopCPFruits = cpModule.getTopCPFruits;
+    calculateTotalCP = cpModule.calculateTotalCP;
+    calculateDuplicateBonus = cpModule.calculateDuplicateBonus;
+    getCPStats = cpModule.getCPStats;
+    getRandomCPForRarity = cpModule.getRandomCPForRarity;
+    getRarityFromCP = cpModule.getRarityFromCP;
+    isValidCP = cpModule.isValidCP;
+    getCPTierDescription = cpModule.getCPTierDescription;
+} else {
+    // Fallback implementations
+    FRUIT_CP_MULTIPLIERS = {};
+    CP_RANGES = {};
+    getFruitCP = (id) => 1.0;
+    getFruitCPAsInt = (id) => 100;
+    intToCP = (val) => val / 100;
+    getCPRange = () => ({ min: 1.0, max: 1.5 });
+    getFruitsByCPRange = () => [];
+    getTopCPFruits = () => [];
+    calculateTotalCP = (base) => base;
+    calculateDuplicateBonus = () => 1.0;
+    getCPStats = () => ({ total: 0, average: 1.0 });
+    getRandomCPForRarity = () => 1.0;
+    getRarityFromCP = () => 'common';
+    isValidCP = () => true;
+    getCPTierDescription = () => 'Common';
+}
 
 // Enhanced function to get complete fruit data
 function getRandomFruit() {
@@ -88,16 +147,35 @@ function calculateElementAdvantage(attackerElement, defenderElement) {
 // Get comprehensive stats
 function getStats() {
     const fruitStats = getFruitStats();
-    const typeStats = getTypeStats();
+    let typeStats, cpStats;
+    
+    try {
+        typeStats = getTypeStats();
+    } catch (error) {
+        typeStats = { totalTypes: 0 };
+    }
+    
+    try {
+        cpStats = getCPStats();
+    } catch (error) {
+        cpStats = { total: 0, average: 1.0 };
+    }
+    
     return {
         fruits: fruitStats,
         types: typeStats,
         cp: cpStats,
         combined: {
             totalFruits: fruitStats.total,
-            totalTypes: typeStats.totalTypes,
-            averageCP: cpStats.average,
-            topCPFruit: getTopCPFruits(1)[0]
+            totalTypes: typeStats.totalTypes || 0,
+            averageCP: cpStats.average || 1.0,
+            topCPFruit: (() => {
+                try {
+                    return getTopCPFruits(1)[0];
+                } catch (error) {
+                    return null;
+                }
+            })()
         }
     };
 }
@@ -144,8 +222,14 @@ function getFruitDisplayInfo(fruitId) {
     const fruit = getFruitById(fruitId);
     if (!fruit) return null;
     
-    const typeInfo = getTypeInfo(fruit.fruitType);
-    const cpTier = getCPTierDescription(fruit.multiplier);
+    let typeInfo, cpTier;
+    try {
+        typeInfo = getTypeInfo(fruit.fruitType);
+        cpTier = getCPTierDescription(fruit.multiplier);
+    } catch (error) {
+        typeInfo = { name: 'Unknown', emoji: '❓' };
+        cpTier = 'Common';
+    }
     
     return {
         ...fruit,
@@ -178,7 +262,11 @@ function getFruitsForLevel(level, count = 5) {
     for (let i = 0; i < Math.min(count, fruits.length); i++) {
         const randomIndex = Math.floor(Math.random() * fruits.length);
         const fruitId = fruits[randomIndex].id;
-        randomFruits.push(getFruitDisplayInfo(fruitId));
+        try {
+            randomFruits.push(getFruitDisplayInfo(fruitId));
+        } catch (error) {
+            console.warn(`Error getting display info for ${fruitId}:`, error);
+        }
     }
     
     return randomFruits;
@@ -191,11 +279,11 @@ function validateFruitData() {
     
     // Check if all fruits have CP multipliers
     for (const fruitId of allFruitIds) {
-        if (!FRUIT_CP_MULTIPLIERS[fruitId]) {
+        if (FRUIT_CP_MULTIPLIERS && !FRUIT_CP_MULTIPLIERS[fruitId]) {
             errors.push(`Missing CP multiplier for ${fruitId}`);
         }
         
-        if (!FRUIT_TYPES[fruitId]) {
+        if (FRUIT_TYPES && !FRUIT_TYPES[fruitId]) {
             errors.push(`Missing type data for ${fruitId}`);
         }
     }
@@ -203,9 +291,9 @@ function validateFruitData() {
     // Check CP ranges match rarity
     for (const fruitId of allFruitIds) {
         const fruit = DEVIL_FRUITS[fruitId];
-        const cp = FRUIT_CP_MULTIPLIERS[fruitId];
+        const cp = FRUIT_CP_MULTIPLIERS ? FRUIT_CP_MULTIPLIERS[fruitId] : null;
         
-        if (cp && !isValidCP(cp, fruit.rarity)) {
+        if (cp && isValidCP && !isValidCP(cp, fruit.rarity)) {
             errors.push(`CP ${cp} invalid for ${fruit.rarity} fruit ${fruitId}`);
         }
     }
