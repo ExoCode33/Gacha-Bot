@@ -73,16 +73,18 @@ module.exports = {
 
     async startImprovedAnimation(interaction, targetFruit, newBalance) {
         const frameDelay = 800; // 0.8 seconds per frame (much faster!)
-        const totalFrames = 5; // Only 5 frames total (4 seconds total)
+        const animationFrames = 4; // 4 animation frames
+        const transitionFrames = 3; // 3 transition frames for outward reveal
         
         try {
             console.log(`🎯 Starting improved animation: ${targetFruit.name} (${targetFruit.rarity})`);
             
             const rewardColor = getRarityColor(targetFruit.rarity);
+            const rewardEmoji = getRarityEmoji(targetFruit.rarity);
             
-            // Animation frames (0-4, total 4 seconds)
-            for (let frame = 0; frame < totalFrames; frame++) {
-                const embed = this.createAnimationFrame(frame, targetFruit, totalFrames);
+            // Phase 1: Animation frames (0-3, total 3.2 seconds)
+            for (let frame = 0; frame < animationFrames; frame++) {
+                const embed = this.createAnimationFrame(frame, targetFruit, animationFrames);
                 
                 if (frame === 0) {
                     await interaction.reply({ embeds: [embed] });
@@ -90,14 +92,19 @@ module.exports = {
                     await interaction.editReply({ embeds: [embed] });
                 }
                 
-                // Don't wait after the last frame
-                if (frame < totalFrames - 1) {
-                    await new Promise(resolve => setTimeout(resolve, frameDelay));
-                }
+                await new Promise(resolve => setTimeout(resolve, frameDelay));
+            }
+            
+            // Phase 2: Outward reveal transition (3 frames, 1.8 seconds)
+            for (let transFrame = 0; transFrame < transitionFrames; transFrame++) {
+                const embed = this.createTransitionFrame(transFrame, targetFruit, rewardColor, rewardEmoji);
+                
+                await interaction.editReply({ embeds: [embed] });
+                await new Promise(resolve => setTimeout(resolve, 600)); // Slightly faster transition
             }
             
             // Brief pause before final reveal
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 300));
             
             // Save fruit to database
             console.log(`💾 Saving fruit to database: ${targetFruit.name}`);
@@ -193,9 +200,6 @@ module.exports = {
         const embedColor = this.getEmbedColorSyncedToFirst(frame);
         const description = HUNT_DESCRIPTIONS[frame] || HUNT_DESCRIPTIONS[HUNT_DESCRIPTIONS.length - 1];
         
-        // For the last frame, start transitioning to the fruit's rarity color
-        const finalFrameColor = frame === totalFrames - 1 ? getRarityColor(targetFruit.rarity) : embedColor;
-        
         const content = [
             `${rainbowPattern}`,
             "",
@@ -207,11 +211,107 @@ module.exports = {
         ].join('\n');
         
         return new EmbedBuilder()
-            .setColor(finalFrameColor)
+            .setColor(embedColor)
             .setTitle("🌊 Scanning the Grand Line...")
             .setDescription(content)
             .setFooter({ text: "🍈 Devil Fruit materializing..." })
             .setTimestamp();
+    },
+
+    createTransitionFrame(transFrame, targetFruit, rewardColor, rewardEmoji) {
+        const radius = transFrame + 1; // Grows outward each frame
+        const barLength = 20;
+        
+        const positions = [];
+        for (let i = 0; i < barLength; i++) {
+            const centerLeft = 9.5;
+            const distanceFromCenter = Math.abs(i - centerLeft);
+            
+            if (distanceFromCenter <= radius) {
+                positions.push(rewardEmoji);
+            } else {
+                const colorIndex = (i - transFrame + 7 * 100) % 7;
+                positions.push(rainbowColors[colorIndex]);
+            }
+        }
+        
+        const transitionBar = positions.join(' ');
+        
+        const transitionTexts = [
+            "💎 The Devil Fruit's power materializes into reality...",
+            "🌟 Your legend as a Devil Fruit user begins this moment...",
+            "🏴‍☠️ The Grand Line grants you a power beyond imagination!"
+        ];
+        
+        const description = transitionTexts[Math.min(transFrame, transitionTexts.length - 1)];
+        
+        // Show partial fruit info as it reveals
+        let statusDisplay;
+        if (transFrame === 0) {
+            statusDisplay = [
+                `🍈 **Devil Fruit:** ${targetFruit.name}`,
+                `⭐ **Rarity Level:** ${targetFruit.rarity.toUpperCase()}`,
+                `🌟 **Power Class:** TRANSCENDENT`
+            ].join('\n');
+        } else if (transFrame === 1) {
+            statusDisplay = [
+                `🍈 **Devil Fruit:** ${targetFruit.name}`,
+                `⭐ **Rarity Level:** ${targetFruit.rarity.toUpperCase()}`,
+                `🌟 **Fruit Type:** ${targetFruit.type.toUpperCase()}`,
+                `🔥 **CP Multiplier:** ${(targetFruit.multiplier || 1.0).toFixed(2)}x`
+            ].join('\n');
+        } else {
+            statusDisplay = [
+                `🍈 **Devil Fruit:** ${targetFruit.name}`,
+                `⭐ **Rarity Level:** ${targetFruit.rarity.toUpperCase()}`,
+                `🌟 **Fruit Type:** ${targetFruit.type.toUpperCase()}`,
+                `🔥 **CP Multiplier:** ${(targetFruit.multiplier || 1.0).toFixed(2)}x`,
+                `🎯 **Power:** ${targetFruit.power ? targetFruit.power.substring(0, 50) + '...' : 'Mysterious power...'}`
+            ].join('\n');
+        }
+        
+        const content = [
+            `${transitionBar}`,
+            "",
+            `💎 **LEGENDARY MANIFESTATION SEQUENCE** 💎`,
+            "",
+            statusDisplay,
+            "",
+            `*${description}*`,
+            "",
+            `${transitionBar}`
+        ].join('\n');
+        
+        // Gradually transition embed color from rainbow to rarity color
+        const transitionProgress = (transFrame + 1) / 3;
+        const currentRainbowColor = this.getEmbedColorSyncedToFirst(transFrame);
+        
+        // Blend colors for smooth transition
+        const blendedColor = this.blendColors(currentRainbowColor, rewardColor, transitionProgress);
+        
+        return new EmbedBuilder()
+            .setColor(blendedColor)
+            .setTitle("💎 Devil Fruit Hunt - Manifestation Phase")
+            .setDescription(content)
+            .setFooter({ text: "💎 Power crystallizing..." })
+            .setTimestamp();
+    },
+
+    // Helper function to blend two colors
+    blendColors(color1, color2, ratio) {
+        const r1 = (color1 >> 16) & 255;
+        const g1 = (color1 >> 8) & 255;
+        const b1 = color1 & 255;
+        
+        const r2 = (color2 >> 16) & 255;
+        const g2 = (color2 >> 8) & 255;
+        const b2 = color2 & 255;
+        
+        const r = Math.round(r1 + (r2 - r1) * ratio);
+        const g = Math.round(g1 + (g2 - g1) * ratio);
+        const b = Math.round(b1 + (b2 - b1) * ratio);
+        
+        return (r << 16) | (g << 8) | b;
     },
 
     async createFinalRevealEmbed(targetFruit, result, newBalance) {
