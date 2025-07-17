@@ -1,6 +1,8 @@
-// src/commands/collection.js - Updated Collection Command
+// src/commands/collection.js - Fixed Collection Command with proper imports
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const DatabaseManager = require('../database/manager');
+
+// Import getRarityEmoji and getRarityColor from the main devil-fruits module
 const { getRarityEmoji, getRarityColor } = require('../data/devil-fruits');
 
 module.exports = {
