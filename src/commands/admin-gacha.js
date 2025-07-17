@@ -1,4 +1,4 @@
-// src/commands/admin-gacha.js - Admin Commands for Berry Management (Renamed to avoid conflicts)
+// src/commands/admin-gacha.js - Single Admin Command with All Options
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const EconomySystem = require('../systems/economy');
@@ -22,7 +22,7 @@ module.exports = {
                         .setDescription('Amount of berries to add')
                         .setRequired(true)
                         .setMinValue(1)
-                        .setMaxValue(1000000)
+                        .setMaxValue(10000000)
                 )
                 .addStringOption(option =>
                     option.setName('reason')
@@ -44,7 +44,7 @@ module.exports = {
                         .setDescription('Amount of berries to remove')
                         .setRequired(true)
                         .setMinValue(1)
-                        .setMaxValue(1000000)
+                        .setMaxValue(10000000)
                 )
                 .addStringOption(option =>
                     option.setName('reason')
@@ -66,7 +66,7 @@ module.exports = {
                         .setDescription('Amount to set berries to')
                         .setRequired(true)
                         .setMinValue(0)
-                        .setMaxValue(1000000)
+                        .setMaxValue(10000000)
                 )
                 .addStringOption(option =>
                     option.setName('reason')
@@ -96,6 +96,73 @@ module.exports = {
                 .addUserOption(option =>
                     option.setName('user')
                         .setDescription('The user to reset income for')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('give_fruit')
+                .setDescription('🍈 Give a specific devil fruit to a user')
+                .addUserOption(option =>
+                    option.setName('user')
+                        .setDescription('The user to give fruit to')
+                        .setRequired(true)
+                )
+                .addStringOption(option =>
+                    option.setName('fruit_name')
+                        .setDescription('Name of the fruit to give')
+                        .setRequired(true)
+                )
+                .addStringOption(option =>
+                    option.setName('reason')
+                        .setDescription('Reason for giving fruit')
+                        .setRequired(false)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('reset_user')
+                .setDescription('🗑️ Reset a user\'s entire progress')
+                .addUserOption(option =>
+                    option.setName('user')
+                        .setDescription('The user to reset')
+                        .setRequired(true)
+                )
+                .addBooleanOption(option =>
+                    option.setName('confirm')
+                        .setDescription('Confirm you want to reset this user')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('set_level')
+                .setDescription('⭐ Set a user\'s level')
+                .addUserOption(option =>
+                    option.setName('user')
+                        .setDescription('The user to set level for')
+                        .setRequired(true)
+                )
+                .addIntegerOption(option =>
+                    option.setName('level')
+                        .setDescription('Level to set (0-50)')
+                        .setRequired(true)
+                        .setMinValue(0)
+                        .setMaxValue(50)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('database_backup')
+                .setDescription('💾 Create a database backup')
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('maintenance')
+                .setDescription('🔧 Enable/disable maintenance mode')
+                .addBooleanOption(option =>
+                    option.setName('enabled')
+                        .setDescription('Enable or disable maintenance mode')
                         .setRequired(true)
                 )
         ),
@@ -134,8 +201,23 @@ module.exports = {
                 case 'reset_income':
                     await this.handleResetIncome(interaction);
                     break;
+                case 'give_fruit':
+                    await this.handleGiveFruit(interaction);
+                    break;
+                case 'reset_user':
+                    await this.handleResetUser(interaction);
+                    break;
+                case 'set_level':
+                    await this.handleSetLevel(interaction);
+                    break;
+                case 'database_backup':
+                    await this.handleDatabaseBackup(interaction);
+                    break;
+                case 'maintenance':
+                    await this.handleMaintenance(interaction);
+                    break;
                 default:
-                    await interaction.reply({ content: 'Unknown subcommand!', ephemeral: true });
+                    await interaction.reply({ content: 'Unknown admin command!', ephemeral: true });
             }
             
         } catch (error) {
@@ -172,7 +254,7 @@ module.exports = {
             const currentBerries = await DatabaseManager.getUserBerries(targetUser.id);
             
             // Add berries
-            const newBalance = await EconomySystem.addBerries(targetUser.id, amount, `Admin: ${reason}`);
+            const newBalance = await DatabaseManager.updateUserBerries(targetUser.id, amount, `Admin: ${reason}`);
             
             // Create success embed
             const embed = new EmbedBuilder()
@@ -228,7 +310,7 @@ module.exports = {
             }
             
             // Remove berries
-            const newBalance = await EconomySystem.removeBerries(targetUser.id, amount, `Admin: ${reason}`);
+            const newBalance = await DatabaseManager.updateUserBerries(targetUser.id, -amount, `Admin: ${reason}`);
             
             // Create success embed
             const embed = new EmbedBuilder()
@@ -275,14 +357,7 @@ module.exports = {
             const difference = amount - currentBerries;
             
             // Set berries by calculating the difference
-            let newBalance;
-            if (difference > 0) {
-                newBalance = await EconomySystem.addBerries(targetUser.id, difference, `Admin Set: ${reason}`);
-            } else if (difference < 0) {
-                newBalance = await EconomySystem.removeBerries(targetUser.id, Math.abs(difference), `Admin Set: ${reason}`);
-            } else {
-                newBalance = currentBerries; // No change needed
-            }
+            const newBalance = await DatabaseManager.updateUserBerries(targetUser.id, difference, `Admin Set: ${reason}`);
             
             // Create success embed
             const embed = new EmbedBuilder()
@@ -333,29 +408,16 @@ module.exports = {
             const totalFruits = fruits.length;
             const duplicates = totalFruits - uniqueFruits;
             
-            // Get income history
-            const incomeHistory = await DatabaseManager.query(`
-                SELECT SUM(amount) as total_auto, COUNT(*) as auto_count
-                FROM income_history 
-                WHERE user_id = $1 AND income_type = 'automatic'
-            `, [targetUser.id]);
-            
-            const manualHistory = await DatabaseManager.query(`
-                SELECT SUM(amount) as total_manual, COUNT(*) as manual_count
-                FROM income_history 
-                WHERE user_id = $1 AND income_type = 'manual'
-            `, [targetUser.id]);
-            
             const embed = new EmbedBuilder()
                 .setColor(0x0080FF)
                 .setTitle(`🔍 Admin User Info - ${targetUser.username}`)
+                .setThumbnail(targetUser.displayAvatarURL())
                 .addFields([
                     { name: '👤 User Info', value: `**ID:** ${targetUser.id}\n**Username:** ${targetUser.username}\n**Bot:** ${targetUser.bot ? 'Yes' : 'No'}`, inline: true },
                     { name: '⭐ Level & CP', value: `**Level:** ${user.level}\n**Base CP:** ${user.base_cp.toLocaleString()}\n**Total CP:** ${user.total_cp.toLocaleString()}`, inline: true },
                     { name: '💰 Economy', value: `**Berries:** ${user.berries.toLocaleString()}\n**Total Earned:** ${user.total_earned.toLocaleString()}\n**Total Spent:** ${user.total_spent.toLocaleString()}`, inline: true },
                     { name: '🍈 Devil Fruits', value: `**Total Fruits:** ${totalFruits}\n**Unique Fruits:** ${uniqueFruits}\n**Duplicates:** ${duplicates}`, inline: true },
-                    { name: '📈 Income Info', value: `**Hourly Rate:** ${incomeInfo?.hourlyIncome.toLocaleString() || 0}\n**Manual Available:** ${incomeInfo?.canCollectManual ? 'Yes' : 'No'}\n**Next Collection:** ${incomeInfo?.nextManualCollection || 0}m`, inline: true },
-                    { name: '📊 Income History', value: `**Auto Income:** ${incomeHistory.rows[0]?.total_auto?.toLocaleString() || 0} (${incomeHistory.rows[0]?.auto_count || 0}x)\n**Manual Income:** ${manualHistory.rows[0]?.total_manual?.toLocaleString() || 0} (${manualHistory.rows[0]?.manual_count || 0}x)`, inline: true },
+                    { name: '📈 Income Info', value: `**Hourly Rate:** ${incomeInfo?.hourlyIncome?.toLocaleString() || 0}\n**Manual Available:** ${incomeInfo?.canCollectManual ? 'Yes' : 'No'}\n**Next Collection:** ${incomeInfo?.nextManualCollection || 0}m`, inline: true },
                     { name: '📅 Timestamps', value: `**Created:** <t:${Math.floor(new Date(user.created_at).getTime() / 1000)}:R>\n**Updated:** <t:${Math.floor(new Date(user.updated_at).getTime() / 1000)}:R>\n**Last Income:** <t:${Math.floor(new Date(user.last_income).getTime() / 1000)}:R>`, inline: false }
                 ])
                 .setFooter({ text: `Admin query by ${interaction.user.username}` })
@@ -417,13 +479,6 @@ module.exports = {
                 WHERE user_id = $1
             `, [targetUser.id]);
             
-            // Delete recent manual income records to reset cooldown
-            await DatabaseManager.query(`
-                DELETE FROM income_history 
-                WHERE user_id = $1 AND income_type = 'manual' 
-                AND created_at > NOW() - INTERVAL '2 hours'
-            `, [targetUser.id]);
-            
             const embed = new EmbedBuilder()
                 .setColor(0x00FF00)
                 .setTitle('✅ Income Reset Successfully')
@@ -445,6 +500,103 @@ module.exports = {
         } catch (error) {
             console.error('Error resetting income:', error);
             await interaction.reply({ content: '❌ Failed to reset income!', ephemeral: true });
+        }
+    },
+
+    async handleGiveFruit(interaction) {
+        const targetUser = interaction.options.getUser('user');
+        const fruitName = interaction.options.getString('fruit_name');
+        const reason = interaction.options.getString('reason') || 'Admin gift';
+        
+        if (targetUser.bot) {
+            return await interaction.reply({ content: '❌ Cannot give fruits to bots!', ephemeral: true });
+        }
+        
+        try {
+            // This would need to search your fruit database for the fruit
+            // For now, return a placeholder message
+            await interaction.reply({ 
+                content: `⚠️ Fruit giving system not implemented yet. Would give "${fruitName}" to ${targetUser.username}`, 
+                ephemeral: true 
+            });
+            
+        } catch (error) {
+            console.error('Error giving fruit:', error);
+            await interaction.reply({ content: '❌ Failed to give fruit!', ephemeral: true });
+        }
+    },
+
+    async handleResetUser(interaction) {
+        const targetUser = interaction.options.getUser('user');
+        const confirm = interaction.options.getBoolean('confirm');
+        
+        if (!confirm) {
+            return await interaction.reply({ content: '❌ You must confirm to reset a user!', ephemeral: true });
+        }
+        
+        if (targetUser.bot) {
+            return await interaction.reply({ content: '❌ Cannot reset bots!', ephemeral: true });
+        }
+        
+        try {
+            // This would delete all user data - implement with extreme caution
+            await interaction.reply({ 
+                content: `⚠️ User reset system not implemented yet. Would reset ${targetUser.username}'s entire progress`, 
+                ephemeral: true 
+            });
+            
+        } catch (error) {
+            console.error('Error resetting user:', error);
+            await interaction.reply({ content: '❌ Failed to reset user!', ephemeral: true });
+        }
+    },
+
+    async handleSetLevel(interaction) {
+        const targetUser = interaction.options.getUser('user');
+        const level = interaction.options.getInteger('level');
+        
+        if (targetUser.bot) {
+            return await interaction.reply({ content: '❌ Cannot set level for bots!', ephemeral: true });
+        }
+        
+        try {
+            // This would set the user's level manually
+            await interaction.reply({ 
+                content: `⚠️ Level setting system not implemented yet. Would set ${targetUser.username} to level ${level}`, 
+                ephemeral: true 
+            });
+            
+        } catch (error) {
+            console.error('Error setting level:', error);
+            await interaction.reply({ content: '❌ Failed to set level!', ephemeral: true });
+        }
+    },
+
+    async handleDatabaseBackup(interaction) {
+        try {
+            await interaction.reply({ 
+                content: `⚠️ Database backup system not implemented yet. Would create backup of current database`, 
+                ephemeral: true 
+            });
+            
+        } catch (error) {
+            console.error('Error creating backup:', error);
+            await interaction.reply({ content: '❌ Failed to create backup!', ephemeral: true });
+        }
+    },
+
+    async handleMaintenance(interaction) {
+        const enabled = interaction.options.getBoolean('enabled');
+        
+        try {
+            await interaction.reply({ 
+                content: `⚠️ Maintenance mode system not implemented yet. Would ${enabled ? 'enable' : 'disable'} maintenance mode`, 
+                ephemeral: true 
+            });
+            
+        } catch (error) {
+            console.error('Error toggling maintenance:', error);
+            await interaction.reply({ content: '❌ Failed to toggle maintenance!', ephemeral: true });
         }
     }
 };
