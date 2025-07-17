@@ -97,8 +97,8 @@ module.exports = {
                 result = { duplicate_count: 1, total_cp: 250 };
             }
 
-            // Phase 4: Progressive Text Reveal (3 seconds)
-            for (let textFrame = 0; textFrame < textRevealFrames; textFrame++) {
+            // Phase 4: Progressive Text Reveal (4.5 seconds) - More frames for more fields
+            for (let textFrame = 0; textFrame < 9; textFrame++) {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, result, newBalance);
                 await interaction.editReply({ embeds: [textEmbed] });
@@ -216,6 +216,9 @@ module.exports = {
         const newBalance = userStats.berries - pullCost;
         const targetFruit = getRandomFruit();
 
+        console.log(`💸 Removed ${pullCost} berries from ${userId} (Pull Again). New balance: ${newBalance}`);
+        console.log(`🎯 ${buttonInteraction.user.username} is pulling again: ${targetFruit.name} (${targetFruit.rarity})`);
+
         // Start full animation for button interaction
         await this.startButtonAnimation(buttonInteraction, targetFruit, newBalance);
     },
@@ -313,8 +316,8 @@ module.exports = {
         // Phase 3: Save to database
         const result = await DatabaseManager.addDevilFruit(buttonInteraction.user.id, buttonInteraction.guild.id, targetFruit);
 
-        // Phase 4: Progressive Text Reveal
-        for (let textFrame = 0; textFrame < textRevealFrames; textFrame++) {
+        // Phase 4: Progressive Text Reveal (4.5 seconds)
+        for (let textFrame = 0; textFrame < 9; textFrame++) {
             await new Promise(resolve => setTimeout(resolve, 500));
             const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, result, newBalance);
             await buttonInteraction.editReply({ embeds: [textEmbed] });
@@ -375,10 +378,48 @@ module.exports = {
     },
 
     async showUserStats(buttonInteraction) {
-        // Import the stats command functionality
-        const statsCommand = require('./stats');
-        await statsCommand.execute(buttonInteraction);
-    },
+        try {
+            const userId = buttonInteraction.user.id;
+            const guildId = buttonInteraction.guild.id;
+            
+            const userData = await DatabaseManager.getUser(userId, guildId);
+            const fruits = await DatabaseManager.getUserFruits(userId, guildId);
+
+            if (!userData) {
+                return buttonInteraction.reply({
+                    content: '❌ User data not found. Please try again.',
+                    ephemeral: true
+                });
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0x0080FF)
+                .setTitle('📊 Your Pirate Stats')
+                .setThumbnail(buttonInteraction.user.displayAvatarURL())
+                .addFields([
+                    { name: '⭐ Level', value: `${userData.level || 1}`, inline: true },
+                    { name: '💎 Base CP', value: `${userData.base_cp || 0}`, inline: true },
+                    { name: '🔥 Total CP', value: `${userData.total_cp || 0}`, inline: true },
+                    { name: '💰 Berries', value: `${(userData.berries || 0).toLocaleString()}`, inline: true },
+                    { name: '🍈 Total Fruits', value: `${fruits ? fruits.length : 0}`, inline: true },
+                    { name: '📚 Unique Fruits', value: `${fruits ? new Set(fruits.map(f => f.fruit_id)).size : 0}`, inline: true }
+                ])
+                .setFooter({ text: 'Keep collecting to increase your power!' })
+                .setTimestamp();
+
+            await buttonInteraction.reply({
+                embeds: [embed],
+                ephemeral: true
+            });
+
+        } catch (error) {
+            console.error('Error showing stats:', error);
+            await buttonInteraction.reply({
+                content: '❌ Error loading your stats. Please try again.',
+                ephemeral: true
+            });
+        }
+    }
 
     createAnimationFrame(frame, targetFruit, totalFrames) {
         const rainbowPattern = this.getSyncedRainbowPattern(frame);
@@ -436,21 +477,27 @@ module.exports = {
         const barLength = 20;
         const rewardBar = Array(barLength).fill(rewardEmoji).join('');
         
-        // Progressive text reveal - build description based on current frame
+        // Get values for reveal
+        const totalOwned = result.duplicate_count || 1;
+        const isNewDiscovery = totalOwned === 1;
+        const duplicateText = isNewDiscovery ? '✨ New Discovery!' : `📚 Total Owned: ${totalOwned}`;
+        const totalCp = result.total_cp || 250;
+        
+        // Progressive text reveal with better formatting and spacing
         let description = `✨ **Devil Fruit Acquired!** ✨\n\n${rewardBar}\n\n`;
         
-        if (textFrame >= 0) description += `🍃 **Name:** ${targetFruit.name}\n`;
-        if (textFrame >= 1) description += `🔮 **Type:** ${targetFruit.type}\n`;
-        if (textFrame >= 2) description += `⭐ **Rarity:** ${targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1)}\n`;
-        if (textFrame >= 3) description += `💪 **CP Multiplier:** ${targetFruit.multiplier}x\n`;
-        if (textFrame >= 4) description += `🌊 **Category:** ${targetFruit.category || 'Unknown'}\n`;
-        if (textFrame >= 5) {
-            description += `📊 **Status:** New Discovery!\n`;
-            description += `⚡ **Power:** ${targetFruit.power}\n`;
-            description += `💰 **Berries:** ${newBalance.toLocaleString()} berries`;
-        }
-
-        description += `\n\n${rewardBar}`;
+        // Reveal fields one by one with consistent formatting
+        description += `**Name:** ${textFrame >= 0 ? targetFruit.name : '???'}\n\n`;
+        description += `**Type:** ${textFrame >= 1 ? targetFruit.type : '???'}\n\n`;
+        description += `**Rarity:** ${textFrame >= 2 ? targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1) : '???'}\n\n`;
+        description += `**CP Multiplier:** ${textFrame >= 3 ? `${targetFruit.multiplier}x` : '???'}\n\n`;
+        description += `**Category:** ${textFrame >= 4 ? (targetFruit.category || 'Unknown') : '???'}\n\n`;
+        description += `**Status:** ${textFrame >= 5 ? duplicateText : '???'}\n\n`;
+        description += `**Power:** ${textFrame >= 6 ? targetFruit.power : '???'}\n\n`;
+        description += `**Total CP:** ${textFrame >= 7 ? `${totalCp.toLocaleString()} CP` : '???'}\n\n`;
+        description += `**Remaining Berries:** ${textFrame >= 8 ? `${newBalance.toLocaleString()} berries` : '???'}\n\n`;
+        
+        description += `${rewardBar}`;
 
         return new EmbedBuilder()
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
