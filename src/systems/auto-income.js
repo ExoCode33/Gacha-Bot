@@ -40,11 +40,11 @@ class AutoIncomeSystem {
         try {
             console.log('⏰ Processing automatic income for all users...');
             
-            // Get all users with base_cp > 0 (everyone should have at least 100 base CP)
+            // Get all users with more relaxed criteria
             const result = await DatabaseManager.query(`
                 SELECT user_id, username, total_cp, base_cp, berries, last_income
                 FROM users 
-                WHERE base_cp > 0
+                WHERE total_cp > 0 OR base_cp > 0
                 ORDER BY user_id
             `);
             
@@ -58,6 +58,7 @@ class AutoIncomeSystem {
             let processed = 0;
             let totalGenerated = 0;
             let skipped = 0;
+            let errors = 0;
             
             for (const user of result.rows) {
                 try {
@@ -70,10 +71,15 @@ class AutoIncomeSystem {
                     }
                 } catch (error) {
                     console.error(`❌ Error processing income for user ${user.user_id}:`, error);
+                    errors++;
                 }
             }
             
-            console.log(`⏰ Processed ${processed} users, skipped ${skipped}, generated ${totalGenerated} berries total`);
+            console.log(`⏰ Income processing complete:`);
+            console.log(`   - Processed: ${processed} users`);
+            console.log(`   - Skipped: ${skipped} users (too soon)`);
+            console.log(`   - Errors: ${errors} users`);
+            console.log(`   - Total generated: ${totalGenerated} berries`);
             
         } catch (error) {
             console.error('❌ Error processing all users income:', error);
@@ -86,32 +92,40 @@ class AutoIncomeSystem {
             const lastIncome = new Date(user.last_income);
             const minutesElapsed = (now - lastIncome) / (1000 * 60);
             
-            // Only process if at least 10 minutes have passed
-            if (minutesElapsed < 10) {
+            // Only process if at least 9 minutes have passed (small buffer)
+            if (minutesElapsed < 9) {
+                if (processedCount < 5) {
+                    console.log(`⏰ ${user.username}: Skipped (${minutesElapsed.toFixed(1)} min < 9 min threshold)`);
+                }
                 return 0;
             }
             
-            // Calculate income based on total CP (minimum base CP)
-            const effectiveCP = Math.max(user.total_cp, user.base_cp);
+            // Calculate income based on total CP (with fallback to base CP)
+            const effectiveCP = Math.max(user.total_cp || 0, user.base_cp || 100);
             const hourlyIncome = EconomySystem.calculateHourlyIncome(effectiveCP);
-            const tenMinuteIncome = Math.floor(hourlyIncome / 6); // 10 minutes = 1/6 of an hour
             
-            if (tenMinuteIncome <= 0) {
+            // Calculate 10-minute income, but account for actual time elapsed
+            const timeBasedIncome = Math.floor((hourlyIncome / 60) * Math.min(minutesElapsed, 60));
+            
+            if (timeBasedIncome <= 0) {
+                if (processedCount < 5) {
+                    console.log(`⏰ ${user.username}: No income calculated (CP: ${effectiveCP}, Hourly: ${hourlyIncome})`);
+                }
                 return 0;
             }
             
             // Add berries
-            await DatabaseManager.updateUserBerries(user.user_id, tenMinuteIncome, 'Auto Income');
+            await DatabaseManager.updateUserBerries(user.user_id, timeBasedIncome, 'Auto Income');
             
             // Record income
-            await DatabaseManager.recordIncome(user.user_id, tenMinuteIncome, effectiveCP, 'automatic');
+            await DatabaseManager.recordIncome(user.user_id, timeBasedIncome, effectiveCP, 'automatic');
             
             // Debug log for first few users
             if (processedCount < 5) {
-                console.log(`⏰ ${user.username}: ${tenMinuteIncome} berries (CP: ${effectiveCP}, Minutes: ${minutesElapsed.toFixed(1)})`);
+                console.log(`⏰ ${user.username}: +${timeBasedIncome} berries (CP: ${effectiveCP}, Minutes: ${minutesElapsed.toFixed(1)}, Hourly: ${hourlyIncome})`);
             }
             
-            return tenMinuteIncome;
+            return timeBasedIncome;
             
         } catch (error) {
             console.error(`❌ Error processing user ${user.user_id} income:`, error);
@@ -152,21 +166,81 @@ class AutoIncomeSystem {
             const now = new Date();
             const lastIncome = new Date(user.last_income);
             const minutesElapsed = (now - lastIncome) / (1000 * 60);
-            const effectiveCP = Math.max(user.total_cp, user.base_cp);
+            const effectiveCP = Math.max(user.total_cp || 0, user.base_cp || 100);
             const hourlyIncome = EconomySystem.calculateHourlyIncome(effectiveCP);
-            const tenMinuteIncome = Math.floor(hourlyIncome / 6);
+            const timeBasedIncome = Math.floor((hourlyIncome / 60) * Math.min(minutesElapsed, 60));
             
             console.log(`🔍 Debug info for ${user.username}:`);
             console.log(`   - Base CP: ${user.base_cp}`);
             console.log(`   - Total CP: ${user.total_cp}`);
             console.log(`   - Effective CP: ${effectiveCP}`);
             console.log(`   - Hourly Income: ${hourlyIncome}`);
-            console.log(`   - 10min Income: ${tenMinuteIncome}`);
+            console.log(`   - Time-based Income: ${timeBasedIncome}`);
             console.log(`   - Minutes since last: ${minutesElapsed.toFixed(1)}`);
             console.log(`   - Berries: ${user.berries}`);
+            console.log(`   - Last income: ${user.last_income}`);
             
         } catch (error) {
             console.error(`❌ Error debugging user income:`, error);
+        }
+    }
+
+    // Force update a user's last_income to allow immediate collection
+    async resetUserIncome(userId) {
+        try {
+            await DatabaseManager.query(`
+                UPDATE users 
+                SET last_income = NOW() - INTERVAL '11 minutes'
+                WHERE user_id = $1
+            `, [userId]);
+            
+            console.log(`⏰ Reset income timer for user ${userId}`);
+            
+        } catch (error) {
+            console.error(`❌ Error resetting user income:`, error);
+        }
+    }
+
+    // Get income statistics
+    async getIncomeStats() {
+        try {
+            const stats = await DatabaseManager.query(`
+                SELECT 
+                    COUNT(*) as total_users,
+                    COUNT(CASE WHEN last_income > NOW() - INTERVAL '10 minutes' THEN 1 END) as recent_income,
+                    AVG(total_cp) as avg_cp,
+                    SUM(berries) as total_berries
+                FROM users
+            `);
+            
+            const recentIncome = await DatabaseManager.query(`
+                SELECT 
+                    COUNT(*) as auto_income_count,
+                    COALESCE(SUM(amount), 0) as total_auto_income
+                FROM income_history 
+                WHERE income_type = 'automatic' 
+                AND created_at > NOW() - INTERVAL '1 hour'
+            `);
+            
+            return {
+                totalUsers: parseInt(stats.rows[0].total_users || 0),
+                recentIncome: parseInt(stats.rows[0].recent_income || 0),
+                avgCP: parseFloat(stats.rows[0].avg_cp || 0),
+                totalBerries: parseInt(stats.rows[0].total_berries || 0),
+                lastHourAutoIncome: parseInt(recentIncome.rows[0].total_auto_income || 0),
+                lastHourIncomeCount: parseInt(recentIncome.rows[0].auto_income_count || 0)
+            };
+            
+        } catch (error) {
+            console.error('❌ Error getting income stats:', error);
+            return {
+                totalUsers: 0,
+                recentIncome: 0,
+                avgCP: 0,
+                totalBerries: 0,
+                lastHourAutoIncome: 0,
+                lastHourIncomeCount: 0
+            };
         }
     }
 }
