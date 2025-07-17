@@ -76,11 +76,17 @@ class EmbedCreator {
         const duplicateText = duplicateCount === 1 ? '✨ New Discovery!' : `📚 Total Owned: ${duplicateCount}`;
         const totalCp = result.total_cp || 250;
         
-        // Get ability details - only show on frames 6-7
+        // Get ability details - show progression: ??? -> detailed info -> Analysis complete
         let abilityText = '???';
-        if (frame === 6 || frame === 7) {
-            abilityText = this.getAbilityText(fruit);
-        } else if (frame > 6) {
+        if (frame === 6) {
+            // Frame 6: Show basic ability name
+            const basicAbility = this.getBasicAbilityText(fruit);
+            abilityText = basicAbility.name;
+        } else if (frame === 7) {
+            // Frame 7: Show full detailed ability with effects
+            abilityText = this.getDetailedAbilityText(fruit);
+        } else if (frame >= 8) {
+            // Frame 8+: Analysis complete
             abilityText = 'Analysis complete';
         }
         
@@ -190,8 +196,33 @@ class EmbedCreator {
             .setTimestamp();
     }
 
-    // Get ability text for reveal
-    static getAbilityText(fruit) {
+    // Get basic ability name for frame 6
+    static getBasicAbilityText(fruit) {
+        try {
+            const { balancedDevilFruitAbilities } = require('../../data/balanced-devil-fruit-abilities');
+            let ability = balancedDevilFruitAbilities[fruit.name];
+            
+            if (!ability) {
+                const rarityAbilities = {
+                    'common': { name: 'Basic Attack' },
+                    'uncommon': { name: 'Enhanced Strike' },
+                    'rare': { name: 'Powerful Blow' },
+                    'epic': { name: 'Devastating Strike' },
+                    'legendary': { name: 'Legendary Technique' },
+                    'mythical': { name: 'Mythical Power' },
+                    'omnipotent': { name: 'Divine Technique' }
+                };
+                ability = rarityAbilities[fruit.rarity] || rarityAbilities['common'];
+            }
+            
+            return { name: ability.name };
+        } catch (error) {
+            return { name: 'Devil Fruit Power' };
+        }
+    }
+
+    // Get detailed ability text for frame 7
+    static getDetailedAbilityText(fruit) {
         try {
             const { balancedDevilFruitAbilities, statusEffects } = require('../../data/balanced-devil-fruit-abilities');
             let ability = balancedDevilFruitAbilities[fruit.name];
@@ -211,7 +242,7 @@ class EmbedCreator {
             
             let text = `${ability.name} (${ability.damage} dmg, ${ability.cooldown}cd)`;
             
-            if (ability.effect && statusEffects[ability.effect]) {
+            if (ability.effect && statusEffects && statusEffects[ability.effect]) {
                 const effect = statusEffects[ability.effect];
                 let effectDesc = effect.description;
                 
