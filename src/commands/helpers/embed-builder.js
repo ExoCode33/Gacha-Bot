@@ -1,4 +1,4 @@
-// src/commands/helpers/embed-builder.js - Fixed Embed Creator
+// src/commands/helpers/embed-builder.js - Enhanced Embed Creator with Extended Animation Support
 const { EmbedBuilder } = require('discord.js');
 const { getRarityColor, getRarityEmoji } = require('../../data/devil-fruits');
 
@@ -6,11 +6,13 @@ const HUNT_DESCRIPTIONS = [
     "🌊 Scanning the Grand Line's mysterious depths...",
     "⚡ Devil Fruit energy detected... analyzing power signature...",
     "🔥 Tremendous force breaking through dimensional barriers...",
-    "💎 Legendary power crystallizing before your eyes..."
+    "💎 Legendary power crystallizing before your eyes...",
+    "🌟 Ancient mysteries awakening from the ocean's heart...",
+    "⚔️ The sea itself trembles with anticipation..."
 ];
 
 class EmbedCreator {
-    // Fixed rainbow pattern - prevents one side from going faster
+    // Enhanced rainbow pattern with smoother transitions
     static getRainbowPattern(frame, length = 20) {
         const colors = ['🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '🟫'];
         const pattern = [];
@@ -28,15 +30,16 @@ class EmbedCreator {
         return colors[frame % colors.length];
     }
 
-    // Rainbow hunt frame
+    // Enhanced rainbow hunt frame with extended descriptions
     static createRainbowFrame(frame, fruit) {
         const pattern = this.getRainbowPattern(frame);
         const color = this.getRainbowColor(frame);
-        const description = HUNT_DESCRIPTIONS[frame] || HUNT_DESCRIPTIONS[3];
+        const description = HUNT_DESCRIPTIONS[frame] || HUNT_DESCRIPTIONS[5];
         
-        // Show FULL layout from the start, but everything is ???
+        // Enhanced mysterious info with animated dots based on frame
+        const animatedDots = '.'.repeat((frame % 3) + 1);
         const mysteriousInfo = `✨ **Devil Fruit Hunt in Progress** ✨\n\n${pattern}\n\n` +
-            `📊 **Status:** ???\n` +
+            `📊 **Status:** Scanning${animatedDots}\n` +
             `🍃 **Name:** ???\n` +
             `🔮 **Type:** ???\n` +
             `⭐ **Rarity:** ???\n` +
@@ -51,36 +54,37 @@ class EmbedCreator {
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
             .setDescription(`${description}\n\n${mysteriousInfo}`)
             .setColor(color)
-            .setFooter({ text: '🌊 Searching the mysterious seas...' });
+            .setFooter({ text: `🌊 Searching the mysterious seas... Frame ${frame + 1}/6` });
     }
 
-    // Fixed color spread frame with proper center calculation
+    // Enhanced color spread frame with better center calculation and smoother spreading
     static createColorSpreadFrame(frame, fruit, rewardColor, rewardEmoji) {
         const barLength = 20;
         const center = 9.5; // Proper center for 0-19 indexed array
-        const spreadRadius = Math.floor(frame * 1.2);
+        const spreadRadius = Math.floor(frame * 1.0); // Slightly slower spread for 12 frames
         
         const bar = Array(barLength).fill('⬛');
         const rainbowColors = ['🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '🟫'];
         
-        // Fixed symmetrical spreading from center
+        // Enhanced symmetrical spreading from center
         for (let i = 0; i < barLength; i++) {
             const distanceFromCenter = Math.abs(i - center);
             
             if (distanceFromCenter <= spreadRadius) {
                 bar[i] = rewardEmoji;
             } else {
-                // Ensure rainbow colors are synced from both ends
-                const colorIndex = Math.floor(distanceFromCenter) % rainbowColors.length;
+                // Smooth rainbow colors synced from both ends
+                const colorIndex = Math.floor(distanceFromCenter + frame * 0.5) % rainbowColors.length;
                 bar[i] = rainbowColors[colorIndex];
             }
         }
 
         const pattern = bar.join(' ');
         
-        // Show FULL layout during color spread too, still all ???
+        // Enhanced manifestation info with progression indicator
+        const progressDots = '●'.repeat(Math.floor(frame / 2)) + '○'.repeat(6 - Math.floor(frame / 2));
         const mysteriousInfo = `✨ **Devil Fruit Manifestation** ✨\n\n${pattern}\n\n` +
-            `📊 **Status:** ???\n` +
+            `📊 **Status:** Crystallizing${'.'.repeat((frame % 3) + 1)}\n` +
             `🍃 **Name:** ???\n` +
             `🔮 **Type:** ???\n` +
             `⭐ **Rarity:** ???\n` +
@@ -95,33 +99,34 @@ class EmbedCreator {
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
             .setDescription(`🔮 Mysterious power manifesting...\n\n${mysteriousInfo}`)
             .setColor(rewardColor)
-            .setFooter({ text: '⚡ Power crystallizing...' });
+            .setFooter({ text: `⚡ Power crystallizing... ${progressDots}` });
     }
 
-    // Fixed text reveal frame - keeps detailed ability info visible
+    // Enhanced text reveal frame with smoother transitions
     static createTextRevealFrame(frame, fruit, result, newBalance, rewardColor, rewardEmoji) {
         const pattern = Array(20).fill(rewardEmoji).join(' ');
         const duplicateCount = result.duplicate_count || 1;
         const duplicateText = duplicateCount === 1 ? '✨ New Discovery!' : `📚 Total Owned: ${duplicateCount}`;
         const totalCp = result.total_cp || 250;
         
-        // Get ability details - FIXED: Keep detailed info visible after frame 7
+        // Enhanced ability text progression
         let abilityText = '???';
         if (frame === 6) {
-            // Frame 6: Show basic ability name
+            // Frame 6: Show basic ability name with loading dots
             const basicAbility = this.getBasicAbilityText(fruit);
-            abilityText = basicAbility.name;
+            abilityText = `${basicAbility.name}...`;
         } else if (frame >= 7) {
             // Frame 7+: Show full detailed ability with effects and KEEP IT VISIBLE
             abilityText = this.getDetailedAbilityText(fruit);
         }
         
-        // Show COMPLETE layout with progressive reveals
-        let description = `✨ **Devil Fruit Acquired!** ✨\n\n${pattern}\n\n`;
+        // Enhanced reveal with glowing effect simulation
+        const glowEffect = frame >= 7 ? '✨ ' : '';
+        let description = `${glowEffect}**Devil Fruit Acquired!** ${glowEffect}\n\n${pattern}\n\n`;
         description += `📊 **Status:** ${frame >= 0 ? duplicateText : '???'}\n`;
         description += `🍃 **Name:** ${frame >= 1 ? fruit.name : '???'}\n`;
         description += `🔮 **Type:** ${frame >= 2 ? fruit.type : '???'}\n`;
-        description += `⭐ **Rarity:** ${frame >= 3 ? fruit.rarity.charAt(0).toUpperCase() + fruit.rarity.slice(1) : '???'}\n`;
+        description += `⭐ **Rarity:** ${frame >= 3 ? `${getRarityEmoji(fruit.rarity)} ${fruit.rarity.charAt(0).toUpperCase() + fruit.rarity.slice(1)}` : '???'}\n`;
         description += `💪 **CP Multiplier:** ${frame >= 4 ? `${fruit.multiplier}x` : '???'}\n`;
         description += `⚡ **Power:** ${frame >= 5 ? fruit.power : '???'}\n`;
         description += `🎯 **Abilities:** ${abilityText}\n\n`;
@@ -133,10 +138,10 @@ class EmbedCreator {
             .setTitle('🏴‍☠️ Devil Fruit Hunt')
             .setDescription(description)
             .setColor(rewardColor)
-            .setFooter({ text: '🎉 Added to your collection!' });
+            .setFooter({ text: `🎉 Added to your collection! Revealing... ${frame + 1}/8` });
     }
 
-    // Final reveal
+    // Enhanced final reveal with celebration effect
     static createFinalReveal(fruit, result, newBalance) {
         const emoji = getRarityEmoji(fruit.rarity);
         const color = getRarityColor(fruit.rarity);
@@ -148,11 +153,11 @@ class EmbedCreator {
         // Show detailed ability info in final reveal too
         const detailedAbility = this.getDetailedAbilityText(fruit);
 
-        const description = `🎉 **Congratulations!** You've obtained a magnificent Devil Fruit!\n\n${pattern}\n\n` +
+        const description = `🎉 **Congratulations!** You've obtained a magnificent Devil Fruit! 🎉\n\n${pattern}\n\n` +
             `📊 **Status:** ${duplicateText}\n` +
             `🍃 **Name:** ${fruit.name}\n` +
             `🔮 **Type:** ${fruit.type}\n` +
-            `⭐ **Rarity:** ${fruit.rarity.charAt(0).toUpperCase() + fruit.rarity.slice(1)}\n` +
+            `⭐ **Rarity:** ${emoji} ${fruit.rarity.charAt(0).toUpperCase() + fruit.rarity.slice(1)}\n` +
             `💪 **CP Multiplier:** ${fruit.multiplier}x\n` +
             `⚡ **Power:** ${fruit.power}\n` +
             `🎯 **Abilities:** ${detailedAbility}\n\n` +
@@ -164,23 +169,24 @@ class EmbedCreator {
             .setTitle('🏴‍☠️ Devil Fruit Hunt Complete!')
             .setDescription(description)
             .setColor(color)
-            .setFooter({ text: '🏴‍☠️ Your journey continues on the Grand Line!' })
+            .setFooter({ text: '🏴‍☠️ Your legend grows on the Grand Line!' })
             .setTimestamp();
     }
 
-    // Quick animation frame for 10x
+    // Enhanced quick animation frame for 10x with better progression
     static createQuickFrame(frame, fruit, pullNumber) {
         const pattern = this.getRainbowPattern(frame, 15);
         const color = this.getRainbowColor(frame);
+        const progressDots = '●'.repeat(frame + 1) + '○'.repeat(4 - frame);
         
         return new EmbedBuilder()
             .setTitle('🎰 10x Devil Fruit Hunt')
-            .setDescription(`**Pull ${pullNumber}/10**\n\n🌊 Scanning the Grand Line...\n\n${pattern}\n\n📊 **Status:** Analyzing...\n🍃 **Fruit:** ???\n⭐ **Rarity:** ???\n\n${pattern}`)
+            .setDescription(`**Pull ${pullNumber}/10**\n\n🌊 Scanning the Grand Line...\n\n${pattern}\n\n📊 **Status:** Analyzing... ${progressDots}\n🍃 **Fruit:** ???\n⭐ **Rarity:** ???\n\n${pattern}`)
             .setColor(color)
-            .setFooter({ text: `Pull ${pullNumber} of 10` });
+            .setFooter({ text: `Pull ${pullNumber} of 10 - Searching...` });
     }
 
-    // Quick reveal for 10x
+    // Enhanced quick reveal for 10x
     static createQuickReveal(fruit, pullNumber) {
         const emoji = getRarityEmoji(fruit.rarity);
         const color = getRarityColor(fruit.rarity);
@@ -190,10 +196,10 @@ class EmbedCreator {
             .setTitle('🎰 10x Devil Fruit Hunt')
             .setDescription(`**Pull ${pullNumber}/10** - ${emoji} **${fruit.rarity.toUpperCase()}**\n\n${pattern}\n\n🍃 **${fruit.name}**\n🔮 ${fruit.type}\n💪 ${fruit.multiplier}x CP\n\n${pattern}`)
             .setColor(color)
-            .setFooter({ text: `Pull ${pullNumber} of 10 - Added to collection!` });
+            .setFooter({ text: `Pull ${pullNumber} of 10 - ✨ Acquired!` });
     }
 
-    // 10x summary
+    // Enhanced 10x summary
     static create10xSummary(fruits, results, balance) {
         const rarityCounts = {};
         const rarityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical', 'omnipotent'];
@@ -222,7 +228,7 @@ class EmbedCreator {
 
         return new EmbedBuilder()
             .setTitle('🎰 10x Devil Fruit Hunt Complete!')
-            .setDescription(`🎉 **10x Pull Complete!** 🎉\n\n**Highest Rarity:** ${highestEmoji} ${highestRarity.charAt(0).toUpperCase() + highestRarity.slice(1)}\n\n**Results:**\n${rarityText}\n💰 **Remaining Berries:** ${balance.toLocaleString()}\n\nAll fruits have been added to your collection!`)
+            .setDescription(`🎉 **10x Pull Complete!** 🎉\n\n**Highest Rarity:** ${highestEmoji} ${highestRarity.charAt(0).toUpperCase() + highestRarity.slice(1)}\n\n**Results:**\n${rarityText}\n💰 **Remaining Berries:** ${balance.toLocaleString()}\n\n✨ All fruits have been added to your collection!`)
             .setColor(highestColor)
             .setFooter({ text: '🏴‍☠️ Continue your adventure on the Grand Line!' })
             .setTimestamp();
@@ -253,7 +259,7 @@ class EmbedCreator {
         }
     }
 
-    // Get detailed ability text for frame 7+ (FIXED: Now persists)
+    // Get detailed ability text for frame 7+ (Enhanced with better formatting)
     static getDetailedAbilityText(fruit) {
         try {
             const { balancedDevilFruitAbilities, statusEffects } = require('../../data/balanced-devil-fruit-abilities');
@@ -272,7 +278,7 @@ class EmbedCreator {
                 ability = rarityAbilities[fruit.rarity] || rarityAbilities['common'];
             }
             
-            let text = `${ability.name} (${ability.damage} dmg, ${ability.cooldown}cd)`;
+            let text = `⚔️ **${ability.name}**\n   💥 ${ability.damage} damage • ⏱️ ${ability.cooldown} cooldown`;
             
             if (ability.effect && statusEffects && statusEffects[ability.effect]) {
                 const effect = statusEffects[ability.effect];
@@ -282,7 +288,7 @@ class EmbedCreator {
                 if (effect.damage) effectDesc += ` - ${effect.damage} dmg`;
                 if (effect.damageReduction) effectDesc += ` - ${effect.damageReduction}% damage reduction`;
                 
-                text += `\n   • ${effectDesc}`;
+                text += `\n   ✨ ${effectDesc}`;
             }
             
             return text;
