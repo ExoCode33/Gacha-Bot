@@ -419,7 +419,7 @@ module.exports = {
                 ephemeral: true
             });
         }
-    }
+    },
 
     createAnimationFrame(frame, targetFruit, totalFrames) {
         const rainbowPattern = this.getSyncedRainbowPattern(frame);
