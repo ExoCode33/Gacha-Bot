@@ -23,7 +23,7 @@ class PullButtons {
             }
         } catch (error) {
             console.error('Button error:', error);
-            if (!buttonInteraction.replied) {
+            if (!buttonInteraction.replied && !buttonInteraction.deferred) {
                 await buttonInteraction.reply({ content: '❌ An error occurred.', ephemeral: true });
             }
         }
