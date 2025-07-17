@@ -1,28 +1,37 @@
-// src/commands/helpers/pull-animator.js - Animation Controller
+// src/commands/helpers/pull-animator.js - Enhanced Animation Controller with Slower Timing
 const { getRarityColor, getRarityEmoji } = require('../../data/devil-fruits');
 const DatabaseManager = require('../../database/manager');
 const EmbedBuilder = require('./embed-builder');
 
 class PullAnimator {
-    // Run full single pull animation
+    // Run full single pull animation with enhanced timing
     static async runFullAnimation(interaction, fruit, newBalance) {
-        // Phase 1: Rainbow hunt (3.6s)
+        // Phase 1: Extended rainbow hunt (5.4s)
         await this.runRainbowPhase(interaction, fruit);
         
-        // Phase 2: Color spread (3.5s)
+        // Small pause between phases
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Phase 2: Extended color spread (4.8s)
         await this.runColorSpread(interaction, fruit);
+        
+        // Small pause for dramatic effect
+        await new Promise(resolve => setTimeout(resolve, 400));
         
         // Phase 3: Save to database
         const result = await this.saveFruit(interaction.user.id, fruit);
         
-        // Phase 4: Text reveal (4s)
+        // Phase 4: Extended text reveal (5.6s)
         await this.runTextReveal(interaction, fruit, result, newBalance);
+        
+        // Final pause before reveal
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // Phase 5: Final reveal
         await this.showFinalReveal(interaction, fruit, result, newBalance);
     }
 
-    // Run 10x pull animation
+    // Run 10x pull animation with slightly slower timing
     static async run10xAnimation(interaction, fruits, newBalance) {
         const results = [];
         
@@ -33,25 +42,25 @@ class PullAnimator {
             
             console.log(`🎯 Pull ${pullNumber}/10: ${fruit.name} (${fruit.rarity})`);
             
-            // Quick animation for each
+            // Quick animation for each (slightly slower)
             await this.runQuickAnimation(interaction, fruit, pullNumber);
             
             // Save fruit
             const result = await this.saveFruit(interaction.user.id, fruit);
             results.push(result);
             
-            // Small delay between pulls
-            if (i < 9) await new Promise(resolve => setTimeout(resolve, 800));
+            // Slightly longer delay between pulls
+            if (i < 9) await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         // Show completion summary
         await this.show10xSummary(interaction, fruits, results, newBalance);
     }
 
-    // Rainbow hunt phase
+    // Extended rainbow hunt phase (6 frames, 900ms each = 5.4s)
     static async runRainbowPhase(interaction, fruit) {
-        const frames = 4;
-        const delay = 900;
+        const frames = 6; // Increased from 4
+        const delay = 900; // Same delay for dramatic buildup
         
         for (let frame = 0; frame < frames; frame++) {
             const embed = EmbedBuilder.createRainbowFrame(frame, fruit);
@@ -69,10 +78,10 @@ class PullAnimator {
         }
     }
 
-    // Color spread phase
+    // Extended color spread phase (12 frames, 400ms each = 4.8s)
     static async runColorSpread(interaction, fruit) {
-        const frames = 10;
-        const delay = 350;
+        const frames = 12; // Increased from 10
+        const delay = 400; // Slightly increased from 350ms
         const rewardColor = getRarityColor(fruit.rarity);
         const rewardEmoji = getRarityEmoji(fruit.rarity);
         
@@ -86,10 +95,10 @@ class PullAnimator {
         }
     }
 
-    // Text reveal phase
+    // Extended text reveal phase (8 frames, 700ms each = 5.6s)
     static async runTextReveal(interaction, fruit, result, newBalance) {
-        const frames = 8;
-        const delay = 500;
+        const frames = 8; // Same number of frames
+        const delay = 700; // Increased from 500ms for smoother reveals
         const rewardColor = getRarityColor(fruit.rarity);
         const rewardEmoji = getRarityEmoji(fruit.rarity);
         
@@ -103,12 +112,12 @@ class PullAnimator {
         }
     }
 
-    // Quick animation for 10x pulls
+    // Enhanced quick animation for 10x pulls (5 frames, 500ms each)
     static async runQuickAnimation(interaction, fruit, pullNumber) {
-        const frames = 3;
-        const delay = 400;
+        const frames = 5; // Increased from 3
+        const delay = 500; // Increased from 400ms
         
-        // Quick rainbow
+        // Quick rainbow with more frames
         for (let frame = 0; frame < frames; frame++) {
             const embed = EmbedBuilder.createQuickFrame(frame, fruit, pullNumber);
             
@@ -122,12 +131,18 @@ class PullAnimator {
             await new Promise(resolve => setTimeout(resolve, delay));
         }
         
+        // Pause before reveal
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
         // Quick reveal
         const revealEmbed = EmbedBuilder.createQuickReveal(fruit, pullNumber);
         await interaction.editReply({ embeds: [revealEmbed] });
+        
+        // Show reveal for a bit longer
+        await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    // Show final reveal
+    // Show final reveal with dramatic timing
     static async showFinalReveal(interaction, fruit, result, newBalance) {
         const embed = EmbedBuilder.createFinalReveal(fruit, result, newBalance);
         await interaction.editReply({ embeds: [embed] });
@@ -142,12 +157,15 @@ class PullAnimator {
     // Save fruit to database
     static async saveFruit(userId, fruit) {
         try {
-            return await DatabaseManager.addDevilFruit(userId, fruit);
+            const result = await DatabaseManager.addDevilFruit(userId, fruit);
+            console.log(`💾 Database result:`, result);
+            return result;
         } catch (error) {
             console.error('Error saving fruit:', error);
             return {
-                duplicate_count: 1,
-                total_cp: 250,
+                isNewFruit: true,
+                duplicateCount: 1,
+                totalCp: 250,
                 fruit: {
                     fruit_name: fruit.name,
                     fruit_rarity: fruit.rarity,
