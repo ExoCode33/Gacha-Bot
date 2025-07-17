@@ -46,6 +46,97 @@ module.exports = {
                 
                 return await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
             }
+    },
+
+    async generateCollectionEmbed(user, userData, fruits, page, totalPages, rarityFilter) {
+        const FRUITS_PER_PAGE = 10;
+        const startIndex = (page - 1) * FRUITS_PER_PAGE;
+        const endIndex = Math.min(startIndex + FRUITS_PER_PAGE, fruits.length);
+        const pageFruits = fruits.slice(startIndex, endIndex);
+
+        // Calculate user's total CP
+        const userLevel = userData.level || 0;
+        const totalCP = userData.total_cp || userData.base_cp;
+
+        // Create embed
+        const embed = new EmbedBuilder()
+            .setTitle(`${user.username}'s Devil Fruit Collection`)
+            .setThumbnail(user.displayAvatarURL())
+            .setColor(0x8B4513)
+            .setTimestamp();
+
+        // Add user stats
+        embed.addFields({
+            name: '📊 Collection Stats',
+            value: [
+                `**Total Fruits:** ${fruits.length}`,
+                `**Total CP:** ${totalCP.toLocaleString()}`,
+                `**Level:** ${userLevel}`,
+                `**Berries:** ${userData.berries?.toLocaleString() || 0}`
+            ].join('\n'),
+            inline: true
+        });
+
+        // Add rarity breakdown
+        const rarityBreakdown = this.getRarityBreakdown(fruits);
+        embed.addFields({
+            name: '🎯 Rarity Breakdown',
+            value: rarityBreakdown,
+            inline: true
+        });
+
+        // Add fruits for current page
+        if (pageFruits.length > 0) {
+            const fruitsText = pageFruits.map((fruit) => {
+                const emoji = getRarityEmoji(fruit.fruit_rarity);
+                const cpMultiplier = (fruit.base_cp / 100).toFixed(2);
+                const duplicates = fruit.duplicate_count || 1;
+                const duplicateText = duplicates > 1 ? ` (+${duplicates - 1})` : '';
+                
+                return `${emoji} **${fruit.fruit_name}**${duplicateText}\n` +
+                       `   *${fruit.fruit_type}* • ${cpMultiplier}x CP`;
+            }).join('\n\n');
+
+            embed.addFields({
+                name: rarityFilter ? 
+                    `${getRarityEmoji(rarityFilter)} ${rarityFilter.charAt(0).toUpperCase() + rarityFilter.slice(1)} Fruits` : 
+                    '🍈 Your Devil Fruits',
+                value: fruitsText || 'No fruits found.',
+                inline: false
+            });
+        }
+
+        // Add page info if multiple pages
+        if (totalPages > 1) {
+            embed.setFooter({
+                text: `Page ${page}/${totalPages} • ${fruits.length} total fruits`
+            });
+        }
+
+        return embed;
+    },
+
+    getRarityBreakdown(fruits) {
+        const rarityCount = {
+            common: 0,
+            uncommon: 0,
+            rare: 0,
+            epic: 0,
+            legendary: 0,
+            mythical: 0,
+            omnipotent: 0
+        };
+
+        fruits.forEach(fruit => {
+            if (rarityCount.hasOwnProperty(fruit.fruit_rarity)) {
+                rarityCount[fruit.fruit_rarity]++;
+            }
+        });
+
+        return Object.entries(rarityCount)
+            .filter(([rarity, count]) => count > 0)
+            .map(([rarity, count]) => `${getRarityEmoji(rarity)} ${count}`)
+            .join('\n') || 'No fruits yet';
             
             // Generate random fruit
             const fruit = getRandomFruit();
@@ -70,6 +161,264 @@ module.exports = {
             }
         }
     },
+
+    async startButtonAnimation(buttonInteraction, targetFruit, newBalance) {
+        // Same animation as regular pull but for button interactions
+        const frameDelay = 800;
+        const animationFrames = 4;
+        const outwardFrames = 10;
+        const textRevealFrames = 6;
+        
+        try {
+            console.log(`🎯 Starting button animation: ${targetFruit.name} (${targetFruit.rarity})`);
+            
+            const rewardColor = getRarityColor(targetFruit.rarity);
+            const rewardEmoji = getRarityEmoji(targetFruit.rarity);
+            
+            // Phase 1: Animation frames
+            for (let frame = 0; frame < animationFrames; frame++) {
+                const embed = this.createFixedSizeAnimationFrame(frame);
+                await buttonInteraction.editReply({ embeds: [embed] });
+                await new Promise(resolve => setTimeout(resolve, frameDelay));
+            }
+            
+            // Phase 2: Outward color spread
+            for (let outFrame = 0; outFrame < outwardFrames; outFrame++) {
+                const embed = this.createOutwardColorFrame(outFrame, rewardColor, rewardEmoji);
+                await buttonInteraction.editReply({ embeds: [embed] });
+                await new Promise(resolve => setTimeout(resolve, 400));
+            }
+            
+            // Save to database
+            const result = await DatabaseManager.addDevilFruit(buttonInteraction.user.id, targetFruit);
+            const userStats = {
+                duplicateCount: result.duplicateCount,
+                isNewFruit: result.isNewFruit,
+                totalCp: result.totalCp,
+                newBalance: newBalance
+            };
+            
+            // Phase 3: Progressive text reveal
+            for (let textFrame = 0; textFrame < textRevealFrames; textFrame++) {
+                const embed = this.createProgressiveTextReveal(textFrame, targetFruit, userStats, newBalance, rewardColor, rewardEmoji);
+                await buttonInteraction.editReply({ embeds: [embed] });
+                
+                if (textFrame < textRevealFrames - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 400));
+            
+            // Final reveal with buttons
+            const finalEmbed = await this.createFinalRevealEmbed(targetFruit, userStats, newBalance);
+            const actionRow = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('pull_again')
+                        .setLabel('🍈 Pull Again')
+                        .setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder()
+                        .setCustomId('pull_10x')
+                        .setLabel('🎰 Pull 10x')
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId('view_collection')
+                        .setLabel('📚 Collection')
+                        .setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder()
+                        .setCustomId('view_stats')
+                        .setLabel('📊 Stats')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+            
+            await buttonInteraction.editReply({
+                embeds: [finalEmbed],
+                components: [actionRow]
+            });
+            
+        } catch (error) {
+            console.error('🚨 Button Animation Error:', error);
+            const result = await DatabaseManager.addDevilFruit(buttonInteraction.user.id, targetFruit);
+            const fallbackEmbed = await this.createFinalRevealEmbed(targetFruit, result, newBalance);
+            await buttonInteraction.editReply({ embeds: [fallbackEmbed] });
+        }
+    },
+
+    async handle10xPull(buttonInteraction) {
+        try {
+            await buttonInteraction.deferReply();
+            
+            const userId = buttonInteraction.user.id;
+            const username = buttonInteraction.user.username;
+            const pullCost = EconomySystem.getEconomyConfig().pullCost * 10;
+            
+            // Check if user has enough berries for 10 pulls
+            const currentBerries = await DatabaseManager.getUserBerries(userId);
+            if (currentBerries < pullCost) {
+                const errorEmbed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle('❌ Insufficient Berries for 10x Pull')
+                    .setDescription(`You need ${pullCost.toLocaleString()} berries but only have ${currentBerries.toLocaleString()}.`)
+                    .setFooter({ text: 'Use /income to earn more berries!' });
+                
+                return await buttonInteraction.editReply({ embeds: [errorEmbed] });
+            }
+            
+            // Deduct berries
+            const newBalance = await DatabaseManager.updateUserBerries(userId, -pullCost, '10x Devil Fruit Pull');
+            
+            // Generate 10 fruits
+            const pulledFruits = [];
+            for (let i = 0; i < 10; i++) {
+                pulledFruits.push(getRandomFruit());
+            }
+            
+            // Find highest rarity for animation
+            const rarityOrder = ['omnipotent', 'mythical', 'legendary', 'epic', 'rare', 'uncommon', 'common'];
+            const bestFruit = pulledFruits.reduce((best, fruit) => {
+                const bestIndex = rarityOrder.indexOf(best.rarity);
+                const fruitIndex = rarityOrder.indexOf(fruit.rarity);
+                return fruitIndex < bestIndex ? fruit : best;
+            });
+            
+            // Animate the best fruit
+            await this.startButtonAnimation(buttonInteraction, bestFruit, newBalance);
+            
+            // Wait a moment then show summary
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Save all fruits to database
+            const results = [];
+            for (const fruit of pulledFruits) {
+                const result = await DatabaseManager.addDevilFruit(userId, fruit);
+                results.push({ fruit, result });
+            }
+            
+            // Create 10x summary embed
+            const summaryEmbed = await this.create10xSummaryEmbed(results, newBalance, pullCost);
+            
+            await buttonInteraction.followUp({ embeds: [summaryEmbed] });
+            
+        } catch (error) {
+            console.error('Error in 10x pull:', error);
+            await buttonInteraction.editReply({ content: 'Error processing 10x pull. Please try again.' });
+        }
+    },
+
+    async create10xSummaryEmbed(results, newBalance, totalCost) {
+        const rarityCount = {};
+        const rarityEmojis = {
+            common: '🟫', uncommon: '🟩', rare: '🟦', epic: '🟪',
+            legendary: '🟨', mythical: '🟧', omnipotent: '🌈'
+        };
+        
+        // Count rarities and show fruits
+        const fruitList = results.map((item, index) => {
+            const { fruit, result } = item;
+            const rarity = fruit.rarity;
+            rarityCount[rarity] = (rarityCount[rarity] || 0) + 1;
+            
+            const emoji = rarityEmojis[rarity];
+            const duplicateText = result.duplicateCount > 1 ? ` (${result.duplicateCount})` : '';
+            const newText = result.isNewFruit ? ' ✨' : '';
+            
+            return `${emoji} **${fruit.name}**${duplicateText}${newText}`;
+        });
+        
+        // Create rarity summary
+        const raritySummary = Object.entries(rarityCount)
+            .sort(([,a], [,b]) => b - a)
+            .map(([rarity, count]) => `${rarityEmojis[rarity]} ${rarity}: ${count}`)
+            .join('\n');
+        
+        return new EmbedBuilder()
+            .setColor(0xFFD700)
+            .setTitle('🎰 10x Devil Fruit Pull Results!')
+            .setDescription(`**Total Cost:** ${totalCost.toLocaleString()} berries\n**New Balance:** ${newBalance.toLocaleString()} berries`)
+            .addFields([
+                { name: '📊 Rarity Summary', value: raritySummary, inline: true },
+                { name: '🍈 All Fruits Obtained', value: fruitList.join('\n'), inline: false }
+            ])
+            .setFooter({ text: '✨ = New discovery | (Number) = Duplicate count' })
+            .setTimestamp();
+    },
+
+    async showFullCollection(buttonInteraction) {
+        try {
+            await buttonInteraction.deferReply({ ephemeral: true });
+            
+            const userId = buttonInteraction.user.id;
+            const targetUser = buttonInteraction.user;
+            
+            // Use the same logic as /collection command
+            const userData = await DatabaseManager.getUser(userId);
+            if (!userData) {
+                const embed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle('📚 Empty Collection')
+                    .setDescription('You haven\'t started your pirate journey yet!')
+                    .setFooter({ text: 'Use /pull to get your first Devil Fruit.' });
+                
+                return await buttonInteraction.editReply({ embeds: [embed] });
+            }
+
+            const userFruits = await DatabaseManager.getUserDevilFruits(userId);
+            
+            if (userFruits.length === 0) {
+                const embed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle('📚 Empty Collection')
+                    .setDescription('Your collection is empty! Use `/pull` to get your first Devil Fruit.')
+                    .setFooter({ text: 'Start your pirate journey today!' });
+                
+                return await buttonInteraction.editReply({ embeds: [embed] });
+            }
+
+            // Sort fruits by rarity and name
+            const rarityOrder = ['omnipotent', 'mythical', 'legendary', 'epic', 'rare', 'uncommon', 'common'];
+            userFruits.sort((a, b) => {
+                const rarityDiff = rarityOrder.indexOf(a.fruit_rarity) - rarityOrder.indexOf(b.fruit_rarity);
+                if (rarityDiff !== 0) return rarityDiff;
+                return a.fruit_name.localeCompare(b.fruit_name);
+            });
+
+            // Create collection embed with pagination
+            const embed = await this.generateCollectionEmbed(targetUser, userData, userFruits, 1, Math.ceil(userFruits.length / 10), null);
+            
+            // Create pagination buttons if needed
+            const components = [];
+            if (userFruits.length > 10) {
+                const row = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`collection_prev_${userId}_1_all`)
+                            .setLabel('◀️ Previous')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(true),
+                        new ButtonBuilder()
+                            .setCustomId(`collection_page_${userId}_1_all`)
+                            .setLabel(`1/${Math.ceil(userFruits.length / 10)}`)
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(true),
+                        new ButtonBuilder()
+                            .setCustomId(`collection_next_${userId}_1_all`)
+                            .setLabel('Next ▶️')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(userFruits.length <= 10)
+                    );
+                components.push(row);
+            }
+
+            await buttonInteraction.editReply({
+                embeds: [embed],
+                components: components
+            });
+
+        } catch (error) {
+            console.error('Error showing full collection:', error);
+            await buttonInteraction.editReply({ content: 'Error loading your collection.' });
+        }
 
     async startImprovedAnimation(interaction, targetFruit, newBalance) {
         const frameDelay = 800; // 0.8 seconds per frame
@@ -139,12 +488,16 @@ module.exports = {
                         .setLabel('🍈 Pull Again')
                         .setStyle(ButtonStyle.Primary),
                     new ButtonBuilder()
+                        .setCustomId('pull_10x')
+                        .setLabel('🎰 Pull 10x')
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
                         .setCustomId('view_collection')
-                        .setLabel('📚 My Collection')
+                        .setLabel('📚 Collection')
                         .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
                         .setCustomId('view_stats')
-                        .setLabel('📊 My Stats')
+                        .setLabel('📊 Stats')
                         .setStyle(ButtonStyle.Secondary)
                 );
             
@@ -162,7 +515,7 @@ module.exports = {
             collector.on('collect', async (buttonInteraction) => {
                 try {
                     if (buttonInteraction.customId === 'pull_again') {
-                        // For "Pull Again", create a new pull instead of reusing the interaction
+                        // For "Pull Again", create a new pull with full animation
                         await buttonInteraction.deferReply();
                         
                         // Check if user has enough berries
@@ -182,12 +535,18 @@ module.exports = {
                             return await buttonInteraction.editReply({ embeds: [errorEmbed] });
                         }
                         
-                        // Generate new fruit and start animation
+                        // Generate new fruit and start NEW animation with proper interaction
                         const newFruit = getRandomFruit();
-                        await this.startImprovedAnimation(buttonInteraction, newFruit, purchaseResult.newBalance);
+                        await this.startButtonAnimation(buttonInteraction, newFruit, purchaseResult.newBalance);
+                        
+                    } else if (buttonInteraction.customId === 'pull_10x') {
+                        // 10x Pull with best rarity animation
+                        await this.handle10xPull(buttonInteraction);
                         
                     } else if (buttonInteraction.customId === 'view_collection') {
-                        await this.showCollection(buttonInteraction);
+                        // Show full collection using the collection command logic
+                        await this.showFullCollection(buttonInteraction);
+                        
                     } else if (buttonInteraction.customId === 'view_stats') {
                         await this.showStats(buttonInteraction);
                     }
