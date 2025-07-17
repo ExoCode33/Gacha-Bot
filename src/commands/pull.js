@@ -19,11 +19,15 @@ module.exports = {
     async execute(interaction) {
         try {
             const userId = interaction.user.id;
-            const guildId = interaction.guild.id;
+            const username = interaction.user.username;
+            const guildId = interaction.guild?.id;
             const pullCost = parseInt(process.env.DEFAULT_PULL_COST) || 100;
 
+            // Ensure user exists in database
+            await DatabaseManager.ensureUser(userId, username, guildId);
+
             // Check user's balance
-            const userStats = await DatabaseManager.getUser(userId, guildId);
+            const userStats = await DatabaseManager.getUser(userId);
             if (!userStats || userStats.berries < pullCost) {
                 const missingBerries = pullCost - (userStats?.berries || 0);
                 return interaction.reply({
@@ -33,7 +37,7 @@ module.exports = {
             }
 
             // Deduct berries and get random fruit
-            await DatabaseManager.updateUserBerries(userId, guildId, -pullCost);
+            await DatabaseManager.updateUserBerries(userId, -pullCost, 'Devil Fruit Pull');
             const newBalance = userStats.berries - pullCost;
             const targetFruit = getRandomFruit();
 
@@ -56,7 +60,7 @@ module.exports = {
 
     async startImprovedAnimation(interaction, targetFruit, newBalance) {
         try {
-            const frameDelay = 800; // 0.8 seconds per frame (much faster!)
+            const frameDelay = 900; // 0.9 seconds per frame (1 second longer total)
             const animationFrames = 4; // 4 animation frames
             const outwardFrames = 10; // 10 frames for outward color spread
             const textRevealFrames = 6; // 6 frames for text reveal
@@ -138,6 +142,14 @@ module.exports = {
 
             collector.on('collect', async (buttonInteraction) => {
                 try {
+                    // Check if the user who clicked is the same as the one who initiated the pull
+                    if (buttonInteraction.user.id !== interaction.user.id) {
+                        return await buttonInteraction.reply({
+                            content: '❌ You can only interact with your own pull results!',
+                            ephemeral: true
+                        });
+                    }
+
                     if (buttonInteraction.customId === 'pull_again') {
                         await this.handlePullAgain(buttonInteraction);
                     } else if (buttonInteraction.customId === 'pull_10x') {
@@ -198,11 +210,15 @@ module.exports = {
 
     async handlePullAgain(buttonInteraction) {
         const userId = buttonInteraction.user.id;
-        const guildId = buttonInteraction.guild.id;
+        const username = buttonInteraction.user.username;
+        const guildId = buttonInteraction.guild?.id;
         const pullCost = parseInt(process.env.DEFAULT_PULL_COST) || 100;
 
+        // Ensure user exists in database
+        await DatabaseManager.ensureUser(userId, username, guildId);
+
         // Check user's balance
-        const userStats = await DatabaseManager.getUser(userId, guildId);
+        const userStats = await DatabaseManager.getUser(userId);
         if (!userStats || userStats.berries < pullCost) {
             const missingBerries = pullCost - (userStats?.berries || 0);
             return buttonInteraction.reply({
@@ -212,7 +228,7 @@ module.exports = {
         }
 
         // Deduct berries and get random fruit
-        await DatabaseManager.updateUserBerries(userId, guildId, -pullCost);
+        await DatabaseManager.updateUserBerries(userId, -pullCost, 'Pull Again');
         const newBalance = userStats.berries - pullCost;
         const targetFruit = getRandomFruit();
 
@@ -283,7 +299,7 @@ module.exports = {
 
     async startButtonAnimation(buttonInteraction, targetFruit, newBalance) {
         // Same full animation as regular pull but for button interactions
-        const frameDelay = 800;
+        const frameDelay = 900; // Match main animation timing
         const animationFrames = 4;
         const outwardFrames = 10;
         const textRevealFrames = 6;
@@ -330,11 +346,15 @@ module.exports = {
 
     async showFullCollection(buttonInteraction) {
         const userId = buttonInteraction.user.id;
-        const guildId = buttonInteraction.guild.id;
+        const username = buttonInteraction.user.username;
+        const guildId = buttonInteraction.guild?.id;
 
         try {
-            const userData = await DatabaseManager.getUser(userId, guildId);
-            const fruits = await DatabaseManager.getUserFruits(userId, guildId);
+            // Ensure user exists in database
+            await DatabaseManager.ensureUser(userId, username, guildId);
+
+            const userData = await DatabaseManager.getUser(userId);
+            const fruits = await DatabaseManager.getUserDevilFruits(userId);
 
             if (!fruits || fruits.length === 0) {
                 return buttonInteraction.reply({
@@ -380,10 +400,14 @@ module.exports = {
     async showUserStats(buttonInteraction) {
         try {
             const userId = buttonInteraction.user.id;
-            const guildId = buttonInteraction.guild.id;
+            const username = buttonInteraction.user.username;
+            const guildId = buttonInteraction.guild?.id;
             
-            const userData = await DatabaseManager.getUser(userId, guildId);
-            const fruits = await DatabaseManager.getUserFruits(userId, guildId);
+            // Ensure user exists in database
+            await DatabaseManager.ensureUser(userId, username, guildId);
+
+            const userData = await DatabaseManager.getUser(userId);
+            const fruits = await DatabaseManager.getUserDevilFruits(userId);
 
             if (!userData) {
                 return buttonInteraction.reply({
@@ -448,15 +472,23 @@ module.exports = {
 
     createOutwardColorFrame(outFrame, rewardColor, rewardEmoji) {
         const barLength = 20;
-        const centerPosition = 9.5;
-        const spread = outFrame; // 0 = center only, 1 = center + 1 each side, etc.
         
+        // For a 20-length bar, center is between positions 9 and 10
+        // So we start with both 9 and 10 as the center
         const positions = [];
-        for (let i = 0; i <= spread; i++) {
-            const leftPos = Math.floor(centerPosition - i);
-            const rightPos = Math.floor(centerPosition + i);
-            if (leftPos >= 0) positions.push(leftPos);
-            if (rightPos < barLength && rightPos !== leftPos) positions.push(rightPos);
+        
+        if (outFrame === 0) {
+            // Frame 0: Both center positions
+            positions.push(9, 10);
+        } else {
+            // Frame 1+: Center + expanding outward
+            for (let i = 0; i <= outFrame; i++) {
+                const leftPos = 9 - i;   // Expand left from position 9
+                const rightPos = 10 + i; // Expand right from position 10
+                
+                if (leftPos >= 0) positions.push(leftPos);
+                if (rightPos < barLength) positions.push(rightPos);
+            }
         }
 
         const bar = Array(barLength).fill('⬛');
