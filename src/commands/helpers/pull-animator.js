@@ -56,7 +56,8 @@ class PullAnimator {
         for (let frame = 0; frame < frames; frame++) {
             const embed = EmbedBuilder.createRainbowFrame(frame, fruit);
             
-            if (frame === 0) {
+            // Check if interaction is already replied/deferred
+            if (frame === 0 && !interaction.replied && !interaction.deferred) {
                 await interaction.reply({ embeds: [embed] });
             } else {
                 await interaction.editReply({ embeds: [embed] });
@@ -111,7 +112,8 @@ class PullAnimator {
         for (let frame = 0; frame < frames; frame++) {
             const embed = EmbedBuilder.createQuickFrame(frame, fruit, pullNumber);
             
-            if (pullNumber === 1 && frame === 0) {
+            // Check if interaction is already replied/deferred
+            if (pullNumber === 1 && frame === 0 && !interaction.replied && !interaction.deferred) {
                 await interaction.reply({ embeds: [embed] });
             } else {
                 await interaction.editReply({ embeds: [embed] });
