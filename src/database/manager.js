@@ -1,4 +1,4 @@
-// src/database/manager.js - Database Manager v2.1 - Updated for fruitType
+// src/database/manager.js - Database Manager v2.2 - Fixed exports
 const { Pool } = require('pg');
 
 class DatabaseManager {
@@ -159,6 +159,16 @@ class DatabaseManager {
         }
     }
 
+    async getUserLevel(userId) {
+        try {
+            const user = await this.getUser(userId);
+            return user ? user.level : 0;
+        } catch (error) {
+            console.error('Error getting user level:', error);
+            return 0;
+        }
+    }
+
     async updateUserLevel(userId, level, roleName, baseCp) {
         try {
             // Update user level and base CP
@@ -265,8 +275,8 @@ class DatabaseManager {
             const baseCp = user.base_cp;
             
             // Store multiplier as integer (multiply by 100)
-            const multiplierAsInt = Math.floor(fruitData.multiplier * 100);
-            const totalCp = baseCp * fruitData.multiplier;
+            const multiplierAsInt = Math.floor((fruitData.multiplier || 1.0) * 100);
+            const totalCp = baseCp * (fruitData.multiplier || 1.0);
             
             // Add the fruit with both element (legacy) and fruitType (new)
             const result = await this.query(
@@ -277,7 +287,9 @@ class DatabaseManager {
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
                  RETURNING *`,
                 [userId, fruitData.id, fruitData.name, fruitData.type, fruitData.rarity,
-                 fruitData.element || fruitData.fruitType, fruitData.fruitType, fruitData.power, fruitData.description, 
+                 fruitData.element || fruitData.fruitType || 'Unknown', 
+                 fruitData.fruitType || 'Unknown', 
+                 fruitData.power, fruitData.description || fruitData.power, 
                  multiplierAsInt, duplicateCount, totalCp]
             );
             
@@ -468,4 +480,5 @@ class DatabaseManager {
     }
 }
 
+// Export as singleton
 module.exports = new DatabaseManager();
