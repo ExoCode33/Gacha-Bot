@@ -1,4 +1,59 @@
-// src/commands/pull.js - Improved Pull Command with Shorter Animation
+createOutwardColorFrame(outFrame, rewardColor, rewardEmoji) {
+        const barLength = 20;
+        const centerPosition = 9.5;
+        const spread = outFrame; // 0 = center only, 1 = center + 1 each side, etc.
+        
+        const positions = [];
+        for (let i = 0; i < barLength; i++) {
+            const distanceFromCenter = Math.abs(i - centerPosition);
+            
+            if (distanceFromCenter <= spread) {
+                positions.push(rewardEmoji);
+            } else {
+                // FROZEN rainbow - use fixed frame 0 so it doesn't move
+                const colorIndex = (i + 7 * 100) % 7; // No frame progression
+                positions.push(rainbowColors[colorIndex]);
+            }
+        }
+        
+        const transitionBar = positions.join(' ');
+        
+        // Same fixed size content, no fruit info yet
+        const content = [
+            `${transitionBar}`,
+            "",
+            `💎 **LEGENDARY MANIFESTATION** 💎`,
+            "",
+            `🍈 **Fruit:** ???`,
+            `⭐ **Type:** ???`,
+            `🎯 **Rarity:** ???`,
+            `🔥 **CP Multiplier:** ???`,
+            `🌟 **Category:** ???`,
+            "",
+            `🔄 **Status:** ???`,
+            "",
+            `📖 **Power Description:**`,
+            `*Power crystallizing...*`,
+            "",
+            `💰 **Balance:** ???`,
+            `🎯 **Total Owned:** ???`,
+            "",
+            `${transitionBar}`
+        ].join('\n');
+        
+        // Gradually blend colors
+        const progress = Math.min(outFrame / (10 - 1), 1);
+        const currentRainbowColor = this.getEmbedColorSyncedToFirst(0); // Use frame 0 for frozen color
+        const blendedColor = this.blendColors(currentRainbowColor, rewardColor, progress);
+        
+        return new EmbedBuilder()
+            .setColor(blendedColor)
+            .setTitle("💎 Devil Fruit Hunt - Power Crystallizing")
+            .setDescription(content)
+            .setFooter({ text: "💎 Manifestation in progress..." })
+            .setTimestamp();
+    },
+            `// src/commands/pull.js - Improved Pull Command with Shorter Animation
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getRandomFruit, getRarityColor, getRarityEmoji } = require('../data/devil-fruits');
 const DatabaseManager = require('../database/manager');
@@ -162,7 +217,30 @@ module.exports = {
             collector.on('collect', async (buttonInteraction) => {
                 try {
                     if (buttonInteraction.customId === 'pull_again') {
-                        await this.execute(buttonInteraction);
+                        // For "Pull Again", create a new pull instead of reusing the interaction
+                        await buttonInteraction.deferReply();
+                        
+                        // Check if user has enough berries
+                        const purchaseResult = await EconomySystem.purchasePull(buttonInteraction.user.id, buttonInteraction.user.username);
+                        if (!purchaseResult.success) {
+                            const errorEmbed = new EmbedBuilder()
+                                .setColor(0xFF0000)
+                                .setTitle('❌ Insufficient Berries')
+                                .setDescription(purchaseResult.message)
+                                .addFields([
+                                    { name: '💰 Current Berries', value: purchaseResult.currentBerries.toLocaleString(), inline: true },
+                                    { name: '💸 Pull Cost', value: `${EconomySystem.getEconomyConfig().pullCost.toLocaleString()} berries`, inline: true },
+                                    { name: '📈 Earn More', value: 'Use `/income` to collect berries based on your CP!', inline: false }
+                                ])
+                                .setFooter({ text: 'Get more Devil Fruits to increase your CP and earn more berries!' });
+                            
+                            return await buttonInteraction.editReply({ embeds: [errorEmbed] });
+                        }
+                        
+                        // Generate new fruit and start animation
+                        const newFruit = getRandomFruit();
+                        await this.startImprovedAnimation(buttonInteraction, newFruit, purchaseResult.newBalance);
+                        
                     } else if (buttonInteraction.customId === 'view_collection') {
                         await this.showCollection(buttonInteraction);
                     } else if (buttonInteraction.customId === 'view_stats') {
