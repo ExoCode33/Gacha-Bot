@@ -1,4 +1,4 @@
-// index.js - One Piece Devil Fruit Gacha Bot v3.0
+// index.js - One Piece Devil Fruit Gacha Bot v3.0 (Fixed Command Registration)
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v9');
@@ -96,8 +96,11 @@ client.once('ready', async () => {
         
         const rest = new REST({ version: '9' }).setToken(process.env.DISCORD_TOKEN);
         
+        // Get client ID from token
+        const clientId = client.user.id;
+        
         await rest.put(
-            Routes.applicationCommands(client.user.id),
+            Routes.applicationCommands(clientId),
             { body: commands }
         );
         
@@ -106,6 +109,7 @@ client.once('ready', async () => {
         
     } catch (error) {
         console.error('❌ Failed to register slash commands:', error);
+        console.log('💡 Commands may not work until this is resolved!');
     }
 
     console.log('\n🎉 SYSTEM STARTUP COMPLETE! 🎉');
