@@ -1,59 +1,4 @@
-createOutwardColorFrame(outFrame, rewardColor, rewardEmoji) {
-        const barLength = 20;
-        const centerPosition = 9.5;
-        const spread = outFrame; // 0 = center only, 1 = center + 1 each side, etc.
-        
-        const positions = [];
-        for (let i = 0; i < barLength; i++) {
-            const distanceFromCenter = Math.abs(i - centerPosition);
-            
-            if (distanceFromCenter <= spread) {
-                positions.push(rewardEmoji);
-            } else {
-                // FROZEN rainbow - use fixed frame 0 so it doesn't move
-                const colorIndex = (i + 7 * 100) % 7; // No frame progression
-                positions.push(rainbowColors[colorIndex]);
-            }
-        }
-        
-        const transitionBar = positions.join(' ');
-        
-        // Same fixed size content, no fruit info yet
-        const content = [
-            `${transitionBar}`,
-            "",
-            `💎 **LEGENDARY MANIFESTATION** 💎`,
-            "",
-            `🍈 **Fruit:** ???`,
-            `⭐ **Type:** ???`,
-            `🎯 **Rarity:** ???`,
-            `🔥 **CP Multiplier:** ???`,
-            `🌟 **Category:** ???`,
-            "",
-            `🔄 **Status:** ???`,
-            "",
-            `📖 **Power Description:**`,
-            `*Power crystallizing...*`,
-            "",
-            `💰 **Balance:** ???`,
-            `🎯 **Total Owned:** ???`,
-            "",
-            `${transitionBar}`
-        ].join('\n');
-        
-        // Gradually blend colors
-        const progress = Math.min(outFrame / (10 - 1), 1);
-        const currentRainbowColor = this.getEmbedColorSyncedToFirst(0); // Use frame 0 for frozen color
-        const blendedColor = this.blendColors(currentRainbowColor, rewardColor, progress);
-        
-        return new EmbedBuilder()
-            .setColor(blendedColor)
-            .setTitle("💎 Devil Fruit Hunt - Power Crystallizing")
-            .setDescription(content)
-            .setFooter({ text: "💎 Manifestation in progress..." })
-            .setTimestamp();
-    },
-            `// src/commands/pull.js - Improved Pull Command with Shorter Animation
+// src/commands/pull.js - Complete Fixed Pull Command
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getRandomFruit, getRarityColor, getRarityEmoji } = require('../data/devil-fruits');
 const DatabaseManager = require('../database/manager');
@@ -267,6 +212,20 @@ module.exports = {
         }
     },
 
+    getSyncedRainbowPattern(frame, barLength = 20) {
+        const positions = [];
+        for (let i = 0; i < barLength; i++) {
+            const colorIndex = (i - frame + rainbowColors.length * 100) % rainbowColors.length;
+            positions.push(rainbowColors[colorIndex]);
+        }
+        return positions.join(' ');
+    },
+
+    getEmbedColorSyncedToFirst(frame) {
+        const firstSquareColorIndex = (0 - frame + rainbowColors.length * 100) % rainbowColors.length;
+        return rainbowEmbedColors[firstSquareColorIndex];
+    },
+
     createFixedSizeAnimationFrame(frame) {
         const rainbowPattern = this.getSyncedRainbowPattern(frame);
         const embedColor = this.getEmbedColorSyncedToFirst(frame);
@@ -317,7 +276,8 @@ module.exports = {
             if (distanceFromCenter <= spread) {
                 positions.push(rewardEmoji);
             } else {
-                const colorIndex = (i - outFrame + 7 * 100) % 7;
+                // FROZEN rainbow - use fixed frame 0 so it doesn't move
+                const colorIndex = (i + 7 * 100) % 7; // No frame progression
                 positions.push(rainbowColors[colorIndex]);
             }
         }
@@ -349,7 +309,7 @@ module.exports = {
         
         // Gradually blend colors
         const progress = Math.min(outFrame / (10 - 1), 1);
-        const currentRainbowColor = this.getEmbedColorSyncedToFirst(outFrame);
+        const currentRainbowColor = this.getEmbedColorSyncedToFirst(0); // Use frame 0 for frozen color
         const blendedColor = this.blendColors(currentRainbowColor, rewardColor, progress);
         
         return new EmbedBuilder()
@@ -428,186 +388,6 @@ module.exports = {
             .setTitle(userStats.isNewFruit ? "🏴‍☠️ New Devil Fruit Discovered!" : "🏴‍☠️ Devil Fruit Enhanced!")
             .setDescription(content)
             .setFooter({ text: "🌊 Information materializing..." })
-            .setTimestamp();
-    },
-
-    getSyncedRainbowPattern(frame, barLength = 20) {
-        const positions = [];
-        for (let i = 0; i < barLength; i++) {
-            const colorIndex = (i - frame + rainbowColors.length * 100) % rainbowColors.length;
-            positions.push(rainbowColors[colorIndex]);
-        }
-        return positions.join(' ');
-    },
-
-    getEmbedColorSyncedToFirst(frame) {
-        const firstSquareColorIndex = (0 - frame + rainbowColors.length * 100) % rainbowColors.length;
-        return rainbowEmbedColors[firstSquareColorIndex];
-    },
-
-    createAnimationFrame(frame, targetFruit, totalFrames) {
-        const rainbowPattern = this.getSyncedRainbowPattern(frame);
-        const embedColor = this.getEmbedColorSyncedToFirst(frame);
-        const description = HUNT_DESCRIPTIONS[frame] || HUNT_DESCRIPTIONS[HUNT_DESCRIPTIONS.length - 1];
-        
-        const content = [
-            `${rainbowPattern}`,
-            "",
-            `🏴‍☠️ **DEVIL FRUIT HUNT** 🏴‍☠️`,
-            "",
-            `*${description}*`,
-            "",
-            `${rainbowPattern}`
-        ].join('\n');
-        
-        return new EmbedBuilder()
-            .setColor(embedColor)
-            .setTitle("🌊 Scanning the Grand Line...")
-            .setDescription(content)
-            .setFooter({ text: "🍈 Devil Fruit materializing..." })
-            .setTimestamp();
-    },
-
-    createTransitionFrame(transFrame, targetFruit, rewardColor, rewardEmoji) {
-        const radius = transFrame + 1; // Grows outward each frame
-        const barLength = 20;
-        
-        const positions = [];
-        for (let i = 0; i < barLength; i++) {
-            const centerLeft = 9.5;
-            const distanceFromCenter = Math.abs(i - centerLeft);
-            
-            if (distanceFromCenter <= radius) {
-                positions.push(rewardEmoji);
-            } else {
-                const colorIndex = (i - transFrame + 7 * 100) % 7;
-                positions.push(rainbowColors[colorIndex]);
-            }
-        }
-        
-        const transitionBar = positions.join(' ');
-        
-        const transitionTexts = [
-            "💎 The Devil Fruit's power materializes into reality...",
-            "🌟 Legendary energy crystallizing before your eyes...",
-            "🏴‍☠️ The Grand Line reveals its mysterious gift!"
-        ];
-        
-        const description = transitionTexts[Math.min(transFrame, transitionTexts.length - 1)];
-        
-        // NO detailed fruit info during transition - keep it mysterious
-        const statusDisplay = [
-            `🍈 **DEVIL FRUIT DISCOVERED**`,
-            `⭐ **Analyzing Power Signature...**`,
-            `🌟 **Classification In Progress...**`
-        ].join('\n');
-        
-        const content = [
-            `${transitionBar}`,
-            "",
-            `💎 **LEGENDARY MANIFESTATION** 💎`,
-            "",
-            statusDisplay,
-            "",
-            `*${description}*`,
-            "",
-            `${transitionBar}`
-        ].join('\n');
-        
-        // Gradually transition embed color from rainbow to rarity color
-        const transitionProgress = (transFrame + 1) / 3;
-        const currentRainbowColor = this.getEmbedColorSyncedToFirst(transFrame);
-        
-        // Blend colors for smooth transition
-        const blendedColor = this.blendColors(currentRainbowColor, rewardColor, transitionProgress);
-        
-        return new EmbedBuilder()
-            .setColor(blendedColor)
-            .setTitle("💎 Devil Fruit Hunt - Power Crystallizing")
-            .setDescription(content)
-            .setFooter({ text: "💎 Manifestation completing..." })
-            .setTimestamp();
-    },
-
-    createInfoRevealFrame(infoFrame, targetFruit, userStats, newBalance, rewardColor, rewardEmoji) {
-        const rewardBar = Array(20).fill(rewardEmoji).join(' ');
-        
-        const rarityTitles = {
-            common: "Common Discovery",
-            uncommon: "Uncommon Treasure",
-            rare: "Rare Artifact", 
-            epic: "Epic Legend",
-            legendary: "Legendary Relic",
-            mythical: "Mythical Wonder",
-            omnipotent: "Omnipotent Force"
-        };
-        
-        const typeEmojis = {
-            'Paramecia': '🔮',
-            'Zoan': '🐺', 
-            'Logia': '🌪️',
-            'Ancient Zoan': '🦕',
-            'Mythical Zoan': '🐉',
-            'Special Paramecia': '✨'
-        };
-        
-        // Progressive information reveal
-        let infoContent = [
-            `${rewardBar}`,
-            "",
-            `🎉 **${rarityTitles[targetFruit.rarity] || 'Mysterious Discovery'}**`,
-            ""
-        ];
-        
-        // Frame 0: Basic info
-        if (infoFrame >= 0) {
-            infoContent.push(
-                `🍈 **${targetFruit.name}**`,
-                `${typeEmojis[targetFruit.type] || '🍈'} **Type:** ${targetFruit.type}`,
-                `⭐ **Rarity:** ${targetFruit.rarity.charAt(0).toUpperCase() + targetFruit.rarity.slice(1)}`
-            );
-        }
-        
-        // Frame 1: Add power stats
-        if (infoFrame >= 1) {
-            infoContent.push(
-                `🔥 **CP Multiplier:** ${(targetFruit.multiplier || 1.0).toFixed(2)}x`,
-                `🌟 **Category:** ${targetFruit.fruitType || 'Unknown'}`
-            );
-        }
-        
-        // Frame 2: Add duplicate info and power description
-        if (infoFrame >= 2) {
-            const duplicateCount = userStats.duplicateCount || 1;
-            const duplicateInfo = duplicateCount > 1 ? 
-                `🔄 **Duplicate #${duplicateCount}** (+${((duplicateCount - 1) * 1).toFixed(0)}% CP Bonus!)` : 
-                `✨ **New Discovery!** First time obtaining this fruit!`;
-            
-            infoContent.push(
-                "",
-                duplicateInfo,
-                "",
-                `📖 **Power Description:**`,
-                `*${targetFruit.power || 'A mysterious power awaits discovery...'}*`,
-                "",
-                `💰 **New Balance:** ${newBalance.toLocaleString()} berries`,
-                `🎯 **Total Owned:** ${duplicateCount}`
-            );
-        }
-        
-        infoContent.push("", `${rewardBar}`);
-        
-        const footerTexts = [
-            "🌊 Devil Fruit identified!",
-            "🌊 Power analysis complete!",
-            "🌊 Your legend grows stronger!"
-        ];
-        
-        return new EmbedBuilder()
-            .setColor(rewardColor)
-            .setTitle(userStats.isNewFruit ? "🏴‍☠️ New Devil Fruit Discovered!" : "🏴‍☠️ Devil Fruit Enhanced!")
-            .setDescription(infoContent.join('\n'))
-            .setFooter({ text: footerTexts[Math.min(infoFrame, footerTexts.length - 1)] })
             .setTimestamp();
     },
 
