@@ -86,24 +86,26 @@ module.exports = {
             }
 
             // Phase 3: Save to database (silent, happens after outward reveal)
-            const userStats = await DatabaseManager.getUser(interaction.user.id, interaction.guild.id);
             console.log(`💾 Saving fruit to database: ${targetFruit.name}`);
             
+            let result;
             try {
-                await DatabaseManager.addDevilFruit(interaction.user.id, interaction.guild.id, targetFruit);
+                result = await DatabaseManager.addDevilFruit(interaction.user.id, interaction.guild.id, targetFruit);
             } catch (dbError) {
                 console.error('Error adding devil fruit:', dbError);
+                // Fallback result
+                result = { duplicate_count: 1, total_cp: 250 };
             }
 
             // Phase 4: Progressive Text Reveal (3 seconds)
             for (let textFrame = 0; textFrame < textRevealFrames; textFrame++) {
                 await new Promise(resolve => setTimeout(resolve, 500));
-                const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, userStats, newBalance);
+                const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, result, newBalance);
                 await interaction.editReply({ embeds: [textEmbed] });
             }
 
             // Phase 5: Final reveal with buttons
-            const finalEmbed = await this.createFinalRevealEmbed(targetFruit, userStats, newBalance);
+            const finalEmbed = await this.createFinalRevealEmbed(targetFruit, result, newBalance);
             const actionRow = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
@@ -309,18 +311,17 @@ module.exports = {
         }
 
         // Phase 3: Save to database
-        const userStats = await DatabaseManager.getUser(buttonInteraction.user.id, buttonInteraction.guild.id);
-        await DatabaseManager.addDevilFruit(buttonInteraction.user.id, buttonInteraction.guild.id, targetFruit);
+        const result = await DatabaseManager.addDevilFruit(buttonInteraction.user.id, buttonInteraction.guild.id, targetFruit);
 
         // Phase 4: Progressive Text Reveal
         for (let textFrame = 0; textFrame < textRevealFrames; textFrame++) {
             await new Promise(resolve => setTimeout(resolve, 500));
-            const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, userStats, newBalance);
+            const textEmbed = this.createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, result, newBalance);
             await buttonInteraction.editReply({ embeds: [textEmbed] });
         }
 
         // Phase 5: Final reveal
-        const finalEmbed = await this.createFinalRevealEmbed(targetFruit, userStats, newBalance);
+        const finalEmbed = await this.createFinalRevealEmbed(targetFruit, result, newBalance);
         await buttonInteraction.editReply({ embeds: [finalEmbed] });
     },
 
@@ -431,7 +432,7 @@ module.exports = {
             .setFooter({ text: '⚡ Power crystallizing...' });
     },
 
-    createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, userStats, newBalance) {
+    createTextRevealFrame(textFrame, targetFruit, rewardColor, rewardEmoji, result, newBalance) {
         const barLength = 20;
         const rewardBar = Array(barLength).fill(rewardEmoji).join('');
         
@@ -458,19 +459,18 @@ module.exports = {
             .setFooter({ text: '🎉 Added to your collection!' });
     },
 
-    async createFinalRevealEmbed(targetFruit, userStats, newBalance) {
+    async createFinalRevealEmbed(targetFruit, result, newBalance) {
         const rarityEmoji = getRarityEmoji(targetFruit.rarity);
         const rarityColor = getRarityColor(targetFruit.rarity);
         const rewardBar = Array(20).fill(rarityEmoji).join('');
         
-        // Get duplicate count
-        const totalOwned = await DatabaseManager.getUserFruitCount(userStats.user_id, userStats.guild_id, targetFruit.id);
+        // Get duplicate count from the database result
+        const totalOwned = result.duplicate_count || 1;
         const isNewDiscovery = totalOwned === 1;
         const duplicateText = isNewDiscovery ? '✨ New Discovery!' : `📚 Total Owned: ${totalOwned}`;
         
-        // Calculate total CP
-        const baseCp = targetFruit.baseCp || 300;
-        const totalCp = Math.floor(baseCp * targetFruit.multiplier * (1 + (totalOwned - 1) * 0.01));
+        // Use the total CP from database result
+        const totalCp = result.total_cp || 250;
 
         const description = `🎉 **Congratulations!** You've obtained a magnificent Devil Fruit!\n\n${rewardBar}\n\n` +
             `🍃 **Name:** ${targetFruit.name}\n` +
