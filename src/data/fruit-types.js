@@ -1,156 +1,164 @@
-// src/data/fruit-types.js - Devil Fruit Types and Elements for 149 Canonical Fruits
+// src/data/fruit-types.js - Devil Fruit Types and Elements for 128 Fruits
 
 const FRUIT_TYPES = {
   // =====================================================
   // COMMON FRUITS
   // =====================================================
-  "Gomu Gomu no Mi": { type: 'Paramecia', fruitType: 'Rubber' },
-  "Bara Bara no Mi": { type: 'Paramecia', fruitType: 'Separation' },
-  "Sube Sube no Mi": { type: 'Paramecia', fruitType: 'Smooth' },
-  "Bomu Bomu no Mi": { type: 'Paramecia', fruitType: 'Explosion' },
-  "Kilo Kilo no Mi": { type: 'Paramecia', fruitType: 'Weight' },
-  "Doru Doru no Mi": { type: 'Paramecia', fruitType: 'Wax' },
-  "Bane Bane no Mi": { type: 'Paramecia', fruitType: 'Spring' },
-  "Supa Supa no Mi": { type: 'Paramecia', fruitType: 'Blade' },
-  "Toge Toge no Mi": { type: 'Paramecia', fruitType: 'Spike' },
-  "Ori Ori no Mi": { type: 'Paramecia', fruitType: 'Cage' },
-  "Baku Baku no Mi": { type: 'Paramecia', fruitType: 'Munch' },
-  "Mane Mane no Mi": { type: 'Paramecia', fruitType: 'Clone' },
-  "Hana Hana no Mi": { type: 'Paramecia', fruitType: 'Flower' },
-  "Shari Shari no Mi": { type: 'Paramecia', fruitType: 'Wheel' },
-  "Beri Beri no Mi": { type: 'Paramecia', fruitType: 'Berry' },
-  "Sabi Sabi no Mi": { type: 'Paramecia', fruitType: 'Rust' },
-  "Shabon Shabon no Mi": { type: 'Paramecia', fruitType: 'Soap' },
-  "Awa Awa no Mi": { type: 'Paramecia', fruitType: 'Bubble' },
-  "Goe Goe no Mi": { type: 'Paramecia', fruitType: 'Voice' },
-  "Hiso Hiso no Mi": { type: 'Paramecia', fruitType: 'Whisper' },
-  "Kama Kama no Mi": { type: 'Paramecia', fruitType: 'Sickle' },
-  "Kachi Kachi no Mi": { type: 'Paramecia', fruitType: 'Hardness' },
-  "Nemu Nemu no Mi": { type: 'Paramecia', fruitType: 'Sleep' },
-  "Mini Mini no Mi": { type: 'Paramecia', fruitType: 'Miniature' },
+  "Mushi Mushi no Mi, Model: Suzumebachi": { type: 'Zoan', fruitType: 'Insect' },
+  "Sara Sara no Mi, Model: Axolotl": { type: 'Zoan', fruitType: 'Amphibian' },
+  "Batto Batto no Mi, Model: Vampire": { type: 'Zoan', fruitType: 'Vampire Bat' },
+  "Tama Tama no Mi": { type: 'Zoan', fruitType: 'Egg' },
+  "Mogu Mogu no Mi": { type: 'Zoan', fruitType: 'Mole' },
+  "Inu Inu no Mi, Model: Tanuki": { type: 'Zoan', fruitType: 'Tanuki' },
+  "Inu Inu no Mi, Model: Dachshund": { type: 'Zoan', fruitType: 'Dachshund' },
+  "Neko Neko no Mi, Model: Saber Tiger": { type: 'Zoan', fruitType: 'Saber Tiger' },
+  "Inu Inu no Mi, Model: Jackal": { type: 'Zoan', fruitType: 'Jackal' },
+  "Uma Uma no Mi": { type: 'Zoan', fruitType: 'Horse' },
+  "Ushi Ushi no Mi, Model: Giraffe": { type: 'Zoan', fruitType: 'Giraffe' },
+  "Neko Neko no Mi, Model: Leopard": { type: 'Zoan', fruitType: 'Leopard' },
+  "Inu Inu no Mi, Model: Wolf": { type: 'Zoan', fruitType: 'Wolf' },
+  "Zou Zou no Mi": { type: 'Zoan', fruitType: 'Elephant' },
+  "Tori Tori no Mi, Model: Falcon": { type: 'Zoan', fruitType: 'Falcon' },
+  "Hito Hito no Mi": { type: 'Zoan', fruitType: 'Human' },
+  "Ushi Ushi no Mi, Model: Bison": { type: 'Zoan', fruitType: 'Bison' },
+  "Mushi Mushi no Mi, Model: Kabuto": { type: 'Zoan', fruitType: 'Beetle' },
+  "Kame Kame no Mi": { type: 'Zoan', fruitType: 'Turtle' },
+  "Tori Tori no Mi, Model: Eagle": { type: 'Zoan', fruitType: 'Eagle' },
+  "Susu Susu no Mi": { type: 'Paramecia', fruitType: 'Soot' },
+  "Shibo Shibo no Mi": { type: 'Paramecia', fruitType: 'Liquid' },
+  "Nagi Nagi no Mi": { type: 'Paramecia', fruitType: 'Silence' },
+  "Chiyu Chiyu no Mi": { type: 'Paramecia', fruitType: 'Healing' },
+  "Memo Memo no Mi": { type: 'Paramecia', fruitType: 'Memory' },
 
   // =====================================================
   // UNCOMMON FRUITS
   // =====================================================
-  "Horo Horo no Mi": { type: 'Paramecia', fruitType: 'Hollow' },
-  "Suke Suke no Mi": { type: 'Paramecia', fruitType: 'Clear' },
-  "Nikyu Nikyu no Mi": { type: 'Paramecia', fruitType: 'Paw' },
-  "Mero Mero no Mi": { type: 'Paramecia', fruitType: 'Love' },
+  "Sube Sube no Mi": { type: 'Paramecia', fruitType: 'Smooth' },
+  "Supa Supa no Mi": { type: 'Paramecia', fruitType: 'Blade' },
+  "Toge Toge no Mi": { type: 'Paramecia', fruitType: 'Spike' },
+  "Ori Ori no Mi": { type: 'Paramecia', fruitType: 'Cage' },
+  "Bane Bane no Mi": { type: 'Paramecia', fruitType: 'Spring' },
+  "Noro Noro no Mi": { type: 'Paramecia', fruitType: 'Slow' },
   "Doa Doa no Mi": { type: 'Paramecia', fruitType: 'Door' },
-  "Kage Kage no Mi": { type: 'Paramecia', fruitType: 'Shadow' },
-  "Horu Horu no Mi": { type: 'Paramecia', fruitType: 'Hormone' },
-  "Choki Choki no Mi": { type: 'Paramecia', fruitType: 'Scissors' },
-  "Yomi Yomi no Mi": { type: 'Paramecia', fruitType: 'Revive' },
-  "Kuma Kuma no Mi": { type: 'Zoan', fruitType: 'Bear' },
-  "Ushi Ushi no Mi, Model: Bison": { type: 'Zoan', fruitType: 'Bison' },
-  "Hito Hito no Mi": { type: 'Zoan', fruitType: 'Human' },
-  "Tori Tori no Mi, Model: Falcon": { type: 'Zoan', fruitType: 'Falcon' },
-  "Mogu Mogu no Mi": { type: 'Zoan', fruitType: 'Mole' },
-  "Inu Inu no Mi, Model: Dachshund": { type: 'Zoan', fruitType: 'Dachshund' },
-  "Inu Inu no Mi, Model: Jackal": { type: 'Zoan', fruitType: 'Jackal' },
-  "Tori Tori no Mi, Model: Eagle": { type: 'Zoan', fruitType: 'Eagle' },
-  "Saru Saru no Mi": { type: 'Zoan', fruitType: 'Monkey' },
-  "Uma Uma no Mi": { type: 'Zoan', fruitType: 'Horse' },
-  "Neko Neko no Mi, Model: Leopard": { type: 'Zoan', fruitType: 'Leopard' },
-  "Zou Zou no Mi": { type: 'Zoan', fruitType: 'Elephant' },
-  "Inu Inu no Mi, Model: Wolf": { type: 'Zoan', fruitType: 'Wolf' },
-  "Neko Neko no Mi, Model: Saber Tiger": { type: 'Zoan', fruitType: 'Saber Tiger' },
-  "Batto Batto no Mi, Model: Vampire": { type: 'Zoan', fruitType: 'Vampire Bat' },
-  "Kumo Kumo no Mi, Model: Rosamygale Grauvogeli": { type: 'Ancient Zoan', fruitType: 'Ancient Spider' },
+  "Awa Awa no Mi": { type: 'Paramecia', fruitType: 'Bubble' },
+  "Beta Beta no Mi": { type: 'Paramecia', fruitType: 'Sticky' },
+  "Bari Bari no Mi": { type: 'Paramecia', fruitType: 'Barrier' },
+  "Nui Nui no Mi": { type: 'Paramecia', fruitType: 'Stitch' },
+  "Buku Buku no Mi": { type: 'Paramecia', fruitType: 'Book' },
+  "Pero Pero no Mi": { type: 'Paramecia', fruitType: 'Candy' },
+  "Bisu Bisu no Mi": { type: 'Paramecia', fruitType: 'Biscuit' },
+  "Kuri Kuri no Mi": { type: 'Paramecia', fruitType: 'Cream' },
+  "Mira Mira no Mi": { type: 'Paramecia', fruitType: 'Mirror' },
+  "Maki Maki no Mi": { type: 'Paramecia', fruitType: 'Scroll' },
+  "Oshi Oshi no Mi": { type: 'Paramecia', fruitType: 'Push' },
+  "Fuku Fuku no Mi": { type: 'Paramecia', fruitType: 'Clothing' },
+  "Juku Juku no Mi": { type: 'Paramecia', fruitType: 'Mature' },
   "Ryu Ryu no Mi, Model: Spinosaurus": { type: 'Ancient Zoan', fruitType: 'Spinosaurus' },
   "Ryu Ryu no Mi, Model: Pteranodon": { type: 'Ancient Zoan', fruitType: 'Pteranodon' },
   "Ryu Ryu no Mi, Model: Brachiosaurus": { type: 'Ancient Zoan', fruitType: 'Brachiosaurus' },
   "Ryu Ryu no Mi, Model: Allosaurus": { type: 'Ancient Zoan', fruitType: 'Allosaurus' },
   "Ryu Ryu no Mi, Model: Triceratops": { type: 'Ancient Zoan', fruitType: 'Triceratops' },
-  "Zou Zou no Mi, Model: Mammoth": { type: 'Ancient Zoan', fruitType: 'Mammoth' },
-  "Ryu Ryu no Mi, Model: Pachycephalosaurus": { type: 'Ancient Zoan', fruitType: 'Pachycephalosaurus' },
-  "Neko Neko no Mi, Model: Smilodon": { type: 'Ancient Zoan', fruitType: 'Smilodon' },
-  "Inu Inu no Mi, Model: Kyubi no Kitsune": { type: 'Mythical Zoan', fruitType: 'Nine-Tailed Fox' },
-  "Sara Sara no Mi, Model: Axolotl": { type: 'Zoan', fruitType: 'Axolotl' },
 
   // =====================================================
   // RARE FRUITS
   // =====================================================
-  "Mera Mera no Mi": { type: 'Logia', fruitType: 'Fire' },
-  "Hie Hie no Mi": { type: 'Logia', fruitType: 'Ice' },
-  "Suna Suna no Mi": { type: 'Logia', fruitType: 'Sand' },
-  "Moku Moku no Mi": { type: 'Logia', fruitType: 'Smoke' },
-  "Goro Goro no Mi": { type: 'Logia', fruitType: 'Lightning' },
-  "Numa Numa no Mi": { type: 'Logia', fruitType: 'Swamp' },
-  "Gasu Gasu no Mi": { type: 'Logia', fruitType: 'Gas' },
-  "Yuki Yuki no Mi": { type: 'Logia', fruitType: 'Snow' },
-  "Beta Beta no Mi": { type: 'Special Paramecia', fruitType: 'Mochi' },
-  "Noro Noro no Mi": { type: 'Paramecia', fruitType: 'Slow' },
+  "Bara Bara no Mi": { type: 'Paramecia', fruitType: 'Separation' },
+  "Bomu Bomu no Mi": { type: 'Paramecia', fruitType: 'Explosion' },
+  "Kilo Kilo no Mi": { type: 'Paramecia', fruitType: 'Weight' },
+  "Doru Doru no Mi": { type: 'Paramecia', fruitType: 'Wax' },
+  "Baku Baku no Mi": { type: 'Paramecia', fruitType: 'Munch' },
+  "Mane Mane no Mi": { type: 'Paramecia', fruitType: 'Clone' },
+  "Shari Shari no Mi": { type: 'Paramecia', fruitType: 'Wheel' },
+  "Beri Beri no Mi": { type: 'Paramecia', fruitType: 'Berry' },
+  "Sabi Sabi no Mi": { type: 'Paramecia', fruitType: 'Rust' },
+  "Shabon Shabon no Mi": { type: 'Paramecia', fruitType: 'Soap' },
+  "Suke Suke no Mi": { type: 'Paramecia', fruitType: 'Clear' },
+  "Kama Kama no Mi": { type: 'Paramecia', fruitType: 'Sickle' },
+  "Horo Horo no Mi": { type: 'Paramecia', fruitType: 'Hollow' },
+  "Yomi Yomi no Mi": { type: 'Paramecia', fruitType: 'Revive' },
+  "Kage Kage no Mi": { type: 'Paramecia', fruitType: 'Shadow' },
+  "Horu Horu no Mi": { type: 'Paramecia', fruitType: 'Hormone' },
+  "Choki Choki no Mi": { type: 'Paramecia', fruitType: 'Scissors' },
+  "Fuwa Fuwa no Mi": { type: 'Paramecia', fruitType: 'Float' },
+  "Mero Mero no Mi": { type: 'Paramecia', fruitType: 'Love' },
   "Doku Doku no Mi": { type: 'Paramecia', fruitType: 'Poison' },
   "Hobi Hobi no Mi": { type: 'Paramecia', fruitType: 'Hobby' },
-  "Bari Bari no Mi": { type: 'Paramecia', fruitType: 'Barrier' },
-  "Nui Nui no Mi": { type: 'Paramecia', fruitType: 'Stitch' },
-  "Gura Gura no Mi": { type: 'Paramecia', fruitType: 'Tremor' },
-  "Yami Yami no Mi": { type: 'Logia', fruitType: 'Darkness' },
-  "Kira Kira no Mi": { type: 'Paramecia', fruitType: 'Twinkle' },
-  "Sabi Sabi no Mi": { type: 'Paramecia', fruitType: 'Rust' },
-  "Ito Ito no Mi": { type: 'Paramecia', fruitType: 'String' },
+  "Hoya Hoya no Mi": { type: 'Paramecia', fruitType: 'Lamp' },
+  "Netsu Netsu no Mi": { type: 'Paramecia', fruitType: 'Heat' },
   "Zushi Zushi no Mi": { type: 'Paramecia', fruitType: 'Gravity' },
+  "Iba Iba no Mi": { type: 'Paramecia', fruitType: 'Thorn' },
 
   // =====================================================
   // EPIC FRUITS
   // =====================================================
-  "Pika Pika no Mi": { type: 'Logia', fruitType: 'Light' },
-  "Magu Magu no Mi": { type: 'Logia', fruitType: 'Magma' },
-  "Ope Ope no Mi": { type: 'Paramecia', fruitType: 'Op' },
-  "Nikyu Nikyu no Mi, Awakened": { type: 'Paramecia', fruitType: 'Paw' },
-  "Mochi Mochi no Mi": { type: 'Special Paramecia', fruitType: 'Mochi' },
-  "Memo Memo no Mi": { type: 'Paramecia', fruitType: 'Memo' },
-  "Bisu Bisu no Mi": { type: 'Paramecia', fruitType: 'Biscuit' },
-  "Pero Pero no Mi": { type: 'Paramecia', fruitType: 'Lick' },
-  "Soru Soru no Mi": { type: 'Paramecia', fruitType: 'Soul' },
-  "Mira Mira no Mi": { type: 'Paramecia', fruitType: 'Mirror' },
-  "Hoya Hoya no Mi": { type: 'Paramecia', fruitType: 'Lamp' },
-  "Netsu Netsu no Mi": { type: 'Paramecia', fruitType: 'Heat' },
-  "Kuku Kuku no Mi": { type: 'Paramecia', fruitType: 'Cook' },
-  "Gocha Gocha no Mi": { type: 'Paramecia', fruitType: 'Gotcha' },
-  "Oshi Oshi no Mi": { type: 'Paramecia', fruitType: 'Push' },
-
-  // =====================================================
-  // LEGENDARY FRUITS
-  // =====================================================
-  "Hito Hito no Mi, Model: Nika": { type: 'Mythical Zoan', fruitType: 'Sun God' },
-  "Tori Tori no Mi, Model: Phoenix": { type: 'Mythical Zoan', fruitType: 'Phoenix' },
-  "Uo Uo no Mi, Model: Seiryu": { type: 'Mythical Zoan', fruitType: 'Azure Dragon' },
-  "Hito Hito no Mi, Model: Daibutsu": { type: 'Mythical Zoan', fruitType: 'Great Buddha' },
-  "Hebi Hebi no Mi, Model: Yamata-no-Orochi": { type: 'Mythical Zoan', fruitType: 'Eight-Headed Serpent' },
-  "Inu Inu no Mi, Model: Okuchi no Makami": { type: 'Mythical Zoan', fruitType: 'Wolf God' },
-  "Toki Toki no Mi": { type: 'Paramecia', fruitType: 'Time' },
-  "Yami Yami no Mi, Awakened": { type: 'Logia', fruitType: 'Darkness' },
-  "Gura Gura no Mi, Awakened": { type: 'Paramecia', fruitType: 'Tremor' },
-  "Ope Ope no Mi, Ultimate": { type: 'Paramecia', fruitType: 'Op' },
+  "Hana Hana no Mi": { type: 'Paramecia', fruitType: 'Flower' },
+  "Kira Kira no Mi": { type: 'Paramecia', fruitType: 'Twinkle' },
+  "Goe Goe no Mi": { type: 'Paramecia', fruitType: 'Voice' },
+  "Kachi Kachi no Mi": { type: 'Paramecia', fruitType: 'Hardness' },
+  "Nemu Nemu no Mi": { type: 'Paramecia', fruitType: 'Sleep' },
+  "Mini Mini no Mi": { type: 'Paramecia', fruitType: 'Miniature' },
+  "Atsu Atsu no Mi": { type: 'Paramecia', fruitType: 'Heat' },
+  "Hiso Hiso no Mi": { type: 'Paramecia', fruitType: 'Whisper' },
+  "Noko Noko no Mi": { type: 'Paramecia', fruitType: 'Spore' },
+  "Ami Ami no Mi": { type: 'Paramecia', fruitType: 'Net' },
+  "Kopi Kopi no Mi": { type: 'Paramecia', fruitType: 'Copy' },
+  "Modo Modo no Mi": { type: 'Paramecia', fruitType: 'More' },
+  "Mosa Mosa no Mi": { type: 'Paramecia', fruitType: 'Plant' },
+  "Gasu Gasu no Mi": { type: 'Logia', fruitType: 'Gas' },
+  "Yuki Yuki no Mi": { type: 'Logia', fruitType: 'Snow' },
+  "Numa Numa no Mi": { type: 'Logia', fruitType: 'Swamp' },
+  "Moku Moku no Mi": { type: 'Logia', fruitType: 'Smoke' },
+  "Suna Suna no Mi": { type: 'Logia', fruitType: 'Sand' },
+  "Hie Hie no Mi": { type: 'Logia', fruitType: 'Ice' },
+  "Mera Mera no Mi": { type: 'Logia', fruitType: 'Fire' },
+  "Goro Goro no Mi": { type: 'Logia', fruitType: 'Lightning' },
+  "Peto Peto no Mi": { type: 'Paramecia', fruitType: 'Pet' },
+  "Gunyo Gunyo no Mi": { type: 'Paramecia', fruitType: 'Slime' },
 
   // =====================================================
   // MYTHICAL FRUITS
   // =====================================================
-  "Hito Hito no Mi, Model: Nika, Awakened": { type: 'Mythical Zoan', fruitType: 'Sun God' },
-  "Yami Yami no Mi + Gura Gura no Mi": { type: 'Dual Fruit', fruitType: 'Dark Quake' },
-  "Soru Soru no Mi, Awakened": { type: 'Paramecia', fruitType: 'Soul' },
-  "Magu Magu no Mi, Awakened": { type: 'Logia', fruitType: 'Magma' },
-  "Pika Pika no Mi, Awakened": { type: 'Logia', fruitType: 'Light' },
-  "Goro Goro no Mi, Awakened": { type: 'Logia', fruitType: 'Lightning' },
-  "Hobi Hobi no Mi, Awakened": { type: 'Paramecia', fruitType: 'Hobby' },
+  "Kage Kage no Mi": { type: 'Paramecia', fruitType: 'Shadow' },
+  "Nikyu Nikyu no Mi": { type: 'Paramecia', fruitType: 'Paw' },
+  "Hobi Hobi no Mi": { type: 'Paramecia', fruitType: 'Hobby' },
+  "Ito Ito no Mi": { type: 'Paramecia', fruitType: 'String' },
+  "Ope Ope no Mi": { type: 'Paramecia', fruitType: 'Op' },
+  "Mochi Mochi no Mi": { type: 'Special Paramecia', fruitType: 'Mochi' },
+  "Pika Pika no Mi": { type: 'Logia', fruitType: 'Light' },
+  "Magu Magu no Mi": { type: 'Logia', fruitType: 'Magma' },
+  "Tori Tori no Mi, Model: Phoenix": { type: 'Mythical Zoan', fruitType: 'Phoenix' },
+  "Hito Hito no Mi, Model: Daibutsu": { type: 'Mythical Zoan', fruitType: 'Great Buddha' },
+  "Hebi Hebi no Mi, Model: Yamata-no-Orochi": { type: 'Mythical Zoan', fruitType: 'Eight-Headed Serpent' },
+  "Inu Inu no Mi, Model: Okuchi no Makami": { type: 'Mythical Zoan', fruitType: 'Wolf God' },
+  "Inu Inu no Mi, Model: Kyubi no Kitsune": { type: 'Mythical Zoan', fruitType: 'Nine-Tailed Fox' },
+  "Zou Zou no Mi, Model: Mammoth": { type: 'Ancient Zoan', fruitType: 'Mammoth' },
+  "Mori Mori no Mi": { type: 'Logia', fruitType: 'Forest' },
 
   // =====================================================
-  // OMNIPOTENT FRUITS
+  // LEGENDARY FRUITS
   // =====================================================
-  "Hito Hito no Mi, Model: Nika, Perfect": { type: 'Divine Zoan', fruitType: 'Perfect Sun God' },
-  "Im-sama's Power": { type: 'World Sovereign', fruitType: 'World Control' },
-  "Joy Boy's Will": { type: 'Ancient Will', fruitType: 'Liberation' },
-  "One Piece": { type: 'Legendary Treasure', fruitType: 'Ultimate Dream' },
-  "Void Century Weapon": { type: 'Ancient Weapon', fruitType: 'Civilization Ender' }
+  "Soru Soru no Mi": { type: 'Paramecia', fruitType: 'Soul' },
+  "Gomu Gomu no Mi": { type: 'Paramecia', fruitType: 'Rubber' },
+  "Toki Toki no Mi": { type: 'Paramecia', fruitType: 'Time' },
+  "Uo Uo no Mi, Model: Seiryu": { type: 'Mythical Zoan', fruitType: 'Azure Dragon' },
+  "Ryu Ryu no Mi, Model: Kirin": { type: 'Mythical Zoan', fruitType: 'Kirin' },
+  "Wara Wara no Mi": { type: 'Paramecia', fruitType: 'Straw' },
+  "Ura Ura no Mi": { type: 'Paramecia', fruitType: 'Warp' },
+  "Shima Shima no Mi": { type: 'Paramecia', fruitType: 'Island' },
+
+  // =====================================================
+  // DIVINE FRUITS
+  // =====================================================
+  "Gura Gura no Mi": { type: 'Paramecia', fruitType: 'Tremor' },
+  "Hito Hito no Mi, Model: Nika": { type: 'Mythical Zoan', fruitType: 'Sun God' },
+  "Yami Yami no Mi": { type: 'Logia', fruitType: 'Darkness' }
 };
 
 // Type counters - which elements are effective against others
 const TYPE_COUNTERS = {
   // Elemental counters
-  'Fire': ['Ice', 'Snow', 'Wax', 'Flower'],
-  'Ice': ['Fire', 'Magma', 'Lightning'],
+  'Fire': ['Ice', 'Snow', 'Wax', 'Flower', 'Plant'],
+  'Ice': ['Fire', 'Magma', 'Heat'],
   'Water': ['Fire', 'Magma', 'Sand'],
   'Lightning': ['Water', 'Ice', 'Cage'],
   'Earth': ['Lightning', 'Fire'],
@@ -159,7 +167,7 @@ const TYPE_COUNTERS = {
   'Darkness': ['Light'],
   'Magma': ['Ice', 'Snow'],
   'Sand': ['Water'],
-  'Poison': ['Heal'],
+  'Poison': ['Healing'],
   'Gravity': ['Float'],
   'Time': ['Space'],
   'Space': ['Time'],
@@ -172,9 +180,60 @@ const TYPE_COUNTERS = {
   'Creation': ['Void'],
   'Sun God': ['All'], // Beats everything except itself
   'Liberation': ['All'], // Ultimate freedom
-  'World Control': ['All'], // World sovereign power
-  'Ultimate Dream': ['All'], // One Piece power
-  'Civilization Ender': ['All'] // Ancient weapon power
+  'Tremor': ['All'], // World-shaking power
+  
+  // Physical counters
+  'Blade': ['Rubber', 'Separation'],
+  'Blunt': ['Spike', 'Hardness'],
+  'Separation': ['String', 'Stitch'],
+  'Explosion': ['Barrier', 'Wax'],
+  'Weight': ['Float', 'Spring'],
+  'Spring': ['Sticky', 'Cage'],
+  'Sticky': ['Smooth', 'Blade'],
+  'Smooth': ['Spike', 'Thorn'],
+  'Spike': ['Balloon', 'Rubber'],
+  'Cage': ['Key', 'Door'],
+  'Door': ['Wall', 'Barrier'],
+  'Barrier': ['Penetration', 'Phase'],
+  
+  // Conceptual counters
+  'Love': ['Asexual', 'Machine'],
+  'Fear': ['Courage', 'Madness'],
+  'Memory': ['Amnesia', 'Time'],
+  'Copy': ['Original', 'Unique'],
+  'Illusion': ['Truth', 'Light'],
+  'Dream': ['Reality', 'Awakening'],
+  'Sleep': ['Awakening', 'Insomnia'],
+  'Silence': ['Voice', 'Sound'],
+  'Invisibility': ['Light', 'Heat'],
+  'Phase': ['Solid', 'Dense'],
+  
+  // Special counters
+  'Hobby': ['Seriousness', 'Adult'],
+  'Toy': ['Memory', 'Growth'],
+  'String': ['Cut', 'Burn'],
+  'Mirror': ['Darkness', 'Absorption'],
+  'Book': ['Illiteracy', 'Digital'],
+  'Scroll': ['Fire', 'Water'],
+  'Clone': ['Original', 'Unique'],
+  'Transform': ['Lock', 'Curse'],
+  'Rust': ['Stainless', 'Plastic'],
+  'Age': ['Youth', 'Time'],
+  'Mature': ['Youth', 'Preserve'],
+  'Wither': ['Life', 'Heal'],
+  'Decay': ['Preserve', 'Life'],
+  'Heal': ['Poison', 'Curse'],
+  'Purify': ['Corrupt', 'Dirty'],
+  'Bless': ['Curse', 'Evil'],
+  'Curse': ['Bless', 'Holy'],
+  'Holy': ['Evil', 'Demon'],
+  'Evil': ['Holy', 'Angel'],
+  'Divine': ['Mortal', 'Sin'],
+  'Mortal': ['Divine', 'Eternal'],
+  'Eternal': ['Mortal', 'End'],
+  'Infinite': ['Finite', 'Limit'],
+  'Perfect': ['Flaw', 'Incomplete'],
+  'Absolute': ['Relative', 'Conditional']
 };
 
 // Type effectiveness multipliers
@@ -195,10 +254,6 @@ const TYPE_EMOJIS = {
   'Special Paramecia': '✨',
   'Divine Zoan': '☀️',
   'Dual Fruit': '⚡',
-  'World Sovereign': '👑',
-  'Ancient Will': '🎺',
-  'Legendary Treasure': '💎',
-  'Ancient Weapon': '⚔️',
   
   // Element emojis
   'Fire': '🔥',
@@ -223,9 +278,69 @@ const TYPE_EMOJIS = {
   'Creation': '✨',
   'Sun God': '☀️',
   'Liberation': '🎺',
-  'World Control': '👑',
-  'Ultimate Dream': '💎',
-  'Civilization Ender': '⚔️'
+  'Tremor': '💥',
+  'Rubber': '🟡',
+  'Separation': '✂️',
+  'Explosion': '💣',
+  'Weight': '⚖️',
+  'Wax': '🕯️',
+  'Spring': '🌸',
+  'Blade': '⚔️',
+  'Spike': '🔺',
+  'Cage': '🔒',
+  'Munch': '👄',
+  'Clone': '👥',
+  'Flower': '🌸',
+  'Wheel': '⚙️',
+  'Berry': '🫐',
+  'Rust': '🦠',
+  'Soap': '🧼',
+  'Clear': '🫥',
+  'Sickle': '🗡️',
+  'Hollow': '👻',
+  'Revive': '💀',
+  'Shadow': '🌚',
+  'Hormone': '💉',
+  'Scissors': '✂️',
+  'Float': '🎈',
+  'Love': '💕',
+  'Hobby': '🧸',
+  'Lamp': '🪔',
+  'Heat': '🌡️',
+  'Thorn': '🌹',
+  'Twinkle': '✨',
+  'Voice': '🗣️',
+  'Hardness': '💎',
+  'Sleep': '😴',
+  'Miniature': '🔍',
+  'Whisper': '🤫',
+  'Spore': '🍄',
+  'Net': '🕸️',
+  'Copy': '📋',
+  'More': '➕',
+  'Plant': '🌱',
+  'Gas': '💨',
+  'Snow': '❄️',
+  'Swamp': '🏞️',
+  'Smoke': '💨',
+  'Pet': '🐕',
+  'Slime': '🟢',
+  'Paw': '🐾',
+  'String': '🧵',
+  'Op': '🏥',
+  'Mochi': '🍡',
+  'Phoenix': '🔥',
+  'Great Buddha': '🏛️',
+  'Eight-Headed Serpent': '🐍',
+  'Wolf God': '🐺',
+  'Nine-Tailed Fox': '🦊',
+  'Mammoth': '🐘',
+  'Forest': '🌳',
+  'Azure Dragon': '🐉',
+  'Kirin': '🦄',
+  'Straw': '🌾',
+  'Warp': '🌀',
+  'Island': '🏝️'
 };
 
 // Utility functions
@@ -339,4 +454,138 @@ function getTypeDescription(type) {
     'Reality': 'Bends the laws of existence',
     'Sun God': 'Divine power that liberates all',
     'Liberation': 'Freedom from all constraints',
-    'World Control': 'Domin
+    'Tremor': 'World-shaking destructive force'
+  };
+  return descriptions[type] || 'A mysterious power with unknown properties';
+}
+
+function getTypeStats() {
+  const typeDistribution = {};
+  const elementDistribution = {};
+  
+  Object.values(FRUIT_TYPES).forEach(typeData => {
+    typeDistribution[typeData.type] = (typeDistribution[typeData.type] || 0) + 1;
+    elementDistribution[typeData.fruitType] = (elementDistribution[typeData.fruitType] || 0) + 1;
+  });
+  
+  return {
+    total: Object.keys(FRUIT_TYPES).length,
+    typeDistribution,
+    elementDistribution,
+    uniqueTypes: Object.keys(typeDistribution).length,
+    uniqueElements: Object.keys(elementDistribution).length
+  };
+}
+
+function validateTypeData() {
+  const errors = [];
+  
+  Object.entries(FRUIT_TYPES).forEach(([fruitName, typeData]) => {
+    if (!typeData.type) errors.push(`Missing type for fruit: ${fruitName}`);
+    if (!typeData.fruitType) errors.push(`Missing fruitType for fruit: ${fruitName}`);
+  });
+  
+  return {
+    isValid: errors.length === 0,
+    errors,
+    totalFruits: Object.keys(FRUIT_TYPES).length
+  };
+}
+
+function getElementCounterChain(element) {
+  const counters = TYPE_COUNTERS[element] || [];
+  const weakTo = Object.entries(TYPE_COUNTERS)
+    .filter(([type, targets]) => targets.includes(element))
+    .map(([type]) => type);
+  
+  return {
+    element,
+    strongAgainst: counters,
+    weakAgainst: weakTo,
+    emoji: getTypeEmoji(element)
+  };
+}
+
+function getBalancedTypeMatchups() {
+  const matchups = {};
+  
+  Object.keys(TYPE_COUNTERS).forEach(attackType => {
+    matchups[attackType] = {};
+    Object.keys(TYPE_COUNTERS).forEach(defendType => {
+      matchups[attackType][defendType] = getTypeMatchup(attackType, defendType);
+    });
+  });
+  
+  return matchups;
+}
+
+function getElementalAdvantageMatrix() {
+  const matrix = {};
+  const allElements = getAllElements();
+  
+  allElements.forEach(attacker => {
+    matrix[attacker] = {};
+    allElements.forEach(defender => {
+      const effectiveness = getTypeMatchup(attacker, defender);
+      matrix[attacker][defender] = effectiveness;
+    });
+  });
+  
+  return matrix;
+}
+
+function findElementalCounterRecommendations(userElements) {
+  const recommendations = [];
+  const elementCounts = {};
+  
+  // Count user's elements
+  userElements.forEach(element => {
+    elementCounts[element] = (elementCounts[element] || 0) + 1;
+  });
+  
+  // Find weaknesses
+  Object.keys(elementCounts).forEach(element => {
+    const weakTo = Object.entries(TYPE_COUNTERS)
+      .filter(([type, targets]) => targets.includes(element))
+      .map(([type]) => type);
+    
+    if (weakTo.length > 0) {
+      const recommendedCounters = [];
+      weakTo.forEach(weakness => {
+        const counters = TYPE_COUNTERS[weakness] || [];
+        recommendedCounters.push(...counters);
+      });
+      
+      recommendations.push({
+        element,
+        weaknesses: weakTo,
+        recommendedCounters: [...new Set(recommendedCounters)]
+      });
+    }
+  });
+  
+  return recommendations;
+}
+
+module.exports = {
+  FRUIT_TYPES,
+  TYPE_COUNTERS,
+  TYPE_EFFECTIVENESS,
+  TYPE_EMOJIS,
+  getFruitType,
+  getTypeMatchup,
+  getFruitsByType,
+  getFruitsByElement,
+  getAllFruitTypes,
+  getAllElements,
+  getTypeEmoji,
+  calculateBattleEffectiveness,
+  getTypeInfo,
+  getTypeDescription,
+  getTypeStats,
+  validateTypeData,
+  getElementCounterChain,
+  getBalancedTypeMatchups,
+  getElementalAdvantageMatrix,
+  findElementalCounterRecommendations
+};
