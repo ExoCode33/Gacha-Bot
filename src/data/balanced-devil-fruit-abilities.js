@@ -887,4 +887,601 @@ const balancedDevilFruitAbilities = {
   "Uo Uo no Mi, Model: Seiryu": {
     name: "Bolo Breath",
     damage: 190,
-    cooldown
+    cooldown: 5,
+    effect: "dragon_beam",
+    description: "Concentrated heat beam breath",
+    accuracy: 85,
+    type: "mythical_zoan"
+  },
+  "Hito Hito no Mi, Model: Daibutsu": {
+    name: "Buddha Impact",
+    damage: 185,
+    cooldown: 4,
+    effect: "shockwave_purify",
+    description: "Divine shockwave that purifies",
+    accuracy: 90,
+    type: "mythical_zoan"
+  },
+  "Hebi Hebi no Mi, Model: Yamata-no-Orochi": {
+    name: "Eight-Headed Strike",
+    damage: 175,
+    cooldown: 5,
+    effect: "multi_head_attack",
+    description: "Eight serpent heads attack simultaneously",
+    accuracy: 85,
+    type: "mythical_zoan"
+  },
+  "Inu Inu no Mi, Model: Okuchi no Makami": {
+    name: "Wolf God Howl",
+    damage: 165,
+    cooldown: 4,
+    effect: "divine_howl",
+    description: "Sacred wolf's howl freezes enemies",
+    accuracy: 90,
+    type: "mythical_zoan"
+  },
+  "Toki Toki no Mi": {
+    name: "Time Skip",
+    damage: 160,
+    cooldown: 6,
+    effect: "time_leap",
+    description: "Send yourself or others through time",
+    accuracy: 95,
+    type: "paramecia"
+  },
+  "Yami Yami no Mi, Awakened": {
+    name: "Liberation",
+    damage: 195,
+    cooldown: 5,
+    effect: "darkness_liberation",
+    description: "Free everything from the constraints of light",
+    accuracy: 80,
+    type: "special_logia"
+  },
+  "Gura Gura no Mi, Awakened": {
+    name: "World Ender",
+    damage: 200,
+    cooldown: 6,
+    effect: "reality_crack",
+    description: "Crack the very fabric of reality",
+    accuracy: 80,
+    type: "awakened_paramecia"
+  },
+  "Ope Ope no Mi, Ultimate": {
+    name: "Perennial Youth Surgery",
+    damage: 180,
+    cooldown: 7,
+    effect: "immortality_grant",
+    description: "Grant eternal youth at the cost of user's life",
+    accuracy: 100,
+    type: "ultimate_paramecia"
+  },
+
+  // =====================================================
+  // MYTHICAL FRUITS (200-240 damage, 5-6 cooldown)
+  // =====================================================
+  "Hito Hito no Mi, Model: Nika, Awakened": {
+    name: "Bajrang Gun",
+    damage: 220,
+    cooldown: 6,
+    effect: "cartoon_physics",
+    description: "Giant fist with toon force properties",
+    accuracy: 85,
+    type: "awakened_mythical_zoan"
+  },
+  "Yami Yami no Mi + Gura Gura no Mi": {
+    name: "Kurouzu",
+    damage: 230,
+    cooldown: 6,
+    effect: "dual_fruit_mastery",
+    description: "Darkness and quakes combined",
+    accuracy: 80,
+    type: "dual_fruit"
+  },
+  "Soru Soru no Mi, Awakened": {
+    name: "Soul King",
+    damage: 210,
+    cooldown: 5,
+    effect: "mass_soul_control",
+    description: "Control souls on a massive scale",
+    accuracy: 85,
+    type: "awakened_paramecia"
+  },
+  "Magu Magu no Mi, Awakened": {
+    name: "Volcanic Apocalypse",
+    damage: 225,
+    cooldown: 6,
+    effect: "magma_field_permanent",
+    description: "Turn entire battlefield into magma",
+    accuracy: 85,
+    type: "awakened_logia"
+  },
+  "Pika Pika no Mi, Awakened": {
+    name: "Light Speed Dimension",
+    damage: 215,
+    cooldown: 5,
+    effect: "light_dimension",
+    description: "Attack at the speed of light from all angles",
+    accuracy: 100,
+    type: "awakened_logia"
+  },
+  "Goro Goro no Mi, Awakened": {
+    name: "Raigo",
+    damage: 235,
+    cooldown: 6,
+    effect: "divine_judgment",
+    description: "Godly lightning that judges all",
+    accuracy: 95,
+    type: "awakened_logia"
+  },
+  "Hobi Hobi no Mi, Awakened": {
+    name: "Toy World",
+    damage: 200,
+    cooldown: 6,
+    effect: "reality_toys",
+    description: "Turn entire reality into a toy world",
+    accuracy: 60,
+    type: "awakened_paramecia"
+  },
+
+  // =====================================================
+  // OMNIPOTENT FRUITS (240-300 damage, 6-7 cooldown)
+  // =====================================================
+  "Hito Hito no Mi, Model: Nika, Perfect": {
+    name: "Sun God's Dawn",
+    damage: 280,
+    cooldown: 7,
+    effect: "divine_liberation",
+    description: "Liberate everything from all constraints",
+    accuracy: 90,
+    type: "perfect_mythical_zoan"
+  },
+  "Im-sama's Power": {
+    name: "World Erasure",
+    damage: 290,
+    cooldown: 7,
+    effect: "existence_deletion",
+    description: "Erase islands and people from existence",
+    accuracy: 85,
+    type: "world_sovereign"
+  },
+  "Joy Boy's Will": {
+    name: "Liberation Drum",
+    damage: 270,
+    cooldown: 6,
+    effect: "ultimate_freedom",
+    description: "Drums of liberation free all from oppression",
+    accuracy: 95,
+    type: "ancient_will"
+  },
+  "One Piece": {
+    name: "Pirate King's Dream",
+    damage: 300,
+    cooldown: 7,
+    effect: "dream_realization",
+    description: "The ultimate treasure that makes dreams reality",
+    accuracy: 100,
+    type: "legendary_treasure"
+  },
+  "Void Century Weapon": {
+    name: "Ancient Destruction",
+    damage: 260,
+    cooldown: 6,
+    effect: "civilization_ender",
+    description: "Power that ended the Void Century",
+    accuracy: 90,
+    type: "ancient_weapon"
+  }
+};
+
+// =====================================================
+// STATUS EFFECTS SYSTEM
+// =====================================================
+const statusEffects = {
+  // Damage over time
+  "burn_3_turns": {
+    type: "dot",
+    damage: 15,
+    duration: 3,
+    description: "Fire damage over time",
+    stackable: true
+  },
+  "bleed_2_turns": {
+    type: "dot", 
+    damage: 12,
+    duration: 2,
+    description: "Bleeding from cuts",
+    stackable: true
+  },
+  "poison_severe": {
+    type: "dot",
+    damage: 20,
+    duration: 3,
+    description: "Severe poison damage",
+    stackable: false
+  },
+  "poison_gas": {
+    type: "dot",
+    damage: 18,
+    duration: 2,
+    description: "Poisonous gas affecting lungs",
+    stackable: true
+  },
+
+  // Control effects
+  "freeze_2_turns": {
+    type: "disable",
+    duration: 2,
+    description: "Frozen solid, cannot act",
+    preventAction: true
+  },
+  "bind_1_turn": {
+    type: "disable", 
+    duration: 1,
+    description: "Bound and cannot move",
+    preventAction: true
+  },
+  "paralyze_1_turn": {
+    type: "disable",
+    duration: 1,
+    description: "Paralyzed by electricity",
+    preventAction: true
+  },
+  "petrify_1_turn": {
+    type: "disable",
+    duration: 1,
+    description: "Turned to stone by love",
+    preventAction: true
+  },
+  "sleep_1_turn": {
+    type: "disable",
+    duration: 1,
+    description: "Sleeping deeply",
+    preventAction: true
+  },
+  "toy_transform": {
+    type: "disable",
+    duration: 2,
+    description: "Transformed into a harmless toy",
+    preventAction: true
+  },
+
+  // Debuffs
+  "smoke_blind": {
+    type: "debuff",
+    duration: 2,
+    description: "Blinded by smoke, accuracy reduced by 40%",
+    accuracyPenalty: 40
+  },
+  "snow_blind": {
+    type: "debuff",
+    duration: 2,
+    description: "Blinded by snow, accuracy reduced by 35%",
+    accuracyPenalty: 35
+  },
+  "drain_moisture": {
+    type: "debuff",
+    duration: 3,
+    description: "Dehydrated, damage reduced by 25%",
+    damagePenalty: 25
+  },
+  "slow_3_turns": {
+    type: "debuff",
+    duration: 3,
+    description: "Movement slowed, cannot dodge",
+    preventDodge: true
+  },
+  "negative_debuff": {
+    type: "debuff",
+    duration: 2,
+    description: "Negative thoughts reduce fighting spirit",
+    damagePenalty: 30
+  },
+
+  // Defensive effects
+  "shield_small": {
+    type: "shield",
+    duration: 2,
+    description: "Blocks 30% of incoming damage",
+    damageReduction: 30
+  },
+  "barrier_reflect": {
+    type: "shield",
+    duration: 2,
+    description: "Reflects 25% damage back to attacker",
+    reflectPercent: 25,
+    damageReduction: 50
+  },
+  "diamond_armor": {
+    type: "shield",
+    duration: 3,
+    description: "Diamond hardness blocks 60% damage",
+    damageReduction: 60
+  },
+  "spike_counter": {
+    type: "counter",
+    duration: 2,
+    description: "Spikes damage attackers for 15 damage",
+    counterDamage: 15
+  },
+
+  // Special effects
+  "darkness_pull": {
+    type: "special",
+    duration: 1,
+    description: "Pulled into darkness, cannot use devil fruit abilities",
+    preventAbilities: true
+  },
+  "light_speed_barrage": {
+    type: "special",
+    duration: 0,
+    description: "Light speed attack cannot be dodged",
+    undodgeable: true
+  },
+  "reality_rubber": {
+    type: "special",
+    duration: 2,
+    description: "Rubber physics applied to battlefield",
+    specialMechanic: "bounce_attacks"
+  },
+  "cartoon_physics": {
+    type: "special",
+    duration: 2,
+    description: "Toon force bends reality",
+    specialMechanic: "ignore_logic"
+  },
+  "time_leap": {
+    type: "special",
+    duration: 0,
+    description: "Skip enemy's next turn",
+    skipTurn: true
+  },
+  "soul_steal": {
+    type: "special",
+    duration: 0,
+    description: "Steal portion of enemy's life force",
+    lifeDrain: 50
+  },
+  "spatial_surgery": {
+    type: "special",
+    duration: 0,
+    description: "Rearrange enemy's body parts",
+    bodyManipulation: true
+  },
+  "divine_liberation": {
+    type: "ultimate",
+    duration: 0,
+    description: "Free everything from all constraints",
+    removeAllEffects: true,
+    maximumDamage: true
+  }
+};
+
+// =====================================================
+// DAMAGE CALCULATION SYSTEM
+// =====================================================
+class PvPDamageCalculator {
+  static calculateDamage(ability, attackerCP, defenderCP, turn, defenderEffects = []) {
+    let baseDamage = ability.damage;
+    
+    // CP scaling (limited to prevent one-shots)
+    const cpRatio = Math.min(attackerCP / defenderCP, 2.5);
+    const cpMultiplier = 0.8 + (cpRatio - 1) * 0.3; // Max 1.25x from CP
+    
+    // Turn-based damage reduction (prevents early KOs)
+    let turnMultiplier = 1.0;
+    if (turn === 1) turnMultiplier = 0.5; // 50% reduction turn 1
+    else if (turn === 2) turnMultiplier = 0.7; // 30% reduction turn 2
+    else if (turn === 3) turnMultiplier = 0.85; // 15% reduction turn 3
+    // Turn 4+ = full damage
+    
+    // Accuracy check
+    let accuracy = ability.accuracy || 85;
+    defenderEffects.forEach(effect => {
+      if (statusEffects[effect]?.accuracyPenalty) {
+        accuracy -= statusEffects[effect].accuracyPenalty;
+      }
+    });
+    
+    // Special undodgeable effects
+    const undodgeable = defenderEffects.some(effect => 
+      statusEffects[effect]?.undodgeable || ability.effect === "light_speed_barrage"
+    );
+    
+    const hitChance = Math.random() * 100;
+    if (!undodgeable && hitChance > accuracy) {
+      return { damage: 0, hit: false, effect: ability.effect };
+    }
+    
+    // Apply defender damage reduction
+    let damageReduction = 1.0;
+    defenderEffects.forEach(effect => {
+      const statusEffect = statusEffects[effect];
+      if (statusEffect?.damageReduction) {
+        damageReduction *= (100 - statusEffect.damageReduction) / 100;
+      }
+      if (statusEffect?.damagePenalty) {
+        damageReduction *= (100 - statusEffect.damagePenalty) / 100;
+      }
+    });
+    
+    // Calculate final damage
+    let finalDamage = Math.floor(
+      baseDamage * cpMultiplier * turnMultiplier * damageReduction
+    );
+    
+    // Handle special ultimate effects
+    if (ability.effect === "divine_liberation" || ability.effect === "dream_realization") {
+      finalDamage = Math.floor(finalDamage * 1.5); // 50% bonus for ultimate attacks
+    }
+    
+    // Minimum damage
+    finalDamage = Math.max(5, finalDamage);
+    
+    return { 
+      damage: finalDamage, 
+      hit: true, 
+      effect: ability.effect,
+      critical: hitChance <= 10, // 10% crit chance
+      turnMultiplier: turnMultiplier
+    };
+  }
+  
+  static calculateHealth(level, rarityMultiplier) {
+    const baseHealth = 200 + (level * 15); // 200-950 HP range
+    const rarityBonus = 1 + (rarityMultiplier - 1) * 0.5; // Limited rarity scaling
+    return Math.floor(baseHealth * rarityBonus);
+  }
+}
+
+// =====================================================
+// BALANCE VALIDATION SYSTEM
+// =====================================================
+class BalanceValidator {
+  static validateAbility(ability, rarity) {
+    const issues = [];
+    
+    // Damage ranges by rarity
+    const damageRanges = {
+      common: { min: 30, max: 60 },
+      uncommon: { min: 60, max: 80 },
+      rare: { min: 80, max: 120 },
+      epic: { min: 120, max: 160 },
+      legendary: { min: 160, max: 200 },
+      mythical: { min: 200, max: 240 },
+      omnipotent: { min: 240, max: 300 }
+    };
+    
+    const range = damageRanges[rarity];
+    if (range && (ability.damage < range.min || ability.damage > range.max)) {
+      issues.push(`Damage ${ability.damage} outside range ${range.min}-${range.max} for ${rarity}`);
+    }
+    
+    // Cooldown scaling
+    const cooldownRanges = {
+      common: { min: 0, max: 1 },
+      uncommon: { min: 1, max: 2 },
+      rare: { min: 2, max: 3 },
+      epic: { min: 3, max: 4 },
+      legendary: { min: 4, max: 5 },
+      mythical: { min: 5, max: 6 },
+      omnipotent: { min: 6, max: 7 }
+    };
+    
+    const coolRange = cooldownRanges[rarity];
+    if (coolRange && (ability.cooldown < coolRange.min || ability.cooldown > coolRange.max)) {
+      issues.push(`Cooldown ${ability.cooldown} outside range ${coolRange.min}-${coolRange.max} for ${rarity}`);
+    }
+    
+    return {
+      isBalanced: issues.length === 0,
+      issues,
+      powerScore: this.calculatePowerScore(ability),
+      recommendation: this.getBalanceRecommendation(ability, rarity)
+    };
+  }
+  
+  static calculatePowerScore(ability) {
+    let score = ability.damage;
+    score += (ability.cooldown === 0) ? 20 : (7 - ability.cooldown) * 3;
+    score += (ability.accuracy || 85) * 0.2;
+    
+    // Effect scoring
+    const effectScores = {
+      divine_liberation: 100,
+      dream_realization: 100,
+      reality_crack: 80,
+      existence_deletion: 90,
+      cartoon_physics: 70,
+      soul_steal: 60,
+      time_leap: 55,
+      toy_transform: 65,
+      freeze_2_turns: 30,
+      burn_3_turns: 25,
+      barrier_reflect: 35,
+      diamond_armor: 40,
+      light_speed_barrage: 45,
+      dragon_beam: 35,
+      reality_rubber: 50
+    };
+    
+    if (ability.effect && effectScores[ability.effect]) {
+      score += effectScores[ability.effect];
+    }
+    
+    return Math.floor(score);
+  }
+  
+  static getBalanceRecommendation(ability, rarity) {
+    const powerScore = this.calculatePowerScore(ability);
+    const expectedRanges = {
+      common: { min: 60, max: 90 },
+      uncommon: { min: 90, max: 120 },
+      rare: { min: 120, max: 180 },
+      epic: { min: 180, max: 240 },
+      legendary: { min: 240, max: 300 },
+      mythical: { min: 300, max: 380 },
+      omnipotent: { min: 380, max: 500 }
+    };
+    
+    const range = expectedRanges[rarity];
+    if (powerScore < range.min) {
+      return `Underpowered for ${rarity} rarity. Consider increasing damage or adding stronger effects.`;
+    } else if (powerScore > range.max) {
+      return `Overpowered for ${rarity} rarity. Consider reducing damage or increasing cooldown.`;
+    } else {
+      return `Well balanced for ${rarity} rarity.`;
+    }
+  }
+}
+
+// =====================================================
+// UTILITY FUNCTIONS
+// =====================================================
+function getAbilityByFruitName(fruitName) {
+  return balancedDevilFruitAbilities[fruitName] || null;
+}
+
+function getAbilitiesByRarity(rarity) {
+  // This connects to your fruit rarity system
+  return Object.entries(balancedDevilFruitAbilities).filter(([name, ability]) => {
+    // Map based on damage ranges
+    if (rarity === 'common' && ability.damage >= 30 && ability.damage <= 60) return true;
+    if (rarity === 'uncommon' && ability.damage >= 60 && ability.damage <= 80) return true;
+    if (rarity === 'rare' && ability.damage >= 80 && ability.damage <= 120) return true;
+    if (rarity === 'epic' && ability.damage >= 120 && ability.damage <= 160) return true;
+    if (rarity === 'legendary' && ability.damage >= 160 && ability.damage <= 200) return true;
+    if (rarity === 'mythical' && ability.damage >= 200 && ability.damage <= 240) return true;
+    if (rarity === 'omnipotent' && ability.damage >= 240 && ability.damage <= 300) return true;
+    return false;
+  });
+}
+
+function validateAllAbilities() {
+  const results = {};
+  
+  // Map fruit names to rarities based on damage
+  for (const [fruitName, ability] of Object.entries(balancedDevilFruitAbilities)) {
+    let rarity = 'common';
+    if (ability.damage >= 240) rarity = 'omnipotent';
+    else if (ability.damage >= 200) rarity = 'mythical';
+    else if (ability.damage >= 160) rarity = 'legendary';
+    else if (ability.damage >= 120) rarity = 'epic';
+    else if (ability.damage >= 80) rarity = 'rare';
+    else if (ability.damage >= 60) rarity = 'uncommon';
+    
+    results[fruitName] = BalanceValidator.validateAbility(ability, rarity);
+  }
+  
+  return results;
+}
+
+module.exports = {
+  balancedDevilFruitAbilities,
+  statusEffects,
+  PvPDamageCalculator,
+  BalanceValidator,
+  getAbilityByFruitName,
+  getAbilitiesByRarity,
+  validateAllAbilities
+};
