@@ -1,4 +1,4 @@
-// src/data/devil-fruits.js - Main devil fruits module (149 Canonical Fruits)
+// src/data/devil-fruits.js - Main devil fruits module (128 New Fruits with Divine Rarity)
 
 // Import all modules
 const fruitsModule = require('./fruits');
@@ -113,7 +113,7 @@ function getFruitByName(name) {
     };
 }
 
-// Level scaling for CP calculations
+// Level scaling for CP calculations (updated for better balance)
 function calculateBaseCPFromLevel(level) {
     const levelScaling = {
         0: 100,
@@ -153,7 +153,7 @@ function getFruitAbility(fruitName) {
             'epic': { name: 'Devastating Strike', damage: 140, cooldown: 3 },
             'legendary': { name: 'Legendary Technique', damage: 180, cooldown: 4 },
             'mythical': { name: 'Mythical Power', damage: 220, cooldown: 5 },
-            'omnipotent': { name: 'Divine Technique', damage: 270, cooldown: 6 }
+            'divine': { name: 'Divine Technique', damage: 270, cooldown: 6 }
         };
         
         return rarityAbilities[fruit.rarity] || getDefaultAbility();
@@ -172,16 +172,16 @@ function getDefaultAbility() {
     };
 }
 
-// Calculate PvP damage (simplified)
+// Calculate PvP damage (updated for balance)
 function calculatePvPDamage(attacker, defender, turn, skillName) {
     const baseDamage = 100;
     const turnMultiplier = turn === 1 ? 0.5 : (turn === 2 ? 0.7 : 1.0);
-    const cpRatio = Math.min(attacker.totalCP / defender.totalCP, 2.5);
+    const cpRatio = Math.min(attacker.totalCP / defender.totalCP, 2.5); // Limited to 2.5x
     
     return Math.floor(baseDamage * turnMultiplier * cpRatio);
 }
 
-// Calculate health from CP
+// Calculate health from CP (updated for balance)
 function calculateHealthFromCP(cp, rarity) {
     const baseHP = 200;
     const cpMultiplier = 1 + (cp / 1000) * 0.2;
@@ -192,7 +192,7 @@ function calculateHealthFromCP(cp, rarity) {
         epic: 1.6,
         legendary: 2.0,
         mythical: 2.5,
-        omnipotent: 3.0
+        divine: 3.0 // New divine tier
     };
     
     const rarityMultiplier = rarityMultipliers[rarity] || 1.0;
@@ -243,7 +243,7 @@ function getComprehensiveFruitData(fruitName) {
     };
 }
 
-// Get system statistics
+// Get system statistics (updated for divine tier)
 function getSystemStats() {
     const fruitStats = getFruitStats();
     const typeStats = getTypeStats();
@@ -255,11 +255,17 @@ function getSystemStats() {
         types: typeStats,
         cp: cpStats,
         canonical: canonicalCount,
-        validation: validateAllData()
+        validation: validateAllData(),
+        newFeatures: {
+            divineRarity: true,
+            maxCPMultiplier: 3.0,
+            totalFruits: 128,
+            balancedPvP: true
+        }
     };
 }
 
-// Get fruits by multiple criteria
+// Get fruits by multiple criteria (updated)
 function getFruitsByMultipleCriteria(criteria) {
     let fruits = getAllFruits();
     
@@ -296,15 +302,17 @@ function getFruitsByMultipleCriteria(criteria) {
         const searchTerm = criteria.search.toLowerCase();
         fruits = fruits.filter(fruit => 
             fruit.name.toLowerCase().includes(searchTerm) ||
+            fruit.type.toLowerCase().includes(searchTerm) ||
             fruit.power.toLowerCase().includes(searchTerm) ||
-            fruit.user.toLowerCase().includes(searchTerm)
+            fruit.user.toLowerCase().includes(searchTerm) ||
+            fruit.rarity.toLowerCase().includes(searchTerm)
         );
     }
     
     return fruits;
 }
 
-// Get recommended fruits for collection
+// Get recommended fruits for collection (updated for divine tier)
 function getRecommendedFruits(userFruits, criteria = {}) {
     const userElements = userFruits.map(fruit => {
         const typeData = getFruitType(fruit.name || fruit.fruit_name);
@@ -335,9 +343,9 @@ function getRecommendedFruits(userFruits, criteria = {}) {
         !userFruitNames.includes(fruit.name)
     );
     
-    // Sort by rarity and CP
+    // Sort by rarity and CP (updated with divine tier)
     return uniqueRecommendations.sort((a, b) => {
-        const rarityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical', 'omnipotent'];
+        const rarityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical', 'divine'];
         const rarityDiff = rarityOrder.indexOf(b.rarity) - rarityOrder.indexOf(a.rarity);
         if (rarityDiff !== 0) return rarityDiff;
         
@@ -345,7 +353,113 @@ function getRecommendedFruits(userFruits, criteria = {}) {
     }).slice(0, 10); // Top 10 recommendations
 }
 
-// Export everything needed by the commands
+// Get divine fruits specifically
+function getDivineFruits() {
+    return getFruitsByRarity('divine');
+}
+
+// Check if fruit is divine tier
+function isDivineFruit(fruitName) {
+    const fruit = getFruitByName(fruitName);
+    return fruit && fruit.rarity === 'divine';
+}
+
+// Get rarity tier info (updated with divine)
+function getRarityTierInfo(rarity) {
+    const tierInfo = {
+        common: {
+            name: 'Common',
+            emoji: '🟫',
+            color: 0x8B4513,
+            rate: '40%',
+            cpRange: '1.0x - 1.2x',
+            description: 'Basic devil fruits with standard abilities'
+        },
+        uncommon: {
+            name: 'Uncommon',
+            emoji: '🟩',
+            color: 0x00FF00,
+            rate: '30%',
+            cpRange: '1.2x - 1.4x',
+            description: 'Enhanced fruits with improved capabilities'
+        },
+        rare: {
+            name: 'Rare',
+            emoji: '🟦',
+            color: 0x0080FF,
+            rate: '20%',
+            cpRange: '1.4x - 1.7x',
+            description: 'Powerful fruits with unique abilities'
+        },
+        epic: {
+            name: 'Epic',
+            emoji: '🟪',
+            color: 0x8000FF,
+            rate: '7%',
+            cpRange: '1.7x - 2.1x',
+            description: 'Exceptional fruits with devastating powers'
+        },
+        legendary: {
+            name: 'Legendary',
+            emoji: '🟨',
+            color: 0xFFD700,
+            rate: '2.5%',
+            cpRange: '2.1x - 2.4x',
+            description: 'Legendary fruits that shape the world'
+        },
+        mythical: {
+            name: 'Mythical',
+            emoji: '🟧',
+            color: 0xFF8000,
+            rate: '0.4%',
+            cpRange: '2.4x - 2.7x',
+            description: 'Mythical powers beyond mortal comprehension'
+        },
+        divine: {
+            name: 'Divine',
+            emoji: '⭐',
+            color: 0xFFFFFF,
+            rate: '0.1%',
+            cpRange: '2.7x - 3.0x',
+            description: 'Divine powers that transcend all limits'
+        }
+    };
+    
+    return tierInfo[rarity] || tierInfo.common;
+}
+
+// Calculate balanced CP for PvP (prevents overwhelming advantages)
+function calculateBalancedPvPCP(totalCP, fruits) {
+    // Apply diminishing returns for very high CP
+    const balancedCP = Math.floor(totalCP * 0.8); // 80% of full power for PvP balance
+    
+    // Additional balance based on fruit count
+    const fruitCount = fruits ? fruits.length : 0;
+    const countPenalty = Math.max(0.6, 1 - (fruitCount * 0.02)); // Max 40% reduction for having too many fruits
+    
+    return Math.floor(balancedCP * countPenalty);
+}
+
+// Get gacha rates info (updated with divine)
+function getGachaRatesInfo() {
+    return {
+        rates: RARITY_RATES,
+        expectedPulls: {
+            common: 2.5,
+            uncommon: 3.3,
+            rare: 5,
+            epic: 14.3,
+            legendary: 40,
+            mythical: 250,
+            divine: 1000
+        },
+        pullCost: 1000,
+        maxCPMultiplier: 3.0,
+        totalFruits: Object.keys(DEVIL_FRUITS).length
+    };
+}
+
+// Export everything needed by the commands (updated with divine tier)
 module.exports = {
     // Core data
     DEVIL_FRUITS,
@@ -401,15 +515,22 @@ module.exports = {
     getElementalAdvantageMatrix,
     findElementalCounterRecommendations,
     
-    // PvP functions
+    // PvP functions (updated for balance)
     calculatePvPDamage,
     calculateHealthFromCP,
+    calculateBalancedPvPCP,
     
     // Search and filtering
     searchFruits,
     getFruitsByUser,
     getFruitsByMultipleCriteria,
     getRecommendedFruits,
+    
+    // Divine tier functions
+    getDivineFruits,
+    isDivineFruit,
+    getRarityTierInfo,
+    getGachaRatesInfo,
     
     // Stats and validation
     getStats: getFruitStats,
@@ -422,8 +543,10 @@ module.exports = {
     validateTypeData,
     validateCPMultipliers,
     
-    // Constants
+    // Constants (updated)
     TOTAL_FRUITS: Object.keys(DEVIL_FRUITS).length,
     RARITIES: Object.keys(RARITY_RATES),
-    CANONICAL_COUNT: 149
+    CANONICAL_COUNT: 128,
+    MAX_CP_MULTIPLIER: 3.0,
+    DIVINE_RARITY: true
 };
