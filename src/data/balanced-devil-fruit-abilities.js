@@ -826,4 +826,541 @@ const balancedDevilFruitAbilities = {
     accuracy: 80,
     type: "logia"
   },
-  "Numa
+  "Numa Numa no Mi": {
+    name: "Swamp Prison",
+    damage: 145,
+    cooldown: 3,
+    effect: "swamp_sink",
+    description: "Trap enemies in bottomless swamp",
+    accuracy: 80,
+    type: "logia"
+  },
+  "Moku Moku no Mi": {
+    name: "White Blow",
+    damage: 144,
+    cooldown: 3,
+    effect: "smoke_blind",
+    description: "Dense smoke blinds and confuses",
+    accuracy: 85,
+    type: "logia"
+  },
+  "Suna Suna no Mi": {
+    name: "Desert Spada",
+    damage: 143,
+    cooldown: 3,
+    effect: "dehydration",
+    description: "Sand blade drains all moisture",
+    accuracy: 85,
+    type: "logia"
+  },
+  "Hie Hie no Mi": {
+    name: "Ice Block: Pheasant Beak",
+    damage: 142,
+    cooldown: 3,
+    effect: "freeze_3_turns",
+    description: "Ice bird freezes enemies solid",
+    accuracy: 80,
+    type: "logia"
+  },
+  "Mera Mera no Mi": {
+    name: "Hiken (Fire Fist)",
+    damage: 141,
+    cooldown: 3,
+    effect: "burn_4_turns",
+    description: "Devastating fire punch burns continuously",
+    accuracy: 85,
+    type: "logia"
+  },
+  "Goro Goro no Mi": {
+    name: "El Thor",
+    damage: 140,
+    cooldown: 3,
+    effect: "lightning_stun",
+    description: "Lightning pillar paralyzes enemies",
+    accuracy: 95,
+    type: "logia"
+  },
+  "Peto Peto no Mi": {
+    name: "Pet Master",
+    damage: 139,
+    cooldown: 4,
+    effect: "pet_control",
+    description: "Control and command all pets and animals",
+    accuracy: 85,
+    type: "control"
+  },
+  "Gunyo Gunyo no Mi": {
+    name: "Slime Prison",
+    damage: 120,
+    cooldown: 3,
+    effect: "slime_bind",
+    description: "Trap enemies in acidic slime",
+    accuracy: 80,
+    type: "binding"
+  },
+
+  // =====================================================
+  // MYTHICAL FRUITS (200-240 damage, 5-6 cooldown)
+  // =====================================================
+  "Kage Kage no Mi": {
+    name: "Shadow Revolution",
+    damage: 240,
+    cooldown: 6,
+    effect: "shadow_dominion",
+    description: "Control all shadows in vast area",
+    accuracy: 85,
+    type: "shadow"
+  },
+  "Nikyu Nikyu no Mi": {
+    name: "Ursus Shock",
+    damage: 239,
+    cooldown: 6,
+    effect: "paw_shockwave",
+    description: "Compressed air creates devastating explosion",
+    accuracy: 85,
+    type: "force"
+  },
+  "Hobi Hobi no Mi": {
+    name: "Toy World",
+    damage: 238,
+    cooldown: 6,
+    effect: "mass_toy_transform",
+    description: "Turn entire battlefield into toys",
+    accuracy: 70,
+    type: "reality"
+  },
+  "Ito Ito no Mi": {
+    name: "Overheat",
+    damage: 237,
+    cooldown: 6,
+    effect: "string_control",
+    description: "Razor strings control everything",
+    accuracy: 85,
+    type: "control"
+  },
+  "Ope Ope no Mi": {
+    name: "Room: Shambles",
+    damage: 236,
+    cooldown: 5,
+    effect: "spatial_surgery",
+    description: "Surgical manipulation of space itself",
+    accuracy: 90,
+    type: "spatial"
+  },
+  "Mochi Mochi no Mi": {
+    name: "Zan Giri Mochi",
+    damage: 235,
+    cooldown: 5,
+    effect: "mochi_mastery",
+    description: "Perfect mochi control and prediction",
+    accuracy: 95,
+    type: "special_paramecia"
+  },
+  "Pika Pika no Mi": {
+    name: "Yasakani no Magatama",
+    damage: 234,
+    cooldown: 5,
+    effect: "light_speed_barrage",
+    description: "Light-speed projectile barrage",
+    accuracy: 100,
+    type: "logia"
+  },
+  "Magu Magu no Mi": {
+    name: "Dai Funka",
+    damage: 233,
+    cooldown: 6,
+    effect: "volcanic_eruption",
+    description: "Massive magma eruption destroys all",
+    accuracy: 85,
+    type: "logia"
+  },
+  "Tori Tori no Mi, Model: Phoenix": {
+    name: "Phoenix Brand",
+    damage: 232,
+    cooldown: 5,
+    effect: "regeneration_flames",
+    description: "Blue flames heal while burning enemies",
+    accuracy: 90,
+    type: "mythical_zoan"
+  },
+  "Hito Hito no Mi, Model: Daibutsu": {
+    name: "Buddha Impact",
+    damage: 231,
+    cooldown: 5,
+    effect: "divine_shockwave",
+    description: "Divine shockwave purifies everything",
+    accuracy: 90,
+    type: "mythical_zoan"
+  },
+  "Hebi Hebi no Mi, Model: Yamata-no-Orochi": {
+    name: "Eight-Headed Strike",
+    damage: 230,
+    cooldown: 6,
+    effect: "multi_head_attack",
+    description: "Eight serpent heads attack simultaneously",
+    accuracy: 85,
+    type: "mythical_zoan"
+  },
+  "Inu Inu no Mi, Model: Okuchi no Makami": {
+    name: "Divine Wolf Howl",
+    damage: 229,
+    cooldown: 5,
+    effect: "ice_howl",
+    description: "Sacred wolf's howl freezes souls",
+    accuracy: 90,
+    type: "mythical_zoan"
+  },
+  "Inu Inu no Mi, Model: Kyubi no Kitsune": {
+    name: "Nine-Tail Illusion",
+    damage: 228,
+    cooldown: 6,
+    effect: "reality_illusion",
+    description: "Nine tails bend reality with illusions",
+    accuracy: 85,
+    type: "mythical_zoan"
+  },
+  "Zou Zou no Mi, Model: Mammoth": {
+    name: "Ancient Mammoth Charge",
+    damage: 227,
+    cooldown: 6,
+    effect: "prehistoric_might",
+    description: "Ancient mammoth's unstoppable charge",
+    accuracy: 80,
+    type: "ancient_zoan"
+  },
+  "Mori Mori no Mi": {
+    name: "Forest World",
+    damage: 200,
+    cooldown: 5,
+    effect: "nature_dominion",
+    description: "Transform area into vast forest",
+    accuracy: 85,
+    type: "logia"
+  },
+
+  // =====================================================
+  // LEGENDARY FRUITS (160-200 damage, 4-5 cooldown)
+  // =====================================================
+  "Soru Soru no Mi": {
+    name: "Soul Extraction",
+    damage: 200,
+    cooldown: 5,
+    effect: "soul_steal",
+    description: "Extract and manipulate enemy souls",
+    accuracy: 85,
+    type: "soul"
+  },
+  "Gomu Gomu no Mi": {
+    name: "Gear 4: Boundman",
+    damage: 199,
+    cooldown: 5,
+    effect: "rubber_boost",
+    description: "Enhanced rubber abilities with Haki",
+    accuracy: 85,
+    type: "awakening"
+  },
+  "Toki Toki no Mi": {
+    name: "Time Skip",
+    damage: 198,
+    cooldown: 6,
+    effect: "time_leap",
+    description: "Send attacks through time",
+    accuracy: 95,
+    type: "time"
+  },
+  "Uo Uo no Mi, Model: Seiryu": {
+    name: "Bolo Breath",
+    damage: 197,
+    cooldown: 5,
+    effect: "dragon_breath",
+    description: "Concentrated heat beam breath",
+    accuracy: 85,
+    type: "mythical_zoan"
+  },
+  "Ryu Ryu no Mi, Model: Kirin": {
+    name: "Lightning Blessing",
+    damage: 196,
+    cooldown: 4,
+    effect: "divine_lightning",
+    description: "Sacred Kirin's lightning blessing",
+    accuracy: 90,
+    type: "mythical_zoan"
+  },
+  "Wara Wara no Mi": {
+    name: "Straw Voodoo",
+    damage: 195,
+    cooldown: 5,
+    effect: "damage_redirect",
+    description: "Redirect all damage through voodoo dolls",
+    accuracy: 85,
+    type: "voodoo"
+  },
+  "Ura Ura no Mi": {
+    name: "Dimensional Warp",
+    damage: 194,
+    cooldown: 4,
+    effect: "teleport_mastery",
+    description: "Instantly teleport attacks across space",
+    accuracy: 90,
+    type: "spatial"
+  },
+  "Shima Shima no Mi": {
+    name: "Island Control",
+    damage: 160,
+    cooldown: 4,
+    effect: "terrain_mastery",
+    description: "Control entire island's terrain",
+    accuracy: 85,
+    type: "environmental"
+  },
+
+  // =====================================================
+  // DIVINE FRUITS (240-280 damage, 6-7 cooldown)
+  // =====================================================
+  "Gura Gura no Mi": {
+    name: "World Ender",
+    damage: 280,
+    cooldown: 7,
+    effect: "reality_crack",
+    description: "Crack the very fabric of reality",
+    accuracy: 85,
+    type: "world_destroyer"
+  },
+  "Hito Hito no Mi, Model: Nika": {
+    name: "Gear 5: Liberation",
+    damage: 265,
+    cooldown: 6,
+    effect: "cartoon_physics",
+    description: "Sun God's power bends all reality",
+    accuracy: 90,
+    type: "divine_zoan"
+  },
+  "Yami Yami no Mi": {
+    name: "Kurouzu",
+    damage: 240,
+    cooldown: 6,
+    effect: "darkness_void",
+    description: "Infinite darkness consumes everything",
+    accuracy: 80,
+    type: "ultimate_logia"
+  }
+};
+
+// Status effects system
+const statusEffects = {
+  // Damage over time
+  "poison_light": {
+    type: "dot",
+    damage: 8,
+    duration: 2,
+    description: "Light poison damage over time"
+  },
+  "poison_deadly": {
+    type: "dot",
+    damage: 25,
+    duration: 3,
+    description: "Deadly poison that spreads"
+  },
+  "burn_4_turns": {
+    type: "dot",
+    damage: 20,
+    duration: 4,
+    description: "Intense fire damage over time"
+  },
+  "bleed_light": {
+    type: "dot",
+    damage: 10,
+    duration: 2,
+    description: "Light bleeding from cuts"
+  },
+
+  // Control effects
+  "bind_1_turn": {
+    type: "disable",
+    duration: 1,
+    description: "Bound and cannot move",
+    preventAction: true
+  },
+  "freeze_3_turns": {
+    type: "disable",
+    duration: 3,
+    description: "Frozen solid, cannot act",
+    preventAction: true
+  },
+  "sleep_3_turns": {
+    type: "disable",
+    duration: 3,
+    description: "Deep sleep, completely helpless",
+    preventAction: true
+  },
+  "petrify_2_turns": {
+    type: "disable",
+    duration: 2,
+    description: "Turned to stone by love",
+    preventAction: true
+  },
+  "toy_convert": {
+    type: "disable",
+    duration: 3,
+    description: "Transformed into a toy",
+    preventAction: true
+  },
+
+  // Debuffs
+  "slow_2_turns": {
+    type: "debuff",
+    duration: 2,
+    description: "Movement drastically slowed",
+    speedReduction: 80
+  },
+  "negative_depression": {
+    type: "debuff",
+    duration: 2,
+    description: "Overwhelmed by negative thoughts",
+    damagePenalty: 50
+  },
+  "dehydration": {
+    type: "debuff",
+    duration: 3,
+    description: "Severely dehydrated",
+    damagePenalty: 30
+  },
+
+  // Defensive effects
+  "diamond_armor": {
+    type: "shield",
+    duration: 3,
+    description: "Diamond hardness blocks 70% damage",
+    damageReduction: 70
+  },
+  "barrier_reflect": {
+    type: "shield",
+    duration: 2,
+    description: "Reflects 50% damage back to attacker",
+    reflectPercent: 50,
+    damageReduction: 40
+  },
+  "wax_armor": {
+    type: "shield",
+    duration: 2,
+    description: "Hardened wax blocks 40% damage",
+    damageReduction: 40
+  },
+
+  // Special effects
+  "reality_crack": {
+    type: "ultimate",
+    duration: 0,
+    description: "Cracks reality itself for maximum damage",
+    maximumDamage: true
+  },
+  "cartoon_physics": {
+    type: "special",
+    duration: 2,
+    description: "Toon force bends reality",
+    specialMechanic: "ignore_logic"
+  },
+  "darkness_void": {
+    type: "special",
+    duration: 1,
+    description: "Nullifies all devil fruit abilities",
+    preventAbilities: true
+  },
+  "time_leap": {
+    type: "special",
+    duration: 0,
+    description: "Skip enemy's next turn",
+    skipTurn: true
+  }
+};
+
+// PvP Damage Calculator
+class PvPDamageCalculator {
+  static calculateDamage(ability, attackerCP, defenderCP, turn, defenderEffects = []) {
+    let baseDamage = ability.damage;
+    
+    // CP scaling (limited to prevent one-shots)
+    const cpRatio = Math.min(attackerCP / defenderCP, 2.5);
+    const cpMultiplier = 0.8 + (cpRatio - 1) * 0.3; // Max 1.25x from CP
+    
+    // Turn-based damage reduction (prevents early KOs)
+    let turnMultiplier = 1.0;
+    if (turn === 1) turnMultiplier = 0.5; // 50% reduction turn 1
+    else if (turn === 2) turnMultiplier = 0.7; // 30% reduction turn 2
+    else if (turn === 3) turnMultiplier = 0.85; // 15% reduction turn 3
+    
+    // Accuracy check
+    let accuracy = ability.accuracy || 85;
+    const hitChance = Math.random() * 100;
+    if (hitChance > accuracy) {
+      return { damage: 0, hit: false, effect: ability.effect };
+    }
+    
+    // Apply defender damage reduction
+    let damageReduction = 1.0;
+    defenderEffects.forEach(effect => {
+      const statusEffect = statusEffects[effect];
+      if (statusEffect?.damageReduction) {
+        damageReduction *= (100 - statusEffect.damageReduction) / 100;
+      }
+    });
+    
+    // Calculate final damage
+    let finalDamage = Math.floor(
+      baseDamage * cpMultiplier * turnMultiplier * damageReduction
+    );
+    
+    // Handle ultimate effects
+    if (ability.effect === "reality_crack" || ability.effect === "cartoon_physics") {
+      finalDamage = Math.floor(finalDamage * 1.5);
+    }
+    
+    // Minimum damage
+    finalDamage = Math.max(5, finalDamage);
+    
+    return { 
+      damage: finalDamage, 
+      hit: true, 
+      effect: ability.effect,
+      critical: hitChance <= 10
+    };
+  }
+  
+  static calculateHealth(level, rarityMultiplier) {
+    const baseHealth = 200 + (level * 15);
+    const rarityBonus = 1 + (rarityMultiplier - 1) * 0.5;
+    return Math.floor(baseHealth * rarityBonus);
+  }
+}
+
+// Utility functions
+function getAbilityByFruitName(fruitName) {
+  return balancedDevilFruitAbilities[fruitName] || null;
+}
+
+function getAbilitiesByRarity(rarity) {
+  const damageRanges = {
+    'common': { min: 45, max: 60 },
+    'uncommon': { min: 60, max: 80 },
+    'rare': { min: 80, max: 120 },
+    'epic': { min: 120, max: 160 },
+    'legendary': { min: 160, max: 200 },
+    'mythical': { min: 200, max: 240 },
+    'divine': { min: 240, max: 280 }
+  };
+  
+  const range = damageRanges[rarity];
+  if (!range) return [];
+  
+  return Object.entries(balancedDevilFruitAbilities).filter(([name, ability]) => {
+    return ability.damage >= range.min && ability.damage <= range.max;
+  });
+}
+
+module.exports = {
+  balancedDevilFruitAbilities,
+  statusEffects,
+  PvPDamageCalculator,
+  getAbilityByFruitName,
+  getAbilitiesByRarity
+};
