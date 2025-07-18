@@ -1,4 +1,529 @@
-description: "User can transform into a Smilodon or Smilodon-human hybrid."
+// src/data/fruits.js - Main Devil Fruits Database (149 Canonical Fruits)
+
+const DEVIL_FRUITS = {
+  // =====================================================
+  // COMMON FRUITS (24 fruits)
+  // =====================================================
+  "Gomu Gomu no Mi": {
+    id: "gomu_gomu_no_mi",
+    name: "Gomu Gomu no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Monkey D. Luffy",
+    power: "Grants rubber properties to the user's body",
+    description: "Allows the user to stretch their body like rubber, becoming immune to blunt attacks and electricity."
+  },
+  "Bara Bara no Mi": {
+    id: "bara_bara_no_mi",
+    name: "Bara Bara no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Buggy",
+    power: "Allows the user to split their body into pieces",
+    description: "User can separate their body parts and control them independently, immune to slashing attacks."
+  },
+  "Sube Sube no Mi": {
+    id: "sube_sube_no_mi",
+    name: "Sube Sube no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Alvida",
+    power: "Makes the user's skin slippery",
+    description: "Everything slides off the user's smooth skin, including physical attacks."
+  },
+  "Bomu Bomu no Mi": {
+    id: "bomu_bomu_no_mi",
+    name: "Bomu Bomu no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Mr. 5",
+    power: "Makes the user a bomb human",
+    description: "User can make any part of their body explode, including their breath and bodily secretions."
+  },
+  "Kilo Kilo no Mi": {
+    id: "kilo_kilo_no_mi",
+    name: "Kilo Kilo no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Miss Valentine",
+    power: "Allows the user to change their weight",
+    description: "User can alter their weight from 1 kg to 10,000 kg at will."
+  },
+  "Doru Doru no Mi": {
+    id: "doru_doru_no_mi",
+    name: "Doru Doru no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Mr. 3",
+    power: "Allows the user to create and control wax",
+    description: "User can produce candle wax from their body that hardens to steel-like strength."
+  },
+  "Bane Bane no Mi": {
+    id: "bane_bane_no_mi",
+    name: "Bane Bane no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Bellamy",
+    power: "Turns the user's legs into springs",
+    description: "User's legs become springs, allowing for powerful jumping and bouncing attacks."
+  },
+  "Supa Supa no Mi": {
+    id: "supa_supa_no_mi",
+    name: "Supa Supa no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Daz Bonez",
+    power: "Turns the user's body into blades",
+    description: "User can turn any part of their body into steel blades."
+  },
+  "Toge Toge no Mi": {
+    id: "toge_toge_no_mi",
+    name: "Toge Toge no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Miss Doublefinger",
+    power: "Allows the user to grow spikes from their body",
+    description: "User can grow spikes from any part of their body for offense and defense."
+  },
+  "Ori Ori no Mi": {
+    id: "ori_ori_no_mi",
+    name: "Ori Ori no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Hina",
+    power: "Allows the user to bind opponents with iron",
+    description: "User can create iron shackles and cages to restrain enemies."
+  },
+  "Baku Baku no Mi": {
+    id: "baku_baku_no_mi",
+    name: "Baku Baku no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Wapol",
+    power: "Allows the user to eat anything",
+    description: "User can consume anything and either transform into it or combine eaten objects."
+  },
+  "Mane Mane no Mi": {
+    id: "mane_mane_no_mi",
+    name: "Mane Mane no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Bon Clay",
+    power: "Allows the user to copy appearances",
+    description: "User can transform into anyone they've touched with their right hand."
+  },
+  "Hana Hana no Mi": {
+    id: "hana_hana_no_mi",
+    name: "Hana Hana no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Nico Robin",
+    power: "Allows the user to sprout body parts anywhere",
+    description: "User can sprout copies of their body parts from any surface."
+  },
+  "Shari Shari no Mi": {
+    id: "shari_shari_no_mi",
+    name: "Shari Shari no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Sharinguru",
+    power: "Turns the user's limbs into wheels",
+    description: "User can transform their limbs into spinning wheels for movement and attacks."
+  },
+  "Beri Beri no Mi": {
+    id: "beri_beri_no_mi",
+    name: "Beri Beri no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Very Good",
+    power: "Allows the user to turn into berries",
+    description: "User can split their body into small berry-like orbs."
+  },
+  "Sabi Sabi no Mi": {
+    id: "sabi_sabi_no_mi",
+    name: "Sabi Sabi no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Shu",
+    power: "Allows the user to rust metal",
+    description: "User can rust and corrode any metal they touch."
+  },
+  "Shabon Shabon no Mi": {
+    id: "shabon_shabon_no_mi",
+    name: "Shabon Shabon no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Kalifa",
+    power: "Allows the user to create soap bubbles",
+    description: "User can create soap bubbles that clean away enemy strength."
+  },
+  "Awa Awa no Mi": {
+    id: "awa_awa_no_mi",
+    name: "Awa Awa no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Kalifa",
+    power: "Allows the user to create and control bubbles",
+    description: "User can generate soap bubbles that weaken enemies."
+  },
+  "Goe Goe no Mi": {
+    id: "goe_goe_no_mi",
+    name: "Goe Goe no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "El Drago",
+    power: "Allows the user to create powerful sound waves",
+    description: "User can produce destructive sound waves from their voice."
+  },
+  "Hiso Hiso no Mi": {
+    id: "hiso_hiso_no_mi",
+    name: "Hiso Hiso no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Apis",
+    power: "Allows the user to communicate with animals",
+    description: "User can hear the voices of animals and communicate with them."
+  },
+  "Kama Kama no Mi": {
+    id: "kama_kama_no_mi",
+    name: "Kama Kama no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Eric",
+    power: "Allows the user to create wind slashes",
+    description: "User can create cutting wind attacks with their fingernails."
+  },
+  "Kachi Kachi no Mi": {
+    id: "kachi_kachi_no_mi",
+    name: "Kachi Kachi no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Bear King",
+    power: "Makes the user's body extremely hard and hot",
+    description: "User's body becomes incredibly hard and generates intense heat."
+  },
+  "Nemu Nemu no Mi": {
+    id: "nemu_nemu_no_mi",
+    name: "Nemu Nemu no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Noko",
+    power: "Allows the user to induce sleep",
+    description: "User can release spores that cause drowsiness and sleep."
+  },
+  "Mini Mini no Mi": {
+    id: "mini_mini_no_mi",
+    name: "Mini Mini no Mi",
+    type: "Paramecia",
+    rarity: "common",
+    user: "Blyue",
+    power: "Allows the user to shrink",
+    description: "User can shrink their body to become very small."
+  },
+
+  // =====================================================
+  // UNCOMMON FRUITS (35 fruits)
+  // =====================================================
+  "Horo Horo no Mi": {
+    id: "horo_horo_no_mi",
+    name: "Horo Horo no Mi",
+    type: "Paramecia",
+    rarity: "uncommon",
+    user: "Perona",
+    power: "Allows the user to create and control ghosts",
+    description: "User can create ghosts that drain enemies' willpower and make them extremely negative."
+  },
+  "Suke Suke no Mi": {
+    id: "suke_suke_no_mi",
+    name: "Suke Suke no Mi",
+    type: "Paramecia",
+    rarity: "uncommon",
+    user: "Absalom",
+    power: "Grants the user invisibility",
+    description: "User can become invisible and make anything they touch invisible as well."
+  },
+  "Nikyu Nikyu no Mi": {
+    id: "nikyu_nikyu_no_mi",
+    name: "Nikyu Nikyu no Mi",
+    type: "Paramecia",
+    rarity: "uncommon",
+    user: "Bartholomew Kuma",
+    power: "Grants paw pads that can repel anything",
+    description: "User has paw pads that can repel anything, including damage, fatigue, and even air."
+  },
+  "Mero Mero no Mi": {
+    id: "mero_mero_no_mi",
+    name: "Mero Mero no Mi",
+    type: "Paramecia",
+    rarity: "uncommon",
+    user: "Boa Hancock",
+    power: "Allows the user to turn people to stone with love",
+    description: "User can petrify anyone who feels attraction or lust toward them."
+  },
+  "Doa Doa no Mi": {
+    id: "doa_doa_no_mi",
+    name: "Doa Doa no Mi",
+    type: "Paramecia",
+    rarity: "uncommon",
+    user: "Blueno",
+    power: "Allows the user to create doors anywhere",
+    description: "User can create doors on any surface, including the air itself."
+  },
+  "Kage Kage no Mi": {
+    id: "kage_kage_no_mi",
+    name: "Kage Kage no Mi",
+    type: "Paramecia",
+    rarity: "uncommon",
+    user: "Gecko Moria",
+    power: "Allows the user to control shadows",
+    description: "User can manipulate shadows, steal them, and create shadow zombies."
+  },
+  "Horu Horu no Mi": {
+    id: "horu_horu_no_mi",
+    name: "Horu Horu no Mi",
+    type: "Paramecia",
+    rarity: "uncommon",
+    user: "Emporio Ivankov",
+    power: "Allows the user to control hormones",
+    description: "User can inject hormones to heal, enhance abilities, or change gender."
+  },
+  "Choki Choki no Mi": {
+    id: "choki_choki_no_mi",
+    name: "Choki Choki no Mi",
+    type: "Paramecia",
+    rarity: "uncommon",
+    user: "Inazuma",
+    power: "Allows the user to cut through anything like paper",
+    description: "User can turn their hands into scissors and cut through any material."
+  },
+  "Yomi Yomi no Mi": {
+    id: "yomi_yomi_no_mi",
+    name: "Yomi Yomi no Mi",
+    type: "Paramecia",
+    rarity: "uncommon",
+    user: "Brook",
+    power: "Grants the user a second life",
+    description: "User's soul returns to their body after death, and they can use soul-based abilities."
+  },
+
+  // Zoan Fruits (Uncommon)
+  "Kuma Kuma no Mi": {
+    id: "kuma_kuma_no_mi",
+    name: "Kuma Kuma no Mi",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Unknown",
+    power: "Transforms the user into a bear",
+    description: "User can transform into a bear or bear-human hybrid."
+  },
+  "Ushi Ushi no Mi, Model: Bison": {
+    id: "ushi_ushi_no_mi_bison",
+    name: "Ushi Ushi no Mi, Model: Bison",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Dalton",
+    power: "Transforms the user into a bison",
+    description: "User can transform into a bison or bison-human hybrid."
+  },
+  "Hito Hito no Mi": {
+    id: "hito_hito_no_mi",
+    name: "Hito Hito no Mi",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Tony Tony Chopper",
+    power: "Transforms the user into a human",
+    description: "Grants human intelligence and the ability to transform into human form."
+  },
+  "Tori Tori no Mi, Model: Falcon": {
+    id: "tori_tori_no_mi_falcon",
+    name: "Tori Tori no Mi, Model: Falcon",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Pell",
+    power: "Transforms the user into a falcon",
+    description: "User can transform into a falcon or falcon-human hybrid."
+  },
+  "Mogu Mogu no Mi": {
+    id: "mogu_mogu_no_mi",
+    name: "Mogu Mogu no Mi",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Miss Merry Christmas",
+    power: "Transforms the user into a mole",
+    description: "User can transform into a mole or mole-human hybrid."
+  },
+  "Inu Inu no Mi, Model: Dachshund": {
+    id: "inu_inu_no_mi_dachshund",
+    name: "Inu Inu no Mi, Model: Dachshund",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Lassoo",
+    power: "Transforms the user into a dachshund",
+    description: "User can transform into a dachshund or dachshund-human hybrid."
+  },
+  "Inu Inu no Mi, Model: Jackal": {
+    id: "inu_inu_no_mi_jackal",
+    name: "Inu Inu no Mi, Model: Jackal",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Chaka",
+    power: "Transforms the user into a jackal",
+    description: "User can transform into a jackal or jackal-human hybrid."
+  },
+  "Tori Tori no Mi, Model: Eagle": {
+    id: "tori_tori_no_mi_eagle",
+    name: "Tori Tori no Mi, Model: Eagle",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Unknown",
+    power: "Transforms the user into an eagle",
+    description: "User can transform into an eagle or eagle-human hybrid."
+  },
+  "Saru Saru no Mi": {
+    id: "saru_saru_no_mi",
+    name: "Saru Saru no Mi",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Unknown",
+    power: "Transforms the user into a monkey",
+    description: "User can transform into a monkey or monkey-human hybrid."
+  },
+  "Uma Uma no Mi": {
+    id: "uma_uma_no_mi",
+    name: "Uma Uma no Mi",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Pierre",
+    power: "Transforms the user into a horse",
+    description: "User can transform into a horse or horse-human hybrid."
+  },
+  "Neko Neko no Mi, Model: Leopard": {
+    id: "neko_neko_no_mi_leopard",
+    name: "Neko Neko no Mi, Model: Leopard",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Rob Lucci",
+    power: "Transforms the user into a leopard",
+    description: "User can transform into a leopard or leopard-human hybrid."
+  },
+  "Zou Zou no Mi": {
+    id: "zou_zou_no_mi",
+    name: "Zou Zou no Mi",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Funkfreed",
+    power: "Transforms the user into an elephant",
+    description: "User can transform into an elephant or elephant-human hybrid."
+  },
+  "Inu Inu no Mi, Model: Wolf": {
+    id: "inu_inu_no_mi_wolf",
+    name: "Inu Inu no Mi, Model: Wolf",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Jabra",
+    power: "Transforms the user into a wolf",
+    description: "User can transform into a wolf or wolf-human hybrid."
+  },
+  "Neko Neko no Mi, Model: Saber Tiger": {
+    id: "neko_neko_no_mi_saber_tiger",
+    name: "Neko Neko no Mi, Model: Saber Tiger",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Who's-Who",
+    power: "Transforms the user into a saber-toothed tiger",
+    description: "User can transform into a saber-toothed tiger or saber tiger-human hybrid."
+  },
+  "Batto Batto no Mi, Model: Vampire": {
+    id: "batto_batto_no_mi_vampire",
+    name: "Batto Batto no Mi, Model: Vampire",
+    type: "Zoan",
+    rarity: "uncommon",
+    user: "Patrick Redfield",
+    power: "Transforms the user into a vampire bat",
+    description: "User can transform into a vampire bat or vampire bat-human hybrid."
+  },
+
+  // Ancient Zoan Fruits
+  "Kumo Kumo no Mi, Model: Rosamygale Grauvogeli": {
+    id: "kumo_kumo_no_mi_rosamygale",
+    name: "Kumo Kumo no Mi, Model: Rosamygale Grauvogeli",
+    type: "Ancient Zoan",
+    rarity: "uncommon",
+    user: "Black Maria",
+    power: "Transforms the user into an ancient spider",
+    description: "User can transform into an ancient spider or spider-human hybrid."
+  },
+  "Ryu Ryu no Mi, Model: Spinosaurus": {
+    id: "ryu_ryu_no_mi_spinosaurus",
+    name: "Ryu Ryu no Mi, Model: Spinosaurus",
+    type: "Ancient Zoan",
+    rarity: "uncommon",
+    user: "X Drake",
+    power: "Transforms the user into a Spinosaurus",
+    description: "User can transform into a Spinosaurus or Spinosaurus-human hybrid."
+  },
+  "Ryu Ryu no Mi, Model: Pteranodon": {
+    id: "ryu_ryu_no_mi_pteranodon",
+    name: "Ryu Ryu no Mi, Model: Pteranodon",
+    type: "Ancient Zoan",
+    rarity: "uncommon",
+    user: "King",
+    power: "Transforms the user into a Pteranodon",
+    description: "User can transform into a Pteranodon or Pteranodon-human hybrid."
+  },
+  "Ryu Ryu no Mi, Model: Brachiosaurus": {
+    id: "ryu_ryu_no_mi_brachiosaurus",
+    name: "Ryu Ryu no Mi, Model: Brachiosaurus",
+    type: "Ancient Zoan",
+    rarity: "uncommon",
+    user: "Queen",
+    power: "Transforms the user into a Brachiosaurus",
+    description: "User can transform into a Brachiosaurus or Brachiosaurus-human hybrid."
+  },
+  "Ryu Ryu no Mi, Model: Allosaurus": {
+    id: "ryu_ryu_no_mi_allosaurus",
+    name: "Ryu Ryu no Mi, Model: Allosaurus",
+    type: "Ancient Zoan",
+    rarity: "uncommon",
+    user: "X Drake",
+    power: "Transforms the user into an Allosaurus",
+    description: "User can transform into an Allosaurus or Allosaurus-human hybrid."
+  },
+  "Ryu Ryu no Mi, Model: Triceratops": {
+    id: "ryu_ryu_no_mi_triceratops",
+    name: "Ryu Ryu no Mi, Model: Triceratops",
+    type: "Ancient Zoan",
+    rarity: "uncommon",
+    user: "Sasaki",
+    power: "Transforms the user into a Triceratops",
+    description: "User can transform into a Triceratops or Triceratops-human hybrid."
+  },
+  "Zou Zou no Mi, Model: Mammoth": {
+    id: "zou_zou_no_mi_mammoth",
+    name: "Zou Zou no Mi, Model: Mammoth",
+    type: "Ancient Zoan",
+    rarity: "uncommon",
+    user: "Jack",
+    power: "Transforms the user into a mammoth",
+    description: "User can transform into a mammoth or mammoth-human hybrid."
+  },
+  "Ryu Ryu no Mi, Model: Pachycephalosaurus": {
+    id: "ryu_ryu_no_mi_pachycephalosaurus",
+    name: "Ryu Ryu no Mi, Model: Pachycephalosaurus",
+    type: "Ancient Zoan",
+    rarity: "uncommon",
+    user: "Ulti",
+    power: "Transforms the user into a Pachycephalosaurus",
+    description: "User can transform into a Pachycephalosaurus or Pachycephalosaurus-human hybrid."
+  },
+  "Neko Neko no Mi, Model: Smilodon": {
+    id: "neko_neko_no_mi_smilodon",
+    name: "Neko Neko no Mi, Model: Smilodon",
+    type: "Ancient Zoan",
+    rarity: "uncommon",
+    user: "Unknown",
+    power: "Transforms the user into a Smilodon",
+    description: "User can transform into a Smilodon or Smilodon-human hybrid."
   },
   "Inu Inu no Mi, Model: Kyubi no Kitsune": {
     id: "inu_inu_no_mi_kyubi",
@@ -766,529 +1291,4 @@ module.exports = {
   getFruitsByType,
   getFruitsByUser,
   getCanonicalFruitCount
-};// src/data/fruits.js - Main Devil Fruits Database (149 Canonical Fruits)
-
-const DEVIL_FRUITS = {
-  // =====================================================
-  // COMMON FRUITS (24 fruits)
-  // =====================================================
-  "Gomu Gomu no Mi": {
-    id: "gomu_gomu_no_mi",
-    name: "Gomu Gomu no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Monkey D. Luffy",
-    power: "Grants rubber properties to the user's body",
-    description: "Allows the user to stretch their body like rubber, becoming immune to blunt attacks and electricity."
-  },
-  "Bara Bara no Mi": {
-    id: "bara_bara_no_mi",
-    name: "Bara Bara no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Buggy",
-    power: "Allows the user to split their body into pieces",
-    description: "User can separate their body parts and control them independently, immune to slashing attacks."
-  },
-  "Sube Sube no Mi": {
-    id: "sube_sube_no_mi",
-    name: "Sube Sube no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Alvida",
-    power: "Makes the user's skin slippery",
-    description: "Everything slides off the user's smooth skin, including physical attacks."
-  },
-  "Bomu Bomu no Mi": {
-    id: "bomu_bomu_no_mi",
-    name: "Bomu Bomu no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Mr. 5",
-    power: "Makes the user a bomb human",
-    description: "User can make any part of their body explode, including their breath and bodily secretions."
-  },
-  "Kilo Kilo no Mi": {
-    id: "kilo_kilo_no_mi",
-    name: "Kilo Kilo no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Miss Valentine",
-    power: "Allows the user to change their weight",
-    description: "User can alter their weight from 1 kg to 10,000 kg at will."
-  },
-  "Doru Doru no Mi": {
-    id: "doru_doru_no_mi",
-    name: "Doru Doru no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Mr. 3",
-    power: "Allows the user to create and control wax",
-    description: "User can produce candle wax from their body that hardens to steel-like strength."
-  },
-  "Bane Bane no Mi": {
-    id: "bane_bane_no_mi",
-    name: "Bane Bane no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Bellamy",
-    power: "Turns the user's legs into springs",
-    description: "User's legs become springs, allowing for powerful jumping and bouncing attacks."
-  },
-  "Supa Supa no Mi": {
-    id: "supa_supa_no_mi",
-    name: "Supa Supa no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Daz Bonez",
-    power: "Turns the user's body into blades",
-    description: "User can turn any part of their body into steel blades."
-  },
-  "Toge Toge no Mi": {
-    id: "toge_toge_no_mi",
-    name: "Toge Toge no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Miss Doublefinger",
-    power: "Allows the user to grow spikes from their body",
-    description: "User can grow spikes from any part of their body for offense and defense."
-  },
-  "Ori Ori no Mi": {
-    id: "ori_ori_no_mi",
-    name: "Ori Ori no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Hina",
-    power: "Allows the user to bind opponents with iron",
-    description: "User can create iron shackles and cages to restrain enemies."
-  },
-  "Baku Baku no Mi": {
-    id: "baku_baku_no_mi",
-    name: "Baku Baku no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Wapol",
-    power: "Allows the user to eat anything",
-    description: "User can consume anything and either transform into it or combine eaten objects."
-  },
-  "Mane Mane no Mi": {
-    id: "mane_mane_no_mi",
-    name: "Mane Mane no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Bon Clay",
-    power: "Allows the user to copy appearances",
-    description: "User can transform into anyone they've touched with their right hand."
-  },
-  "Hana Hana no Mi": {
-    id: "hana_hana_no_mi",
-    name: "Hana Hana no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Nico Robin",
-    power: "Allows the user to sprout body parts anywhere",
-    description: "User can sprout copies of their body parts from any surface."
-  },
-  "Shari Shari no Mi": {
-    id: "shari_shari_no_mi",
-    name: "Shari Shari no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Sharinguru",
-    power: "Turns the user's limbs into wheels",
-    description: "User can transform their limbs into spinning wheels for movement and attacks."
-  },
-  "Beri Beri no Mi": {
-    id: "beri_beri_no_mi",
-    name: "Beri Beri no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Very Good",
-    power: "Allows the user to turn into berries",
-    description: "User can split their body into small berry-like orbs."
-  },
-  "Sabi Sabi no Mi": {
-    id: "sabi_sabi_no_mi",
-    name: "Sabi Sabi no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Shu",
-    power: "Allows the user to rust metal",
-    description: "User can rust and corrode any metal they touch."
-  },
-  "Shabon Shabon no Mi": {
-    id: "shabon_shabon_no_mi",
-    name: "Shabon Shabon no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Kalifa",
-    power: "Allows the user to create soap bubbles",
-    description: "User can create soap bubbles that clean away enemy strength."
-  },
-  "Awa Awa no Mi": {
-    id: "awa_awa_no_mi",
-    name: "Awa Awa no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Kalifa",
-    power: "Allows the user to create and control bubbles",
-    description: "User can generate soap bubbles that weaken enemies."
-  },
-  "Goe Goe no Mi": {
-    id: "goe_goe_no_mi",
-    name: "Goe Goe no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "El Drago",
-    power: "Allows the user to create powerful sound waves",
-    description: "User can produce destructive sound waves from their voice."
-  },
-  "Hiso Hiso no Mi": {
-    id: "hiso_hiso_no_mi",
-    name: "Hiso Hiso no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Apis",
-    power: "Allows the user to communicate with animals",
-    description: "User can hear the voices of animals and communicate with them."
-  },
-  "Kama Kama no Mi": {
-    id: "kama_kama_no_mi",
-    name: "Kama Kama no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Eric",
-    power: "Allows the user to create wind slashes",
-    description: "User can create cutting wind attacks with their fingernails."
-  },
-  "Kachi Kachi no Mi": {
-    id: "kachi_kachi_no_mi",
-    name: "Kachi Kachi no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Bear King",
-    power: "Makes the user's body extremely hard and hot",
-    description: "User's body becomes incredibly hard and generates intense heat."
-  },
-  "Nemu Nemu no Mi": {
-    id: "nemu_nemu_no_mi",
-    name: "Nemu Nemu no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Noko",
-    power: "Allows the user to induce sleep",
-    description: "User can release spores that cause drowsiness and sleep."
-  },
-  "Mini Mini no Mi": {
-    id: "mini_mini_no_mi",
-    name: "Mini Mini no Mi",
-    type: "Paramecia",
-    rarity: "common",
-    user: "Blyue",
-    power: "Allows the user to shrink",
-    description: "User can shrink their body to become very small."
-  },
-
-  // =====================================================
-  // UNCOMMON FRUITS (35 fruits)
-  // =====================================================
-  "Horo Horo no Mi": {
-    id: "horo_horo_no_mi",
-    name: "Horo Horo no Mi",
-    type: "Paramecia",
-    rarity: "uncommon",
-    user: "Perona",
-    power: "Allows the user to create and control ghosts",
-    description: "User can create ghosts that drain enemies' willpower and make them extremely negative."
-  },
-  "Suke Suke no Mi": {
-    id: "suke_suke_no_mi",
-    name: "Suke Suke no Mi",
-    type: "Paramecia",
-    rarity: "uncommon",
-    user: "Absalom",
-    power: "Grants the user invisibility",
-    description: "User can become invisible and make anything they touch invisible as well."
-  },
-  "Nikyu Nikyu no Mi": {
-    id: "nikyu_nikyu_no_mi",
-    name: "Nikyu Nikyu no Mi",
-    type: "Paramecia",
-    rarity: "uncommon",
-    user: "Bartholomew Kuma",
-    power: "Grants paw pads that can repel anything",
-    description: "User has paw pads that can repel anything, including damage, fatigue, and even air."
-  },
-  "Mero Mero no Mi": {
-    id: "mero_mero_no_mi",
-    name: "Mero Mero no Mi",
-    type: "Paramecia",
-    rarity: "uncommon",
-    user: "Boa Hancock",
-    power: "Allows the user to turn people to stone with love",
-    description: "User can petrify anyone who feels attraction or lust toward them."
-  },
-  "Doa Doa no Mi": {
-    id: "doa_doa_no_mi",
-    name: "Doa Doa no Mi",
-    type: "Paramecia",
-    rarity: "uncommon",
-    user: "Blueno",
-    power: "Allows the user to create doors anywhere",
-    description: "User can create doors on any surface, including the air itself."
-  },
-  "Kage Kage no Mi": {
-    id: "kage_kage_no_mi",
-    name: "Kage Kage no Mi",
-    type: "Paramecia",
-    rarity: "uncommon",
-    user: "Gecko Moria",
-    power: "Allows the user to control shadows",
-    description: "User can manipulate shadows, steal them, and create shadow zombies."
-  },
-  "Horu Horu no Mi": {
-    id: "horu_horu_no_mi",
-    name: "Horu Horu no Mi",
-    type: "Paramecia",
-    rarity: "uncommon",
-    user: "Emporio Ivankov",
-    power: "Allows the user to control hormones",
-    description: "User can inject hormones to heal, enhance abilities, or change gender."
-  },
-  "Choki Choki no Mi": {
-    id: "choki_choki_no_mi",
-    name: "Choki Choki no Mi",
-    type: "Paramecia",
-    rarity: "uncommon",
-    user: "Inazuma",
-    power: "Allows the user to cut through anything like paper",
-    description: "User can turn their hands into scissors and cut through any material."
-  },
-  "Yomi Yomi no Mi": {
-    id: "yomi_yomi_no_mi",
-    name: "Yomi Yomi no Mi",
-    type: "Paramecia",
-    rarity: "uncommon",
-    user: "Brook",
-    power: "Grants the user a second life",
-    description: "User's soul returns to their body after death, and they can use soul-based abilities."
-  },
-
-  // Zoan Fruits (Uncommon)
-  "Kuma Kuma no Mi": {
-    id: "kuma_kuma_no_mi",
-    name: "Kuma Kuma no Mi",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Unknown",
-    power: "Transforms the user into a bear",
-    description: "User can transform into a bear or bear-human hybrid."
-  },
-  "Ushi Ushi no Mi, Model: Bison": {
-    id: "ushi_ushi_no_mi_bison",
-    name: "Ushi Ushi no Mi, Model: Bison",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Dalton",
-    power: "Transforms the user into a bison",
-    description: "User can transform into a bison or bison-human hybrid."
-  },
-  "Hito Hito no Mi": {
-    id: "hito_hito_no_mi",
-    name: "Hito Hito no Mi",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Tony Tony Chopper",
-    power: "Transforms the user into a human",
-    description: "Grants human intelligence and the ability to transform into human form."
-  },
-  "Tori Tori no Mi, Model: Falcon": {
-    id: "tori_tori_no_mi_falcon",
-    name: "Tori Tori no Mi, Model: Falcon",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Pell",
-    power: "Transforms the user into a falcon",
-    description: "User can transform into a falcon or falcon-human hybrid."
-  },
-  "Mogu Mogu no Mi": {
-    id: "mogu_mogu_no_mi",
-    name: "Mogu Mogu no Mi",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Miss Merry Christmas",
-    power: "Transforms the user into a mole",
-    description: "User can transform into a mole or mole-human hybrid."
-  },
-  "Inu Inu no Mi, Model: Dachshund": {
-    id: "inu_inu_no_mi_dachshund",
-    name: "Inu Inu no Mi, Model: Dachshund",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Lassoo",
-    power: "Transforms the user into a dachshund",
-    description: "User can transform into a dachshund or dachshund-human hybrid."
-  },
-  "Inu Inu no Mi, Model: Jackal": {
-    id: "inu_inu_no_mi_jackal",
-    name: "Inu Inu no Mi, Model: Jackal",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Chaka",
-    power: "Transforms the user into a jackal",
-    description: "User can transform into a jackal or jackal-human hybrid."
-  },
-  "Tori Tori no Mi, Model: Eagle": {
-    id: "tori_tori_no_mi_eagle",
-    name: "Tori Tori no Mi, Model: Eagle",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Unknown",
-    power: "Transforms the user into an eagle",
-    description: "User can transform into an eagle or eagle-human hybrid."
-  },
-  "Saru Saru no Mi": {
-    id: "saru_saru_no_mi",
-    name: "Saru Saru no Mi",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Unknown",
-    power: "Transforms the user into a monkey",
-    description: "User can transform into a monkey or monkey-human hybrid."
-  },
-  "Uma Uma no Mi": {
-    id: "uma_uma_no_mi",
-    name: "Uma Uma no Mi",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Pierre",
-    power: "Transforms the user into a horse",
-    description: "User can transform into a horse or horse-human hybrid."
-  },
-  "Neko Neko no Mi, Model: Leopard": {
-    id: "neko_neko_no_mi_leopard",
-    name: "Neko Neko no Mi, Model: Leopard",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Rob Lucci",
-    power: "Transforms the user into a leopard",
-    description: "User can transform into a leopard or leopard-human hybrid."
-  },
-  "Zou Zou no Mi": {
-    id: "zou_zou_no_mi",
-    name: "Zou Zou no Mi",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Funkfreed",
-    power: "Transforms the user into an elephant",
-    description: "User can transform into an elephant or elephant-human hybrid."
-  },
-  "Inu Inu no Mi, Model: Wolf": {
-    id: "inu_inu_no_mi_wolf",
-    name: "Inu Inu no Mi, Model: Wolf",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Jabra",
-    power: "Transforms the user into a wolf",
-    description: "User can transform into a wolf or wolf-human hybrid."
-  },
-  "Neko Neko no Mi, Model: Saber Tiger": {
-    id: "neko_neko_no_mi_saber_tiger",
-    name: "Neko Neko no Mi, Model: Saber Tiger",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Who's-Who",
-    power: "Transforms the user into a saber-toothed tiger",
-    description: "User can transform into a saber-toothed tiger or saber tiger-human hybrid."
-  },
-  "Batto Batto no Mi, Model: Vampire": {
-    id: "batto_batto_no_mi_vampire",
-    name: "Batto Batto no Mi, Model: Vampire",
-    type: "Zoan",
-    rarity: "uncommon",
-    user: "Patrick Redfield",
-    power: "Transforms the user into a vampire bat",
-    description: "User can transform into a vampire bat or vampire bat-human hybrid."
-  },
-
-  // Ancient Zoan Fruits
-  "Kumo Kumo no Mi, Model: Rosamygale Grauvogeli": {
-    id: "kumo_kumo_no_mi_rosamygale",
-    name: "Kumo Kumo no Mi, Model: Rosamygale Grauvogeli",
-    type: "Ancient Zoan",
-    rarity: "uncommon",
-    user: "Black Maria",
-    power: "Transforms the user into an ancient spider",
-    description: "User can transform into an ancient spider or spider-human hybrid."
-  },
-  "Ryu Ryu no Mi, Model: Spinosaurus": {
-    id: "ryu_ryu_no_mi_spinosaurus",
-    name: "Ryu Ryu no Mi, Model: Spinosaurus",
-    type: "Ancient Zoan",
-    rarity: "uncommon",
-    user: "X Drake",
-    power: "Transforms the user into a Spinosaurus",
-    description: "User can transform into a Spinosaurus or Spinosaurus-human hybrid."
-  },
-  "Ryu Ryu no Mi, Model: Pteranodon": {
-    id: "ryu_ryu_no_mi_pteranodon",
-    name: "Ryu Ryu no Mi, Model: Pteranodon",
-    type: "Ancient Zoan",
-    rarity: "uncommon",
-    user: "King",
-    power: "Transforms the user into a Pteranodon",
-    description: "User can transform into a Pteranodon or Pteranodon-human hybrid."
-  },
-  "Ryu Ryu no Mi, Model: Brachiosaurus": {
-    id: "ryu_ryu_no_mi_brachiosaurus",
-    name: "Ryu Ryu no Mi, Model: Brachiosaurus",
-    type: "Ancient Zoan",
-    rarity: "uncommon",
-    user: "Queen",
-    power: "Transforms the user into a Brachiosaurus",
-    description: "User can transform into a Brachiosaurus or Brachiosaurus-human hybrid."
-  },
-  "Ryu Ryu no Mi, Model: Allosaurus": {
-    id: "ryu_ryu_no_mi_allosaurus",
-    name: "Ryu Ryu no Mi, Model: Allosaurus",
-    type: "Ancient Zoan",
-    rarity: "uncommon",
-    user: "X Drake",
-    power: "Transforms the user into an Allosaurus",
-    description: "User can transform into an Allosaurus or Allosaurus-human hybrid."
-  },
-  "Ryu Ryu no Mi, Model: Triceratops": {
-    id: "ryu_ryu_no_mi_triceratops",
-    name: "Ryu Ryu no Mi, Model: Triceratops",
-    type: "Ancient Zoan",
-    rarity: "uncommon",
-    user: "Sasaki",
-    power: "Transforms the user into a Triceratops",
-    description: "User can transform into a Triceratops or Triceratops-human hybrid."
-  },
-  "Zou Zou no Mi, Model: Mammoth": {
-    id: "zou_zou_no_mi_mammoth",
-    name: "Zou Zou no Mi, Model: Mammoth",
-    type: "Ancient Zoan",
-    rarity: "uncommon",
-    user: "Jack",
-    power: "Transforms the user into a mammoth",
-    description: "User can transform into a mammoth or mammoth-human hybrid."
-  },
-  "Ryu Ryu no Mi, Model: Pachycephalosaurus": {
-    id: "ryu_ryu_no_mi_pachycephalosaurus",
-    name: "Ryu Ryu no Mi, Model: Pachycephalosaurus",
-    type: "Ancient Zoan",
-    rarity: "uncommon",
-    user: "Ulti",
-    power: "Transforms the user into a Pachycephalosaurus",
-    description: "User can transform into a Pachycephalosaurus or Pachycephalosaurus-human hybrid."
-  },
-  "Neko Neko no Mi, Model: Smilodon": {
-    id: "neko_neko_no_mi_smilodon",
-    name: "Neko Neko no Mi, Model: Smilodon",
-    type: "Ancient Zoan",
-    rarity: "uncommon",
-    user: "Unknown",
-    power: "Transforms the user into a Smilodon",
-    description: "User can transform into a Smilodon or S
+};
