@@ -1,4 +1,4 @@
-// src/commands/enhanced-pvp.js - COMPLETE UPDATED FILE
+// src/commands/enhanced-pvp.js - FIXED Version with Proper Interaction Handling
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const PvPBalanceSystem = require('../systems/pvp-balance');
@@ -105,10 +105,15 @@ module.exports = {
                 .setDescription('An error occurred during PvP command execution!')
                 .setFooter({ text: 'Please try again later.' });
             
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({ embeds: [embed], ephemeral: true });
-            } else {
-                await interaction.followUp({ embeds: [embed], ephemeral: true });
+            // FIXED: Better error handling for interactions
+            try {
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({ embeds: [embed], ephemeral: true });
+                } else {
+                    await interaction.followUp({ embeds: [embed], ephemeral: true });
+                }
+            } catch (interactionError) {
+                console.error('Failed to send error message:', interactionError);
             }
         }
     },
@@ -117,75 +122,89 @@ module.exports = {
         const userId = interaction.user.id;
         const username = interaction.user.username;
 
-        // Check if enhanced system is available
-        if (EnhancedTurnBasedPvP) {
-            // Check if user already has an active battle
-            const existingBattle = EnhancedTurnBasedPvP.getUserActiveBattle(userId);
-            if (existingBattle) {
-                return interaction.reply({
-                    content: '⚔️ You already have an active turn-based battle! Finish it first before joining a new one.',
-                    ephemeral: true
+        console.log(`⚔️ ${username} starting enhanced turn-based battle`);
+
+        // FIXED: Defer reply immediately to prevent timeout
+        await interaction.deferReply();
+
+        try {
+            // Check if enhanced system is available
+            if (EnhancedTurnBasedPvP) {
+                // Check if user already has an active battle
+                const existingBattle = EnhancedTurnBasedPvP.getUserActiveBattle(userId);
+                if (existingBattle) {
+                    return await interaction.editReply({
+                        content: '⚔️ You already have an active turn-based battle! Finish it first before joining a new one.',
+                    });
+                }
+            }
+
+            // Create PvP fighter using balance system
+            const fighter = await PvPBalanceSystem.createPvPFighter(userId);
+            
+            if (!fighter) {
+                const userFruits = await DatabaseManager.getUserDevilFruits(userId);
+                return await interaction.editReply({
+                    content: `❌ You need at least 5 Devil Fruits to participate in PvP battles!\nYou currently have ${userFruits?.length || 0} fruits. Use \`/pull\` to get more fruits.`,
                 });
             }
-        }
 
-        // Create PvP fighter using balance system
-        const fighter = await PvPBalanceSystem.createPvPFighter(userId);
-        
-        if (!fighter) {
-            const userFruits = await DatabaseManager.getUserDevilFruits(userId);
-            return interaction.reply({
-                content: `❌ You need at least 5 Devil Fruits to participate in PvP battles!\nYou currently have ${userFruits?.length || 0} fruits. Use \`/pull\` to get more fruits.`,
-                ephemeral: true
-            });
-        }
-
-        // Check cooldown
-        const lastBattle = battleCooldowns.get(userId);
-        if (lastBattle && Date.now() - lastBattle < 300000) { // 5 minute cooldown
-            const remaining = Math.ceil((300000 - (Date.now() - lastBattle)) / 60000);
-            return interaction.reply({
-                content: `⏰ You must wait ${remaining} more minutes before joining another battle.`,
-                ephemeral: true
-            });
-        }
-
-        // Check if already in queue
-        if (battleQueue.has(userId)) {
-            return interaction.reply({
-                content: '⚔️ You are already in the battle queue! Use `/pvp leave` to leave the queue.',
-                ephemeral: true
-            });
-        }
-
-        // Use enhanced turn-based system if available
-        if (EnhancedTurnBasedPvP) {
-            console.log(`⚔️ ${username} starting enhanced turn-based battle`);
-            
-            // Add to queue and set cooldown
-            battleQueue.add(userId);
-            battleCooldowns.set(userId, Date.now());
-            
-            // Try to find a balanced match with another player
-            const opponent = await this.findBalancedMatch(fighter);
-            
-            if (opponent) {
-                // Remove both players from queue
-                battleQueue.delete(userId);
-                battleQueue.delete(opponent.userId);
-                battleCooldowns.set(opponent.userId, Date.now());
-                
-                // Start enhanced turn-based PvP battle
-                await EnhancedTurnBasedPvP.startBattle(interaction, fighter, opponent);
-            } else {
-                // No player available, start balanced NPC battle
-                battleQueue.delete(userId);
-                await EnhancedTurnBasedPvP.startBattle(interaction, fighter, null);
+            // Check cooldown
+            const lastBattle = battleCooldowns.get(userId);
+            if (lastBattle && Date.now() - lastBattle < 300000) { // 5 minute cooldown
+                const remaining = Math.ceil((300000 - (Date.now() - lastBattle)) / 60000);
+                return await interaction.editReply({
+                    content: `⏰ You must wait ${remaining} more minutes before joining another battle.`,
+                });
             }
-        } else {
-            // Fallback to quick battle system
-            console.log(`⚔️ ${username} using fallback battle system`);
-            await this.handleFallbackBattle(interaction, fighter);
+
+            // Check if already in queue
+            if (battleQueue.has(userId)) {
+                return await interaction.editReply({
+                    content: '⚔️ You are already in the battle queue! Use `/pvp leave` to leave the queue.',
+                });
+            }
+
+            // Use enhanced turn-based system if available
+            if (EnhancedTurnBasedPvP) {
+                console.log(`⚔️ ${username} starting enhanced turn-based battle`);
+                
+                // Add to queue and set cooldown
+                battleQueue.add(userId);
+                battleCooldowns.set(userId, Date.now());
+                
+                // Try to find a balanced match with another player
+                const opponent = await this.findBalancedMatch(fighter);
+                
+                if (opponent) {
+                    // Remove both players from queue
+                    battleQueue.delete(userId);
+                    battleQueue.delete(opponent.userId);
+                    battleCooldowns.set(opponent.userId, Date.now());
+                    
+                    // Start enhanced turn-based PvP battle
+                    await EnhancedTurnBasedPvP.startBattle(interaction, fighter, opponent);
+                } else {
+                    // No player available, start balanced NPC battle
+                    battleQueue.delete(userId);
+                    await EnhancedTurnBasedPvP.startBattle(interaction, fighter, null);
+                }
+            } else {
+                // Fallback to quick battle system
+                console.log(`⚔️ ${username} using fallback battle system`);
+                await this.handleFallbackBattle(interaction, fighter);
+            }
+
+        } catch (error) {
+            console.error('Error in handleQueue:', error);
+            
+            try {
+                await interaction.editReply({
+                    content: '❌ An error occurred while starting the battle. Please try again.',
+                });
+            } catch (editError) {
+                console.error('Failed to edit reply:', editError);
+            }
         }
     },
 
@@ -214,8 +233,6 @@ module.exports = {
             effects: [],
             abilityCooldown: 0
         };
-
-        await interaction.deferReply();
 
         try {
             // Simulate the battle
