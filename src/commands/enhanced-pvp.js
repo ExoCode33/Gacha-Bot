@@ -1,13 +1,21 @@
-// src/commands/enhanced-pvp.js - UPDATED FOR TURN-BASED SYSTEM
+// src/commands/enhanced-pvp.js - COMPLETE UPDATED FILE
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const PvPBalanceSystem = require('../systems/pvp-balance');
-const EnhancedTurnBasedPvP = require('../systems/enhanced-turn-based-pvp');
 
 // Simple battle tracking for compatibility
 const activeBattles = new Map();
 const battleQueue = new Set();
 const battleCooldowns = new Map();
+
+// Import the enhanced turn-based system safely
+let EnhancedTurnBasedPvP = null;
+try {
+    EnhancedTurnBasedPvP = require('../systems/enhanced-turn-based-pvp');
+    console.log('✅ Enhanced Turn-Based PvP system loaded');
+} catch (error) {
+    console.warn('⚠️ Enhanced Turn-Based PvP system not available, using fallback');
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -109,13 +117,16 @@ module.exports = {
         const userId = interaction.user.id;
         const username = interaction.user.username;
 
-        // Check if user already has an active battle
-        const existingBattle = EnhancedTurnBasedPvP.getUserActiveBattle(userId);
-        if (existingBattle) {
-            return interaction.reply({
-                content: '⚔️ You already have an active battle! Finish it first before joining a new one.',
-                ephemeral: true
-            });
+        // Check if enhanced system is available
+        if (EnhancedTurnBasedPvP) {
+            // Check if user already has an active battle
+            const existingBattle = EnhancedTurnBasedPvP.getUserActiveBattle(userId);
+            if (existingBattle) {
+                return interaction.reply({
+                    content: '⚔️ You already have an active turn-based battle! Finish it first before joining a new one.',
+                    ephemeral: true
+                });
+            }
         }
 
         // Create PvP fighter using balance system
@@ -147,31 +158,106 @@ module.exports = {
             });
         }
 
-        // Add to queue
-        battleQueue.add(userId);
-        console.log(`⚔️ ${username} joined the battle queue (${battleQueue.size} players in queue)`);
-
-        // Try to find a balanced match with another player
-        const opponent = await this.findBalancedMatch(fighter);
-        
-        if (opponent) {
-            // Remove both players from queue
-            battleQueue.delete(userId);
-            battleQueue.delete(opponent.userId);
+        // Use enhanced turn-based system if available
+        if (EnhancedTurnBasedPvP) {
+            console.log(`⚔️ ${username} starting enhanced turn-based battle`);
             
-            // Set cooldowns
+            // Add to queue and set cooldown
+            battleQueue.add(userId);
             battleCooldowns.set(userId, Date.now());
-            battleCooldowns.set(opponent.userId, Date.now());
             
-            // Start enhanced turn-based PvP battle
-            await EnhancedTurnBasedPvP.startBattle(interaction, fighter, opponent);
+            // Try to find a balanced match with another player
+            const opponent = await this.findBalancedMatch(fighter);
+            
+            if (opponent) {
+                // Remove both players from queue
+                battleQueue.delete(userId);
+                battleQueue.delete(opponent.userId);
+                battleCooldowns.set(opponent.userId, Date.now());
+                
+                // Start enhanced turn-based PvP battle
+                await EnhancedTurnBasedPvP.startBattle(interaction, fighter, opponent);
+            } else {
+                // No player available, start balanced NPC battle
+                battleQueue.delete(userId);
+                await EnhancedTurnBasedPvP.startBattle(interaction, fighter, null);
+            }
         } else {
-            // No player available, start balanced NPC battle
-            // Set cooldown
-            battleCooldowns.set(userId, Date.now());
-            battleQueue.delete(userId);
-            
-            await EnhancedTurnBasedPvP.startBattle(interaction, fighter, null);
+            // Fallback to quick battle system
+            console.log(`⚔️ ${username} using fallback battle system`);
+            await this.handleFallbackBattle(interaction, fighter);
+        }
+    },
+
+    async handleFallbackBattle(interaction, fighter) {
+        const NPCBossSystem = require('../systems/npc-bosses');
+        
+        // Get balanced NPC boss
+        const npcBoss = NPCBossSystem.getBalancedBossForPlayer(fighter.balancedCP);
+        
+        // Create simple NPC fighter for simulation
+        const npcFighter = {
+            userId: 'npc',
+            username: npcBoss.name,
+            level: npcBoss.level,
+            balancedCP: npcBoss.totalCP,
+            maxHealth: Math.floor(npcBoss.totalCP * 0.8),
+            hp: Math.floor(npcBoss.totalCP * 0.8),
+            fruits: [],
+            ability: {
+                name: 'Boss Attack',
+                damage: 120,
+                cooldown: 2,
+                effect: null,
+                accuracy: 85
+            },
+            effects: [],
+            abilityCooldown: 0
+        };
+
+        await interaction.deferReply();
+
+        try {
+            // Simulate the battle
+            const battleResult = await PvPBalanceSystem.simulateFight(fighter, npcFighter);
+            const resultEmbed = PvPBalanceSystem.createFightEmbed(battleResult);
+
+            // Customize embed for PvE
+            resultEmbed.title = `⚔️ PvE Battle vs ${npcBoss.name}`;
+            resultEmbed.fields.push({
+                name: '🤖 Battle Type',
+                value: `Player vs ${npcBoss.title} (${npcBoss.difficulty} Difficulty)\n⚠️ Fallback mode - Turn-based system unavailable`,
+                inline: true
+            });
+
+            // Award berries for victory
+            if (battleResult.winner.userId === fighter.userId) {
+                const berryReward = this.calculateBerryReward(npcBoss.difficulty);
+                await DatabaseManager.updateUserBerries(fighter.userId, berryReward, `PvE Victory vs ${npcBoss.name}`);
+                
+                resultEmbed.fields.push({
+                    name: '🎁 Victory Reward',
+                    value: `${berryReward.toLocaleString()} berries earned!`,
+                    inline: true
+                });
+
+                console.log(`🎁 ${fighter.username} earned ${berryReward} berries for PvE victory`);
+            }
+
+            const content = battleResult.winner.userId === fighter.userId 
+                ? `🎉 **Victory!** You defeated ${npcBoss.name} and earned berries!`
+                : `💀 **Defeat!** ${npcBoss.name} proved too strong this time. Try again!`;
+
+            await interaction.editReply({
+                content,
+                embeds: [resultEmbed]
+            });
+
+        } catch (error) {
+            console.error('Error in fallback battle:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred during the battle.',
+            });
         }
     },
 
@@ -193,15 +279,18 @@ module.exports = {
             });
         }
 
-        // Check if either user has an active battle
-        const challengerBattle = EnhancedTurnBasedPvP.getUserActiveBattle(challenger.id);
-        const opponentBattle = EnhancedTurnBasedPvP.getUserActiveBattle(opponent.id);
-        
-        if (challengerBattle || opponentBattle) {
-            return interaction.reply({
-                content: '⚔️ One of you already has an active battle! Wait for it to finish.',
-                ephemeral: true
-            });
+        // Check if enhanced system is available
+        if (EnhancedTurnBasedPvP) {
+            // Check if either user has an active battle
+            const challengerBattle = EnhancedTurnBasedPvP.getUserActiveBattle(challenger.id);
+            const opponentBattle = EnhancedTurnBasedPvP.getUserActiveBattle(opponent.id);
+            
+            if (challengerBattle || opponentBattle) {
+                return interaction.reply({
+                    content: '⚔️ One of you already has an active battle! Wait for it to finish.',
+                    ephemeral: true
+                });
+            }
         }
 
         // Create fighters
@@ -221,7 +310,7 @@ module.exports = {
         const challengeEmbed = new EmbedBuilder()
             .setColor(balanceCheck.isBalanced ? 0x00FF00 : 0xFF8000)
             .setTitle('⚔️ PvP Challenge')
-            .setDescription(`**${challenger.username}** challenges **${opponent.username}** to a turn-based Devil Fruit battle!`)
+            .setDescription(`**${challenger.username}** challenges **${opponent.username}** to a ${EnhancedTurnBasedPvP ? 'turn-based' : 'quick'} Devil Fruit battle!`)
             .addFields([
                 {
                     name: '🏴‍☠️ Challenger Stats',
@@ -257,19 +346,16 @@ module.exports = {
                 }
             ])
             .setFooter({ 
-                text: `${opponent.username}, you have 60 seconds to respond!` 
+                text: EnhancedTurnBasedPvP ? 
+                    `${opponent.username}, accept for turn-based battle!` : 
+                    'Challenge system in development - use /pvp quick for instant battles'
             })
             .setTimestamp();
 
-        // TODO: Implement challenge acceptance system
-        // For now, just show the challenge information
         await interaction.reply({
             content: `${opponent}, you have been challenged to a PvP battle!`,
             embeds: [challengeEmbed]
         });
-
-        // Note: In a full implementation, you would add buttons for accept/decline
-        // and store the challenge in a temporary storage system
     },
 
     async findBalancedMatch(playerFighter) {
@@ -322,7 +408,7 @@ module.exports = {
             resultEmbed.title = '⚔️ Quick Battle Simulation (Instant Result)';
             resultEmbed.fields.push({
                 name: '🎮 Battle Type',
-                value: 'Quick Simulation (No rewards)\nUse `/pvp queue` for turn-based battles!',
+                value: 'Quick Simulation (No rewards)\nUse `/pvp queue` for turn-based battles with rewards!',
                 inline: true
             });
 
@@ -374,7 +460,7 @@ module.exports = {
                         `**CP Scaling**: Balanced for fair PvP`,
                         `**Max Level Advantage**: 3x (reduced)`,
                         `**Max Rarity Advantage**: 4x (reduced)`,
-                        `**Turn-Based Ready**: ✅ Yes`
+                        `**Turn-Based Ready**: ${EnhancedTurnBasedPvP ? '✅ Yes' : '⚠️ Fallback mode'}`
                     ].join('\n'),
                     inline: true
                 },
@@ -396,13 +482,15 @@ module.exports = {
     async handleLeave(interaction) {
         const userId = interaction.user.id;
         
-        // Check if user has an active battle
-        const activeBattle = EnhancedTurnBasedPvP.getUserActiveBattle(userId);
-        if (activeBattle) {
-            return interaction.reply({
-                content: '⚔️ You have an active battle! Use the surrender button in the battle interface to leave.',
-                ephemeral: true
-            });
+        // Check if user has an active enhanced battle
+        if (EnhancedTurnBasedPvP) {
+            const activeBattle = EnhancedTurnBasedPvP.getUserActiveBattle(userId);
+            if (activeBattle) {
+                return interaction.reply({
+                    content: '⚔️ You have an active turn-based battle! Use the surrender button in the battle interface to leave.',
+                    ephemeral: true
+                });
+            }
         }
         
         if (!battleQueue.has(userId)) {
@@ -441,7 +529,7 @@ module.exports = {
                 {
                     name: '🎯 Turn-Based Features',
                     value: [
-                        '**Real-Time Battles**: Choose skills each turn',
+                        `**Real-Time Battles**: ${EnhancedTurnBasedPvP ? '✅ Available' : '⚠️ Fallback mode'}`,
                         '**HP Bars**: Live health visualization', 
                         '**Battle Log**: Expanding combat history',
                         '**Boss Reveals**: See your NPC opponent',
@@ -464,8 +552,8 @@ module.exports = {
                 {
                     name: '🎮 Battle Types',
                     value: [
-                        '• **Queue Battles**: Turn-based vs players or bosses',
-                        '• **Challenges**: Challenge specific players',
+                        `• **Queue Battles**: ${EnhancedTurnBasedPvP ? 'Turn-based vs players/bosses' : 'Instant battles vs bosses'}`,
+                        '• **Challenges**: Challenge specific players (dev)',
                         '• **Quick Battles**: Instant simulation results',
                         '• **NPC Bosses**: Fight One Piece characters',
                         '• **Berry Rewards**: Earn from PvE victories'
@@ -473,14 +561,28 @@ module.exports = {
                     inline: false
                 }
             ])
-            .setFooter({ text: 'Start turn-based battles with /pvp queue!' })
+            .setFooter({ text: 'Start battles with /pvp queue!' })
             .setTimestamp();
         
         await interaction.reply({ embeds: [embed] });
+    },
+
+    calculateBerryReward(difficulty) {
+        const rewards = {
+            'Easy': 500,
+            'Medium': 1000,
+            'Hard': 2000,
+            'Very Hard': 4000,
+            'Legendary': 7000,
+            'Mythical': 10000,
+            'Divine': 15000
+        };
+        
+        return rewards[difficulty] || 500;
     }
 };
 
-// Export battle data for interaction handlers
+// Export battle data for compatibility
 module.exports.activeBattles = activeBattles;
 module.exports.battleQueue = battleQueue;
 module.exports.battleCooldowns = battleCooldowns;
