@@ -1,13 +1,10 @@
-// src/commands/enhanced-pvp.js - Enhanced PvP Command with Integrated Balance System
-
-const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+// src/commands/enhanced-pvp.js - COMPLETE FILE
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const DatabaseManager = require('../database/manager');
-const NPCBossSystem = require('../systems/npc-bosses');
 const PvPBalanceSystem = require('../systems/pvp-balance');
-const { balancedDevilFruitAbilities, statusEffects, PvPDamageCalculator } = require('../data/balanced-devil-fruit-abilities');
-const { calculateBaseCPFromLevel, getRarityEmoji, getRarityColor } = require('../data/devil-fruits');
+const NPCBossSystem = require('../systems/npc-bosses');
 
-// Active battles and matchmaking queues
+// Simple battle tracking
 const activeBattles = new Map();
 const battleQueue = new Set();
 const battleCooldowns = new Map();
@@ -16,16 +13,6 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('pvp')
         .setDescription('⚔️ Devil Fruit PvP Battle System')
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('challenge')
-                .setDescription('Challenge another pirate to 3v3 Devil Fruit battle')
-                .addUserOption(option => 
-                    option.setName('opponent')
-                        .setDescription('The pirate you want to challenge')
-                        .setRequired(true)
-                )
-        )
         .addSubcommand(subcommand =>
             subcommand
                 .setName('queue')
@@ -67,9 +54,6 @@ module.exports = {
 
         try {
             switch (subcommand) {
-                case 'challenge':
-                    await this.handleChallenge(interaction);
-                    break;
                 case 'queue':
                     await this.handleQueue(interaction);
                     break;
@@ -108,127 +92,6 @@ module.exports = {
         }
     },
 
-    async handleChallenge(interaction) {
-        const challenger = interaction.user;
-        const opponent = interaction.options.getUser('opponent');
-
-        // Validation checks
-        if (challenger.id === opponent.id) {
-            return interaction.reply({
-                content: '⚔️ You cannot challenge yourself to battle!',
-                ephemeral: true
-            });
-        }
-
-        if (opponent.bot) {
-            return interaction.reply({
-                content: '⚔️ You cannot challenge bots to battle! Use `/pvp queue` to fight NPC bosses.',
-                ephemeral: true
-            });
-        }
-
-        // Check if both users have enough fruits using balance system
-        const challengerFighter = await PvPBalanceSystem.createPvPFighter(challenger.id);
-        const opponentFighter = await PvPBalanceSystem.createPvPFighter(opponent.id);
-
-        if (!challengerFighter) {
-            return interaction.reply({
-                content: `❌ You need at least 5 Devil Fruits to participate in PvP battles!\nUse \`/pull\` to get more fruits.`,
-                ephemeral: true
-            });
-        }
-
-        if (!opponentFighter) {
-            return interaction.reply({
-                content: `❌ ${opponent.username} needs at least 5 Devil Fruits to participate in battles!\nThey need to use \`/pull\` to get more fruits.`,
-                ephemeral: true
-            });
-        }
-
-        // Check cooldown
-        const cooldownKey = `${challenger.id}-${opponent.id}`;
-        const lastChallenge = battleCooldowns.get(cooldownKey);
-        if (lastChallenge && Date.now() - lastChallenge < 300000) { // 5 minute cooldown
-            const remaining = Math.ceil((300000 - (Date.now() - lastChallenge)) / 60000);
-            return interaction.reply({
-                content: `⏰ You must wait ${remaining} more minutes before challenging this user again.`,
-                ephemeral: true
-            });
-        }
-
-        // Balance validation using existing balance system
-        const balanceCheck = PvPBalanceSystem.validateFightBalance(challengerFighter, opponentFighter);
-        if (!balanceCheck.isBalanced) {
-            const embed = new EmbedBuilder()
-                .setColor(0xFF8000)
-                .setTitle('⚖️ Battle Balance Warning')
-                .setDescription(`⚠️ **Unbalanced Match Detected**\n${balanceCheck.issues.join('\n')}`)
-                .addFields([
-                    {
-                        name: '📊 Power Comparison',
-                        value: `**${challenger.username}**: ${challengerFighter.balancedCP.toLocaleString()} CP (${challengerFighter.maxHealth} HP)\n**${opponent.username}**: ${opponentFighter.balancedCP.toLocaleString()} CP (${opponentFighter.maxHealth} HP)\n**Balance Ratio**: ${balanceCheck.cpRatio.toFixed(1)}x`,
-                        inline: true
-                    },
-                    {
-                        name: '⚠️ Recommendation',
-                        value: balanceCheck.recommendation,
-                        inline: true
-                    }
-                ])
-                .setFooter({ text: 'Challenge may proceed but could be one-sided.' });
-
-            return interaction.reply({ embeds: [embed], ephemeral: true });
-        }
-
-        // Create battle challenge
-        const battleId = `challenge_${challenger.id}_${opponent.id}_${Date.now()}`;
-        const challengeEmbed = this.createChallengeEmbed(challengerFighter, opponentFighter);
-        
-        const buttons = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`pvp_accept_${battleId}`)
-                    .setLabel('Accept Challenge')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('⚔️'),
-                new ButtonBuilder()
-                    .setCustomId(`pvp_decline_${battleId}`)
-                    .setLabel('Decline')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌'),
-                new ButtonBuilder()
-                    .setCustomId(`pvp_preview_${battleId}`)
-                    .setLabel('Battle Preview')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('👁️')
-            );
-
-        // Store battle data with balanced fighters
-        activeBattles.set(battleId, {
-            type: 'challenge',
-            challengerId: challenger.id,
-            opponentId: opponent.id,
-            challengerFighter,
-            opponentFighter,
-            status: 'pending',
-            createdAt: Date.now()
-        });
-
-        // Set cooldown
-        battleCooldowns.set(cooldownKey, Date.now());
-
-        await interaction.reply({
-            content: `${opponent}, you have been challenged to a **3v3 Devil Fruit battle** by ${challenger}!`,
-            embeds: [challengeEmbed],
-            components: [buttons]
-        });
-
-        // Auto-cleanup after 5 minutes
-        setTimeout(() => {
-            activeBattles.delete(battleId);
-        }, 300000);
-    },
-
     async handleQueue(interaction) {
         const userId = interaction.user.id;
         const username = interaction.user.username;
@@ -262,20 +125,11 @@ module.exports = {
             });
         }
 
-        if (Array.from(activeBattles.values()).some(battle => 
-            battle.challengerId === userId || battle.opponentId === userId || 
-            (battle.player && battle.player.userId === userId))) {
-            return interaction.reply({
-                content: '⚔️ You are already in an active battle!',
-                ephemeral: true
-            });
-        }
-
         // Add to queue
         battleQueue.add(userId);
         console.log(`⚔️ ${username} joined the battle queue (${battleQueue.size} players in queue)`);
 
-        // Try to find a match
+        // Try to find a balanced match with another player
         const opponent = await this.findBalancedMatch(fighter);
         
         if (opponent) {
@@ -283,7 +137,7 @@ module.exports = {
             battleQueue.delete(userId);
             battleQueue.delete(opponent.userId);
             
-            // Start PvP battle
+            // Start PvP battle simulation
             await this.startPlayerVsPlayer(interaction, fighter, opponent);
         } else {
             // No player available, start balanced NPC battle
@@ -310,127 +164,136 @@ module.exports = {
     },
 
     async startPlayerVsPlayer(interaction, fighter1, fighter2) {
-        const battleId = `pvp_${fighter1.userId}_${fighter2.userId}_${Date.now()}`;
+        // Remove from queue
+        battleQueue.delete(fighter1.userId);
+        battleQueue.delete(fighter2.userId);
         
-        // Create battle data using balanced fighters
-        const battleData = {
-            battleId,
-            type: 'pvp',
-            player1: {
-                ...fighter1,
-                selectedFruits: [],
-                battleFruits: [],
-                hp: fighter1.maxHealth // Use balanced health from balance system
-            },
-            player2: {
-                ...fighter2,
-                selectedFruits: [],
-                battleFruits: [],
-                hp: fighter2.maxHealth // Use balanced health from balance system
-            },
-            phase: 'selection',
-            createdAt: Date.now()
-        };
+        // Set cooldowns
+        battleCooldowns.set(fighter1.userId, Date.now());
+        battleCooldowns.set(fighter2.userId, Date.now());
 
-        activeBattles.set(battleId, battleData);
+        await interaction.deferReply();
 
-        // Start fruit selection phase
-        await this.startFruitSelection(interaction, battleData);
+        try {
+            // Simulate the battle
+            const battleResult = await PvPBalanceSystem.simulateFight(fighter1, fighter2);
+            const resultEmbed = PvPBalanceSystem.createFightEmbed(battleResult);
+
+            // Add PvP specific info
+            resultEmbed.title = '⚔️ Balanced PvP Battle Result';
+            resultEmbed.fields.push({
+                name: '🎮 Battle Type',
+                value: 'Player vs Player (Balanced Matchmaking)',
+                inline: true
+            });
+
+            const content = `🎉 **PvP Battle Complete!** ${battleResult.winner.username} defeats ${battleResult.loser.username} in balanced combat!`;
+
+            await interaction.editReply({
+                content,
+                embeds: [resultEmbed]
+            });
+
+            console.log(`⚔️ PvP Battle: ${battleResult.winner.username} vs ${battleResult.loser.username} - Winner: ${battleResult.winner.username}`);
+
+        } catch (error) {
+            console.error('Error in PvP battle:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred during the PvP battle.',
+            });
+        }
     },
 
     async startPlayerVsNPC(interaction, playerFighter) {
-        // Get balanced NPC boss using existing balance system
+        // Get balanced NPC boss
         const npcBoss = NPCBossSystem.getBalancedBossForPlayer(playerFighter.balancedCP);
         
-        const battleId = `pve_${playerFighter.userId}_${Date.now()}`;
-        
-        // Create battle data
-        const battleData = {
-            battleId,
-            type: 'pve',
-            player: {
-                ...playerFighter,
-                selectedFruits: [],
-                battleFruits: [],
-                hp: playerFighter.maxHealth
-            },
-            npc: {
-                ...npcBoss,
-                selectedFruits: NPCBossSystem.selectFruitsForNPC(npcBoss),
-                battleFruits: [],
-                hp: PvPBalanceSystem.calculateHealthFromCP(npcBoss.totalCP, 'epic') // Use balance system for NPC health
-            },
-            phase: 'selection',
-            createdAt: Date.now()
-        };
-
-        activeBattles.set(battleId, battleData);
-
         // Remove from queue
         battleQueue.delete(playerFighter.userId);
         
-        // Start fruit selection phase
-        await this.startFruitSelection(interaction, battleData);
+        // Set cooldown
+        battleCooldowns.set(playerFighter.userId, Date.now());
+
+        await interaction.deferReply();
+
+        try {
+            // Create NPC fighter object for the battle system
+            const npcFighter = {
+                userId: 'npc',
+                username: 'Mysterious Opponent', // Don't reveal NPC name
+                level: npcBoss.level,
+                balancedCP: npcBoss.totalCP,
+                maxHealth: PvPBalanceSystem.calculateHealthFromCP(npcBoss.totalCP, 'epic'),
+                hp: PvPBalanceSystem.calculateHealthFromCP(npcBoss.totalCP, 'epic'),
+                fruits: [],
+                ability: {
+                    name: 'Unknown Technique',
+                    damage: 120,
+                    cooldown: 2,
+                    effect: null,
+                    accuracy: 85
+                },
+                effects: [],
+                abilityCooldown: 0
+            };
+
+            // Simulate the battle
+            const battleResult = await PvPBalanceSystem.simulateFight(playerFighter, npcFighter);
+            const resultEmbed = PvPBalanceSystem.createFightEmbed(battleResult);
+
+            // Customize embed for PvE
+            resultEmbed.title = '⚔️ PvE Battle Result';
+            resultEmbed.fields.push({
+                name: '🤖 Battle Type',
+                value: `Player vs Mysterious Opponent (${npcBoss.difficulty} Difficulty)`,
+                inline: true
+            });
+
+            // Award berries for victory
+            if (battleResult.winner.userId === playerFighter.userId) {
+                const berryReward = this.calculateBerryReward(npcBoss.difficulty);
+                await DatabaseManager.updateUserBerries(playerFighter.userId, berryReward, `PvE Victory`);
+                
+                resultEmbed.fields.push({
+                    name: '🎁 Victory Reward',
+                    value: `${berryReward.toLocaleString()} berries earned!`,
+                    inline: true
+                });
+
+                console.log(`🎁 ${playerFighter.username} earned ${berryReward} berries for PvE victory`);
+            }
+
+            const content = battleResult.winner.userId === playerFighter.userId 
+                ? `🎉 **Victory!** You defeated a mysterious opponent and earned berries!`
+                : `💀 **Defeat!** The mysterious opponent proved too strong this time. Try again!`;
+
+            await interaction.editReply({
+                content,
+                embeds: [resultEmbed]
+            });
+
+            console.log(`⚔️ PvE Battle: ${playerFighter.username} vs ${npcBoss.name} (${npcBoss.difficulty}) - Winner: ${battleResult.winner.username}`);
+
+        } catch (error) {
+            console.error('Error in PvE battle:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred during the PvE battle.',
+            });
+        }
     },
 
-    async startFruitSelection(interaction, battleData) {
-        const { battleId, type, player, player1, player2, npc } = battleData;
+    calculateBerryReward(difficulty) {
+        const rewards = {
+            'Easy': 500,
+            'Medium': 1000,
+            'Hard': 2000,
+            'Very Hard': 4000,
+            'Legendary': 7000,
+            'Mythical': 10000,
+            'Divine': 15000
+        };
         
-        // Create selection embed
-        const embed = new EmbedBuilder()
-            .setColor(0x3498DB)
-            .setTitle('🍈 3v3 Devil Fruit Selection Phase')
-            .setDescription('Each fighter must select 5 Devil Fruits for battle!')
-            .addFields([
-                {
-                    name: '⚔️ Battle Info',
-                    value: type === 'pvp' 
-                        ? `**${player1.username}** vs **${player2.username}**\n*Balanced Match: ${player1.balancedCP.toLocaleString()} vs ${player2.balancedCP.toLocaleString()} CP*`
-                        : `**${player.username}** vs **${npc.name}** (${npc.difficulty})\n*Balanced Match: ${player.balancedCP.toLocaleString()} vs ${npc.totalCP.toLocaleString()} CP*`,
-                    inline: false
-                },
-                {
-                    name: '📋 Selection Rules',
-                    value: [
-                        '• Each fighter selects 5 Devil Fruits',
-                        '• Bot will randomly ban 2 fruits from each side',
-                        '• Battle will be 3v3 with remaining fruits',
-                        '• Turn order decided by dice roll',
-                        '• Each fruit can only be used once',
-                        '• **Balanced PvP System Active**',
-                        '• You have 3 minutes to select'
-                    ].join('\n'),
-                    inline: false
-                }
-            ])
-            .setFooter({ text: 'Battle ID: ' + battleId + ' • Using Advanced Balance System' })
-            .setTimestamp();
-
-        // Create selection button
-        const selectButton = new ButtonBuilder()
-            .setCustomId(`enhanced_fruit_select_${battleId}`)
-            .setLabel('Select Your 5 Devil Fruits')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('🍈');
-
-        const row = new ActionRowBuilder().addComponents(selectButton);
-
-        const content = type === 'pvp' 
-            ? `${player1.username} and <@${player2.userId}>, your **balanced 3v3 battle** is starting!`
-            : `${player.username}, your balanced battle against **${npc.title}** is starting!`;
-
-        await interaction.reply({
-            content,
-            embeds: [embed],
-            components: [row]
-        });
-
-        // Set selection timeout (3 minutes)
-        setTimeout(() => {
-            if (activeBattles.has(battleId)) {
-                this.timeoutBattle(battleId, 'Selection timeout');
-            }
-        }, 180000);
+        return rewards[difficulty] || 500;
     },
 
     async handleQuickBattle(interaction) {
@@ -457,13 +320,27 @@ module.exports = {
 
         await interaction.deferReply();
 
-        // Use the existing balance system's simulation
-        const battleResult = await PvPBalanceSystem.simulateFight(fighter1, fighter2);
-        const resultEmbed = PvPBalanceSystem.createFightEmbed(battleResult);
+        try {
+            // Use the balance system's simulation
+            const battleResult = await PvPBalanceSystem.simulateFight(fighter1, fighter2);
+            const resultEmbed = PvPBalanceSystem.createFightEmbed(battleResult);
 
-        await interaction.editReply({
-            embeds: [resultEmbed]
-        });
+            resultEmbed.title = '⚔️ Quick Battle Simulation';
+            resultEmbed.fields.push({
+                name: '🎮 Battle Type',
+                value: 'Quick Simulation (No rewards)',
+                inline: true
+            });
+
+            await interaction.editReply({
+                embeds: [resultEmbed]
+            });
+        } catch (error) {
+            console.error('Error in quick battle:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred during the battle simulation.',
+            });
+        }
     },
 
     async handleStats(interaction) {
@@ -558,13 +435,13 @@ module.exports = {
             .setDescription('How the enhanced Devil Fruit PvP system maintains fair and exciting battles')
             .addFields([
                 {
-                    name: '🎯 3v3 Battle Format',
+                    name: '🎯 Battle Queue System',
                     value: [
-                        '**Selection**: Each player chooses 5 Devil Fruits',
-                        '**Bans**: Bot randomly bans 2 from each side',
-                        '**Battle**: 3v3 with remaining fruits',
-                        '**Usage**: Each fruit can only be used once',
-                        '**Turns**: Dice roll determines turn order'
+                        '**Matchmaking**: Finds balanced opponents automatically',
+                        '**PvE Fallback**: Fight mysterious opponents if no players available',
+                        '**Rewards**: Earn berries for PvE victories',
+                        '**Cooldown**: 5-minute cooldown between battles',
+                        '**Balance**: Advanced CP balancing ensures fairness'
                     ].join('\n'),
                     inline: false
                 },
@@ -580,23 +457,13 @@ module.exports = {
                     inline: false
                 },
                 {
-                    name: '🤖 NPC Boss System',
-                    value: [
-                        '• **25+ Authentic One Piece Bosses**',
-                        '• **Balanced Matchmaking**: Based on your balanced CP',
-                        '• **Smart AI**: Tactical fruit selection',
-                        '• **Rewards**: Berries for PvE victories (500-10,000)',
-                        '• **Difficulty Tiers**: Easy to Divine'
-                    ].join('\n'),
-                    inline: false
-                },
-                {
                     name: '🛡️ Balance Features',
                     value: [
                         '• **Automatic Balance Validation**: Prevents unfair matches',
                         '• **Smart Matchmaking**: Queue finds balanced opponents',
                         '• **Reduced Power Gaps**: Capped advantages for fairness',
                         '• **Health Scaling**: Based on level + average rarity',
+                        '• **Mystery Opponents**: NPC battles don\'t reveal opponent identity',
                         `• **Balance Status**: ${balanceReport.recommendedBalance}`
                     ].join('\n'),
                     inline: false
@@ -606,55 +473,6 @@ module.exports = {
             .setTimestamp();
         
         await interaction.reply({ embeds: [embed] });
-    },
-
-    createChallengeEmbed(challenger, opponent) {
-        return new EmbedBuilder()
-            .setColor(0xFF6B6B)
-            .setTitle('⚔️ Balanced 3v3 Devil Fruit Battle Challenge!')
-            .setDescription(`${challenger.username} challenges ${opponent.username} to a balanced 3v3 Devil Fruit battle!`)
-            .addFields([
-                {
-                    name: `🏴‍☠️ ${challenger.username}`,
-                    value: [
-                        `**Level**: ${challenger.level}`,
-                        `**Balanced CP**: ${challenger.balancedCP.toLocaleString()}`,
-                        `**Battle HP**: ${challenger.maxHealth}`,
-                        `**Fruits Available**: ${challenger.fruits?.length || 0}`
-                    ].join('\n'),
-                    inline: true
-                },
-                {
-                    name: `🏴‍☠️ ${opponent.username}`,
-                    value: [
-                        `**Level**: ${opponent.level}`,
-                        `**Balanced CP**: ${opponent.balancedCP.toLocaleString()}`,
-                        `**Battle HP**: ${opponent.maxHealth}`,
-                        `**Fruits Available**: ${opponent.fruits?.length || 0}`
-                    ].join('\n'),
-                    inline: true
-                },
-                {
-                    name: '⚔️ Balanced Battle Rules',
-                    value: [
-                        '• Each player selects 5 Devil Fruits',
-                        '• Bot randomly bans 2 from each side',
-                        '• 3v3 battle with remaining fruits',
-                        '• Turn-based: one fruit per turn',
-                        '• Dice roll determines turn order',
-                        '• **Advanced Balance System ensures fairness**',
-                        '• Victory by HP depletion or no fruits left'
-                    ].join('\n'),
-                    inline: false
-                }
-            ])
-            .setFooter({ text: 'Powered by Advanced PvP Balance System' })
-            .setTimestamp();
-    },
-
-    timeoutBattle(battleId, reason) {
-        console.log(`⏰ Battle timeout: ${battleId} - ${reason}`);
-        activeBattles.delete(battleId);
     }
 };
 
