@@ -792,4 +792,37 @@ module.exports = {
         const { winner, loser, turns, summary } = battleResult;
         
         return new EmbedBuilder()
-            .setColor(0x00
+            .setColor(0x00FF00)
+            .setTitle('⚔️ Quick Battle Simulation Results')
+            .setDescription(summary)
+            .addFields([
+                {
+                    name: '🏆 Winner',
+                    value: `**${winner.username}**\nLevel ${winner.level} • ${winner.battleCP.toLocaleString()} CP`,
+                    inline: true
+                },
+                {
+                    name: '💔 Loser',
+                    value: `**${loser.username}**\nLevel ${loser.level} • ${loser.battleCP.toLocaleString()} CP`,
+                    inline: true
+                },
+                {
+                    name: '📊 Battle Info',
+                    value: `**Duration**: ${turns} turns\n**Type**: Quick Simulation`,
+                    inline: true
+                }
+            ])
+            .setFooter({ text: 'Use /pvp challenge for a real 3v3 battle!' })
+            .setTimestamp();
+    },
+
+    timeoutBattle(battleId, reason) {
+        console.log(`⏰ Battle timeout: ${battleId} - ${reason}`);
+        activeBattles.delete(battleId);
+    }
+};
+
+// Export battle data for interaction handlers
+module.exports.activeBattles = activeBattles;
+module.exports.battleQueue = battleQueue;
+module.exports.battleCooldowns = battleCooldowns;
