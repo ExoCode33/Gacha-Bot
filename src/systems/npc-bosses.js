@@ -1,70 +1,4 @@
-getBalancedBossForPlayer(playerCP) {
-        // Use the same balance calculation as PvPBalanceSystem
-        // Find a boss within reasonable CP range (0.8x to 1.3x player balanced CP)
-        const minCP = Math.floor(playerCP * 0.8);
-        const maxCP = Math.floor(playerCP * 1.3);
-        
-        const suitableBosses = this.getBossesInCPRange(minCP, maxCP);
-        
-        if (suitableBosses.length === 0) {
-            // If no suitable boss found, return a boss closest to player CP
-            const allBosses = Object.values(this.bosses);
-            const closestBoss = allBosses.reduce((closest, boss) => {
-                const currentDiff = Math.abs(boss.totalCP - playerCP);
-                const closestDiff = Math.abs(closest.totalCP - playerCP);
-                return currentDiff < closestDiff ? boss : closest;
-            });
-            return { ...closestBoss, isNPC: true };
-        }
-        
-        // Return random suitable boss
-        const randomBoss = suitableBosses[Math.floor(Math.random() * suitableBosses.length)];
-        return randomBoss;
-    }
-
-    // Enhanced NPC AI that works with PvP balance system
-    selectBattleFruit(npcData, availableFruits, turn, enemyFruits, balancedCP) {
-        // Enhanced AI: considers CP scaling, turn number, and tactical advantages
-        const powerRatings = {
-            'divine': 8,
-            'omnipotent': 7,
-            'mythical': 6,
-            'legendary': 5,
-            'epic': 4,
-            'rare': 3,
-            'uncommon': 2,
-            'common': 1
-        };
-
-        // Score each available fruit
-        const scoredFruits = availableFruits.map(fruitName => {
-            const { getFruitByName } = require('../data/devil-fruits');
-            const fruit = getFruitByName(fruitName);
-            
-            let score = powerRatings[fruit?.rarity || 'common'];
-            
-            // Bonus for Logia types (harder to hit)
-            if (fruit?.type === 'Logia') score += 2;
-            
-            // Bonus for Mythical Zoan
-            if (fruit?.type === 'Mythical Zoan') score += 1.5;
-            
-            // Consider turn number (use stronger fruits later)
-            if (turn >= 3 && score >= 5) score += 1;
-            
-            // Consider balanced CP ratio for tactical decisions
-            const cpRatio = balancedCP / (enemyFruits.length * 1000); // Rough estimate
-            if (cpRatio < 1 && score >= 4) score += 0.5; // Use stronger fruits when behind
-            
-            // Random factor for unpredictability
-            score += Math.random() * 1.5;
-            
-            return { fruitName, score };
-        });
-
-        // Sort by score and pick the highest
-        scoredFruits.sort((a, b) => b.score - a.score);
-        // src/systems/npc-bosses.js - One Piece NPC Boss System
+// src/systems/npc-bosses.js - One Piece NPC Boss System
 const { getRarityEmoji } = require('../data/devil-fruits');
 
 class NPCBossSystem {
@@ -441,9 +375,10 @@ class NPCBossSystem {
     }
 
     getBalancedBossForPlayer(playerCP) {
-        // Find a boss within reasonable CP range (0.7x to 1.5x player CP)
-        const minCP = Math.floor(playerCP * 0.7);
-        const maxCP = Math.floor(playerCP * 1.5);
+        // Use the same balance calculation as PvPBalanceSystem
+        // Find a boss within reasonable CP range (0.8x to 1.3x player balanced CP)
+        const minCP = Math.floor(playerCP * 0.8);
+        const maxCP = Math.floor(playerCP * 1.3);
         
         const suitableBosses = this.getBossesInCPRange(minCP, maxCP);
         
@@ -506,10 +441,11 @@ class NPCBossSystem {
         return fruits.slice(0, 5);
     }
 
-    // NPC battle AI
-    selectBattleFruit(npcData, availableFruits, turn, enemyFruits) {
-        // Simple AI: prioritize type advantages and powerful fruits
+    // Enhanced NPC AI that works with PvP balance system
+    selectBattleFruit(npcData, availableFruits, turn, enemyFruits, balancedCP) {
+        // Enhanced AI: considers CP scaling, turn number, and tactical advantages
         const powerRatings = {
+            'divine': 8,
             'omnipotent': 7,
             'mythical': 6,
             'legendary': 5,
@@ -521,7 +457,6 @@ class NPCBossSystem {
 
         // Score each available fruit
         const scoredFruits = availableFruits.map(fruitName => {
-            // Get fruit data from devil fruits system
             const { getFruitByName } = require('../data/devil-fruits');
             const fruit = getFruitByName(fruitName);
             
@@ -533,8 +468,15 @@ class NPCBossSystem {
             // Bonus for Mythical Zoan
             if (fruit?.type === 'Mythical Zoan') score += 1.5;
             
+            // Consider turn number (use stronger fruits later)
+            if (turn >= 3 && score >= 5) score += 1;
+            
+            // Consider balanced CP ratio for tactical decisions
+            const cpRatio = balancedCP / (enemyFruits.length * 1000); // Rough estimate
+            if (cpRatio < 1 && score >= 4) score += 0.5; // Use stronger fruits when behind
+            
             // Random factor for unpredictability
-            score += Math.random() * 2;
+            score += Math.random() * 1.5;
             
             return { fruitName, score };
         });
