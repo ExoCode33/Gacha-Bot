@@ -1,8 +1,9 @@
-// src/commands/enhanced-pvp.js - Enhanced PvP Command with 3v3 System
+// src/commands/enhanced-pvp.js - Enhanced PvP Command with Integrated Balance System
 
 const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const NPCBossSystem = require('../systems/npc-bosses');
+const PvPBalanceSystem = require('../systems/pvp-balance');
 const { balancedDevilFruitAbilities, statusEffects, PvPDamageCalculator } = require('../data/balanced-devil-fruit-abilities');
 const { calculateBaseCPFromLevel, getRarityEmoji, getRarityColor } = require('../data/devil-fruits');
 
@@ -126,20 +127,20 @@ module.exports = {
             });
         }
 
-        // Check if both users have enough fruits
-        const challengerFruits = await DatabaseManager.getUserDevilFruits(challenger.id);
-        const opponentFruits = await DatabaseManager.getUserDevilFruits(opponent.id);
+        // Check if both users have enough fruits using balance system
+        const challengerFighter = await PvPBalanceSystem.createPvPFighter(challenger.id);
+        const opponentFighter = await PvPBalanceSystem.createPvPFighter(opponent.id);
 
-        if (!challengerFruits || challengerFruits.length < 5) {
+        if (!challengerFighter) {
             return interaction.reply({
-                content: `❌ You need at least 5 Devil Fruits to participate in PvP battles!\nYou currently have ${challengerFruits?.length || 0} fruits.`,
+                content: `❌ You need at least 5 Devil Fruits to participate in PvP battles!\nUse \`/pull\` to get more fruits.`,
                 ephemeral: true
             });
         }
 
-        if (!opponentFruits || opponentFruits.length < 5) {
+        if (!opponentFighter) {
             return interaction.reply({
-                content: `❌ ${opponent.username} needs at least 5 Devil Fruits to participate in battles!\nThey currently have ${opponentFruits?.length || 0} fruits.`,
+                content: `❌ ${opponent.username} needs at least 5 Devil Fruits to participate in battles!\nThey need to use \`/pull\` to get more fruits.`,
                 ephemeral: true
             });
         }
@@ -155,28 +156,17 @@ module.exports = {
             });
         }
 
-        // Create battle fighters
-        const challengerFighter = await this.createBattleFighter(challenger.id);
-        const opponentFighter = await this.createBattleFighter(opponent.id);
-
-        if (!challengerFighter || !opponentFighter) {
-            return interaction.reply({
-                content: '❌ Error creating battle fighters. Please try again.',
-                ephemeral: true
-            });
-        }
-
-        // Balance check
-        const balanceCheck = this.validateBattleBalance(challengerFighter, opponentFighter);
+        // Balance validation using existing balance system
+        const balanceCheck = PvPBalanceSystem.validateFightBalance(challengerFighter, opponentFighter);
         if (!balanceCheck.isBalanced) {
             const embed = new EmbedBuilder()
                 .setColor(0xFF8000)
                 .setTitle('⚖️ Battle Balance Warning')
-                .setDescription(balanceCheck.reason)
+                .setDescription(`⚠️ **Unbalanced Match Detected**\n${balanceCheck.issues.join('\n')}`)
                 .addFields([
                     {
                         name: '📊 Power Comparison',
-                        value: `**${challenger.username}**: ${challengerFighter.battleCP.toLocaleString()} CP\n**${opponent.username}**: ${opponentFighter.battleCP.toLocaleString()} CP\n**Ratio**: ${balanceCheck.ratio.toFixed(1)}x`,
+                        value: `**${challenger.username}**: ${challengerFighter.balancedCP.toLocaleString()} CP (${challengerFighter.maxHealth} HP)\n**${opponent.username}**: ${opponentFighter.balancedCP.toLocaleString()} CP (${opponentFighter.maxHealth} HP)\n**Balance Ratio**: ${balanceCheck.cpRatio.toFixed(1)}x`,
                         inline: true
                     },
                     {
@@ -185,13 +175,13 @@ module.exports = {
                         inline: true
                     }
                 ])
-                .setFooter({ text: 'Challenge may proceed but results could be one-sided.' });
+                .setFooter({ text: 'Challenge may proceed but could be one-sided.' });
 
             return interaction.reply({ embeds: [embed], ephemeral: true });
         }
 
         // Create battle challenge
-        const battleId = `${challenger.id}-${opponent.id}-${Date.now()}`;
+        const battleId = `challenge_${challenger.id}_${opponent.id}_${Date.now()}`;
         const challengeEmbed = this.createChallengeEmbed(challengerFighter, opponentFighter);
         
         const buttons = new ActionRowBuilder()
@@ -208,14 +198,14 @@ module.exports = {
                     .setEmoji('❌'),
                 new ButtonBuilder()
                     .setCustomId(`pvp_preview_${battleId}`)
-                    .setLabel('Preview Battle')
+                    .setLabel('Battle Preview')
                     .setStyle(ButtonStyle.Secondary)
                     .setEmoji('👁️')
             );
 
-        // Store battle data
+        // Store battle data with balanced fighters
         activeBattles.set(battleId, {
-            type: 'pvp',
+            type: 'challenge',
             challengerId: challenger.id,
             opponentId: opponent.id,
             challengerFighter,
@@ -228,7 +218,7 @@ module.exports = {
         battleCooldowns.set(cooldownKey, Date.now());
 
         await interaction.reply({
-            content: `${opponent}, you have been challenged to a 3v3 Devil Fruit battle by ${challenger}!`,
+            content: `${opponent}, you have been challenged to a **3v3 Devil Fruit battle** by ${challenger}!`,
             embeds: [challengeEmbed],
             components: [buttons]
         });
@@ -243,11 +233,11 @@ module.exports = {
         const userId = interaction.user.id;
         const username = interaction.user.username;
 
-        // Check if user has enough Devil Fruits
-        await DatabaseManager.ensureUser(userId, username, interaction.guild?.id);
-        const userFruits = await DatabaseManager.getUserDevilFruits(userId);
+        // Create PvP fighter using balance system
+        const fighter = await PvPBalanceSystem.createPvPFighter(userId);
         
-        if (!userFruits || userFruits.length < 5) {
+        if (!fighter) {
+            const userFruits = await DatabaseManager.getUserDevilFruits(userId);
             return interaction.reply({
                 content: `❌ You need at least 5 Devil Fruits to participate in PvP battles!\nYou currently have ${userFruits?.length || 0} fruits. Use \`/pull\` to get more fruits.`,
                 ephemeral: true
@@ -272,7 +262,9 @@ module.exports = {
             });
         }
 
-        if (activeBattles.has(userId)) {
+        if (Array.from(activeBattles.values()).some(battle => 
+            battle.challengerId === userId || battle.opponentId === userId || 
+            (battle.player && battle.player.userId === userId))) {
             return interaction.reply({
                 content: '⚔️ You are already in an active battle!',
                 ephemeral: true
@@ -284,7 +276,7 @@ module.exports = {
         console.log(`⚔️ ${username} joined the battle queue (${battleQueue.size} players in queue)`);
 
         // Try to find a match
-        const opponent = await this.findMatch(userId);
+        const opponent = await this.findBalancedMatch(fighter);
         
         if (opponent) {
             // Remove both players from queue
@@ -292,65 +284,49 @@ module.exports = {
             battleQueue.delete(opponent.userId);
             
             // Start PvP battle
-            await this.startPlayerVsPlayer(interaction, userId, opponent);
+            await this.startPlayerVsPlayer(interaction, fighter, opponent);
         } else {
-            // No player available, start NPC battle
-            await this.startPlayerVsNPC(interaction, userId);
+            // No player available, start balanced NPC battle
+            await this.startPlayerVsNPC(interaction, fighter);
         }
     },
 
-    async findMatch(userId) {
-        // Look for another player in queue (excluding the current user)
+    async findBalancedMatch(playerFighter) {
+        // Look for another player in queue with balanced CP
         for (const queuedUserId of battleQueue) {
-            if (queuedUserId !== userId) {
-                // Get user data for balance check
-                const user = await DatabaseManager.getUser(queuedUserId);
-                const userFruits = await DatabaseManager.getUserDevilFruits(queuedUserId);
+            if (queuedUserId !== playerFighter.userId) {
+                const opponentFighter = await PvPBalanceSystem.createPvPFighter(queuedUserId);
                 
-                if (user && userFruits && userFruits.length >= 5) {
-                    return {
-                        userId: queuedUserId,
-                        username: user.username,
-                        level: user.level,
-                        totalCP: user.total_cp,
-                        fruits: userFruits
-                    };
+                if (opponentFighter) {
+                    // Check if match is balanced
+                    const balanceCheck = PvPBalanceSystem.validateFightBalance(playerFighter, opponentFighter);
+                    if (balanceCheck.isBalanced) {
+                        return opponentFighter;
+                    }
                 }
             }
         }
         return null;
     },
 
-    async startPlayerVsPlayer(interaction, player1Id, player2) {
-        const player1 = await DatabaseManager.getUser(player1Id);
-        const player1Fruits = await DatabaseManager.getUserDevilFruits(player1Id);
-        const player2Fruits = await DatabaseManager.getUserDevilFruits(player2.userId);
-
-        const battleId = `pvp_${player1Id}_${player2.userId}_${Date.now()}`;
+    async startPlayerVsPlayer(interaction, fighter1, fighter2) {
+        const battleId = `pvp_${fighter1.userId}_${fighter2.userId}_${Date.now()}`;
         
-        // Create battle data
+        // Create battle data using balanced fighters
         const battleData = {
             battleId,
             type: 'pvp',
             player1: {
-                userId: player1Id,
-                username: player1.username,
-                level: player1.level,
-                totalCP: player1.total_cp,
-                fruits: player1Fruits,
+                ...fighter1,
                 selectedFruits: [],
                 battleFruits: [],
-                hp: this.calculateHP(player1.total_cp)
+                hp: fighter1.maxHealth // Use balanced health from balance system
             },
             player2: {
-                userId: player2.userId,
-                username: player2.username,
-                level: player2.level,
-                totalCP: player2.totalCP,
-                fruits: player2Fruits,
+                ...fighter2,
                 selectedFruits: [],
                 battleFruits: [],
-                hp: this.calculateHP(player2.totalCP)
+                hp: fighter2.maxHealth // Use balanced health from balance system
             },
             phase: 'selection',
             createdAt: Date.now()
@@ -362,34 +338,27 @@ module.exports = {
         await this.startFruitSelection(interaction, battleData);
     },
 
-    async startPlayerVsNPC(interaction, userId) {
-        const user = await DatabaseManager.getUser(userId);
-        const userFruits = await DatabaseManager.getUserDevilFruits(userId);
+    async startPlayerVsNPC(interaction, playerFighter) {
+        // Get balanced NPC boss using existing balance system
+        const npcBoss = NPCBossSystem.getBalancedBossForPlayer(playerFighter.balancedCP);
         
-        // Get balanced NPC boss
-        const npcBoss = NPCBossSystem.getBalancedBossForPlayer(user.total_cp);
-        
-        const battleId = `pve_${userId}_${Date.now()}`;
+        const battleId = `pve_${playerFighter.userId}_${Date.now()}`;
         
         // Create battle data
         const battleData = {
             battleId,
             type: 'pve',
             player: {
-                userId: userId,
-                username: user.username,
-                level: user.level,
-                totalCP: user.total_cp,
-                fruits: userFruits,
+                ...playerFighter,
                 selectedFruits: [],
                 battleFruits: [],
-                hp: this.calculateHP(user.total_cp)
+                hp: playerFighter.maxHealth
             },
             npc: {
                 ...npcBoss,
                 selectedFruits: NPCBossSystem.selectFruitsForNPC(npcBoss),
                 battleFruits: [],
-                hp: this.calculateHP(npcBoss.totalCP)
+                hp: PvPBalanceSystem.calculateHealthFromCP(npcBoss.totalCP, 'epic') // Use balance system for NPC health
             },
             phase: 'selection',
             createdAt: Date.now()
@@ -398,7 +367,7 @@ module.exports = {
         activeBattles.set(battleId, battleData);
 
         // Remove from queue
-        battleQueue.delete(userId);
+        battleQueue.delete(playerFighter.userId);
         
         // Start fruit selection phase
         await this.startFruitSelection(interaction, battleData);
@@ -416,8 +385,8 @@ module.exports = {
                 {
                     name: '⚔️ Battle Info',
                     value: type === 'pvp' 
-                        ? `**${player1.username}** vs **${player2.username}**`
-                        : `**${player.username}** vs **${npc.name}** (${npc.difficulty})`,
+                        ? `**${player1.username}** vs **${player2.username}**\n*Balanced Match: ${player1.balancedCP.toLocaleString()} vs ${player2.balancedCP.toLocaleString()} CP*`
+                        : `**${player.username}** vs **${npc.name}** (${npc.difficulty})\n*Balanced Match: ${player.balancedCP.toLocaleString()} vs ${npc.totalCP.toLocaleString()} CP*`,
                     inline: false
                 },
                 {
@@ -428,17 +397,18 @@ module.exports = {
                         '• Battle will be 3v3 with remaining fruits',
                         '• Turn order decided by dice roll',
                         '• Each fruit can only be used once',
+                        '• **Balanced PvP System Active**',
                         '• You have 3 minutes to select'
                     ].join('\n'),
                     inline: false
                 }
             ])
-            .setFooter({ text: 'Battle ID: ' + battleId })
+            .setFooter({ text: 'Battle ID: ' + battleId + ' • Using Advanced Balance System' })
             .setTimestamp();
 
         // Create selection button
         const selectButton = new ButtonBuilder()
-            .setCustomId(`fruit_select_${battleId}`)
+            .setCustomId(`enhanced_fruit_select_${battleId}`)
             .setLabel('Select Your 5 Devil Fruits')
             .setStyle(ButtonStyle.Primary)
             .setEmoji('🍈');
@@ -446,8 +416,8 @@ module.exports = {
         const row = new ActionRowBuilder().addComponents(selectButton);
 
         const content = type === 'pvp' 
-            ? `${player1.username} and <@${player2.userId}>, your 3v3 battle is starting!`
-            : `${player.username}, your battle against ${npc.title} is starting!`;
+            ? `${player1.username} and <@${player2.userId}>, your **balanced 3v3 battle** is starting!`
+            : `${player.username}, your balanced battle against **${npc.title}** is starting!`;
 
         await interaction.reply({
             content,
@@ -463,13 +433,6 @@ module.exports = {
         }, 180000);
     },
 
-    // Calculate HP based on total CP
-    calculateHP(totalCP) {
-        const baseHP = 300;
-        const cpBonus = Math.floor(totalCP * 0.05); // 5% of CP as bonus HP
-        return baseHP + cpBonus;
-    },
-
     async handleQuickBattle(interaction) {
         const user1 = interaction.user;
         const user2 = interaction.options.getUser('opponent');
@@ -481,21 +444,22 @@ module.exports = {
             });
         }
 
-        const fighter1 = await this.createBattleFighter(user1.id);
-        const fighter2 = await this.createBattleFighter(user2.id);
+        // Use balance system for quick battle
+        const fighter1 = await PvPBalanceSystem.createPvPFighter(user1.id);
+        const fighter2 = await PvPBalanceSystem.createPvPFighter(user2.id);
 
         if (!fighter1 || !fighter2) {
             return interaction.reply({
-                content: '❌ Both users need to have Devil Fruits to simulate a battle!',
+                content: '❌ Both users need at least 5 Devil Fruits to simulate a battle!',
                 ephemeral: true
             });
         }
 
         await interaction.deferReply();
 
-        // Simulate the battle
-        const battleResult = await this.simulateBattle(fighter1, fighter2);
-        const resultEmbed = this.createBattleResultEmbed(battleResult);
+        // Use the existing balance system's simulation
+        const battleResult = await PvPBalanceSystem.simulateFight(fighter1, fighter2);
+        const resultEmbed = PvPBalanceSystem.createFightEmbed(battleResult);
 
         await interaction.editReply({
             embeds: [resultEmbed]
@@ -504,52 +468,54 @@ module.exports = {
 
     async handleStats(interaction) {
         const targetUser = interaction.options.getUser('user') || interaction.user;
-        const fighter = await this.createBattleFighter(targetUser.id);
+        
+        // Use balance system for stats
+        const fighter = await PvPBalanceSystem.createPvPFighter(targetUser.id);
         
         if (!fighter) {
             return interaction.reply({
-                content: '❌ This user hasn\'t started their pirate journey yet!',
+                content: '❌ This user hasn\'t started their pirate journey yet or needs more Devil Fruits!',
                 ephemeral: true
             });
         }
         
         const embed = new EmbedBuilder()
             .setColor(0x3498DB)
-            .setTitle(`⚔️ ${targetUser.username}'s Battle Stats`)
+            .setTitle(`⚔️ ${targetUser.username}'s Balanced PvP Stats`)
             .addFields([
                 {
                     name: '🏴‍☠️ Fighter Info',
                     value: [
                         `**Level**: ${fighter.level}`,
-                        `**Battle CP**: ${fighter.battleCP.toLocaleString()}`,
+                        `**Balanced CP**: ${fighter.balancedCP.toLocaleString()}`,
                         `**Battle HP**: ${fighter.maxHealth}`,
-                        `**Total Fruits**: ${fighter.fruits.length}`,
-                        `**Battle Ready**: ${fighter.fruits.length >= 5 ? '✅ Yes' : '❌ Need more fruits'}`
+                        `**Original CP**: ${fighter.originalCP?.toLocaleString() || 'N/A'}`,
+                        `**Total Fruits**: ${fighter.fruits?.length || 0}`,
+                        `**Battle Ready**: ${(fighter.fruits?.length || 0) >= 5 ? '✅ Yes' : '❌ Need more fruits'}`
                     ].join('\n'),
                     inline: true
                 },
                 {
-                    name: '🍈 Strongest Fruits',
-                    value: fighter.fruits
-                        .sort((a, b) => b.base_cp - a.base_cp)
-                        .slice(0, 5)
-                        .map(f => `• ${f.fruit_name} (${(f.base_cp/100).toFixed(1)}x)`)
-                        .join('\n') || 'No fruits',
-                    inline: true
-                },
-                {
-                    name: '📊 Battle Requirements',
+                    name: '⚖️ Balance Info',
                     value: [
-                        `**Minimum Fruits**: 5 (You have ${fighter.fruits.length})`,
-                        `**Battle Format**: 3v3 Devil Fruit Battle`,
-                        `**Selection Phase**: Choose 5, bot bans 2`,
-                        `**Turn-Based**: One fruit per turn`
+                        `**Balance Ratio**: ${fighter.originalCP ? (fighter.balancedCP / fighter.originalCP * 100).toFixed(1) + '%' : 'N/A'}`,
+                        `**Health Scaling**: Based on level + rarity`,
+                        `**CP Scaling**: Balanced for fair PvP`,
+                        `**Max Level Advantage**: 3x (reduced from 6x)`,
+                        `**Max Rarity Advantage**: 4x (reduced from 12x)`
                     ].join('\n'),
+                    inline: true
+                },
+                {
+                    name: '🍈 Primary Battle Fruit',
+                    value: fighter.strongestFruit ? 
+                        `**${fighter.strongestFruit.fruit_name}**\n${fighter.ability?.name || 'Unknown Ability'}\n${fighter.ability?.damage || 0} damage • ${fighter.ability?.cooldown || 0} cooldown` :
+                        'No fruits available',
                     inline: false
                 }
             ])
             .setThumbnail(targetUser.displayAvatarURL())
-            .setFooter({ text: 'Use /pvp queue to enter battle!' })
+            .setFooter({ text: 'Stats calculated using Advanced Balance System' })
             .setTimestamp();
         
         await interaction.reply({ embeds: [embed] });
@@ -584,9 +550,11 @@ module.exports = {
     },
 
     async handleBalance(interaction) {
+        const balanceReport = PvPBalanceSystem.getBalanceReport();
+        
         const embed = new EmbedBuilder()
             .setColor(0x2ECC71)
-            .setTitle('⚖️ 3v3 PvP Balance System')
+            .setTitle('⚖️ Advanced PvP Balance System')
             .setDescription('How the enhanced Devil Fruit PvP system maintains fair and exciting battles')
             .addFields([
                 {
@@ -601,13 +569,13 @@ module.exports = {
                     inline: false
                 },
                 {
-                    name: '⚔️ Battle Mechanics',
+                    name: '⚖️ Balance Scaling',
                     value: [
-                        '• **HP System**: 300 base + 5% of total CP',
-                        '• **Damage**: Based on fruit abilities + CP scaling',
-                        '• **Status Effects**: Poison, freeze, shields, etc.',
-                        '• **Turn Limit**: 15 turns maximum',
-                        '• **Victory**: HP depletion or no fruits left'
+                        `• **Max Level Advantage**: ${balanceReport.maxLevelAdvantage}`,
+                        `• **Max Rarity Advantage**: ${balanceReport.maxRarityAdvantage}`,
+                        `• **Turn 1 Damage Reduction**: ${balanceReport.turn1DamageReduction}`,
+                        `• **Max Fight Duration**: ${balanceReport.maxFightDuration}`,
+                        `• **CP Impact Reduction**: ${balanceReport.cpImpactReduction}`
                     ].join('\n'),
                     inline: false
                 },
@@ -615,9 +583,9 @@ module.exports = {
                     name: '🤖 NPC Boss System',
                     value: [
                         '• **25+ Authentic One Piece Bosses**',
-                        '• **Balanced Matchmaking**: Based on your CP',
+                        '• **Balanced Matchmaking**: Based on your balanced CP',
                         '• **Smart AI**: Tactical fruit selection',
-                        '• **Rewards**: Berries for PvE victories',
+                        '• **Rewards**: Berries for PvE victories (500-10,000)',
                         '• **Difficulty Tiers**: Easy to Divine'
                     ].join('\n'),
                     inline: false
@@ -625,122 +593,34 @@ module.exports = {
                 {
                     name: '🛡️ Balance Features',
                     value: [
-                        '• **CP-Based HP**: Stronger players have more health',
-                        '• **Random Bans**: Prevents overpowered strategies',
-                        '• **Turn Order**: Dice roll for fairness',
-                        '• **Cooldowns**: 5-minute battle cooldown',
-                        '• **Timeouts**: Auto-end inactive battles'
+                        '• **Automatic Balance Validation**: Prevents unfair matches',
+                        '• **Smart Matchmaking**: Queue finds balanced opponents',
+                        '• **Reduced Power Gaps**: Capped advantages for fairness',
+                        '• **Health Scaling**: Based on level + average rarity',
+                        `• **Balance Status**: ${balanceReport.recommendedBalance}`
                     ].join('\n'),
                     inline: false
                 }
             ])
-            .setFooter({ text: 'Join the battle with /pvp queue!' })
+            .setFooter({ text: 'Join balanced battles with /pvp queue!' })
             .setTimestamp();
         
         await interaction.reply({ embeds: [embed] });
     },
 
-    // Helper methods from original system
-    async createBattleFighter(userId) {
-        try {
-            const user = await DatabaseManager.getUser(userId);
-            if (!user) return null;
-
-            const fruits = await DatabaseManager.getUserDevilFruits(userId);
-            if (!fruits || fruits.length === 0) return null;
-
-            // Find strongest fruit for battle ability
-            const strongestFruit = fruits.reduce((max, fruit) => 
-                fruit.base_cp > (max?.base_cp || 0) ? fruit : max, null);
-
-            // Get ability for the strongest fruit
-            const ability = balancedDevilFruitAbilities[strongestFruit.fruit_name] || {
-                name: "Basic Attack",
-                damage: 50 + (user.level * 2),
-                cooldown: 1,
-                effect: null,
-                accuracy: 85,
-                type: "physical"
-            };
-
-            // Calculate balanced battle CP
-            const baseCP = calculateBaseCPFromLevel(user.level);
-            const totalCP = user.total_cp || baseCP;
-            
-            // Apply PvP balancing (70% of fruit power for balance)
-            const battleCP = Math.floor(baseCP + (totalCP - baseCP) * 0.7);
-            
-            // Calculate health
-            const health = this.calculateHP(totalCP);
-
-            return {
-                userId: user.user_id,
-                username: user.username,
-                level: user.level,
-                battleCP: battleCP,
-                originalCP: totalCP,
-                maxHealth: health,
-                currentHealth: health,
-                ability: ability,
-                strongestFruit: strongestFruit,
-                fruits: fruits,
-                statusEffects: [],
-                abilityCooldown: 0
-            };
-
-        } catch (error) {
-            console.error('Error creating battle fighter:', error);
-            return null;
-        }
-    },
-
-    validateBattleBalance(fighter1, fighter2) {
-        const cpRatio = Math.max(fighter1.battleCP / fighter2.battleCP, fighter2.battleCP / fighter1.battleCP);
-        const levelDiff = Math.abs(fighter1.level - fighter2.level);
-        const healthRatio = Math.max(fighter1.maxHealth / fighter2.maxHealth, fighter2.maxHealth / fighter1.maxHealth);
-
-        let issues = [];
-        
-        if (cpRatio > 3.0) {
-            issues.push(`Extreme CP difference: ${cpRatio.toFixed(1)}x`);
-        }
-        
-        if (levelDiff > 25) {
-            issues.push(`Large level gap: ${levelDiff} levels`);
-        }
-        
-        if (healthRatio > 2.5) {
-            issues.push(`Health imbalance: ${healthRatio.toFixed(1)}x`);
-        }
-
-        const isBalanced = issues.length === 0 && cpRatio <= 2.0 && levelDiff <= 15;
-
-        return {
-            isBalanced,
-            ratio: cpRatio,
-            levelDiff,
-            healthRatio,
-            issues,
-            reason: issues.length > 0 ? issues.join(', ') : 'Battle is well balanced',
-            recommendation: isBalanced ? 
-                'This should be a fair and exciting battle!' : 
-                'Consider more evenly matched opponents for better balance.'
-        };
-    },
-
     createChallengeEmbed(challenger, opponent) {
         return new EmbedBuilder()
             .setColor(0xFF6B6B)
-            .setTitle('⚔️ 3v3 Devil Fruit Battle Challenge!')
-            .setDescription(`${challenger.username} challenges ${opponent.username} to a 3v3 Devil Fruit battle!`)
+            .setTitle('⚔️ Balanced 3v3 Devil Fruit Battle Challenge!')
+            .setDescription(`${challenger.username} challenges ${opponent.username} to a balanced 3v3 Devil Fruit battle!`)
             .addFields([
                 {
                     name: `🏴‍☠️ ${challenger.username}`,
                     value: [
                         `**Level**: ${challenger.level}`,
-                        `**Battle CP**: ${challenger.battleCP.toLocaleString()}`,
+                        `**Balanced CP**: ${challenger.balancedCP.toLocaleString()}`,
                         `**Battle HP**: ${challenger.maxHealth}`,
-                        `**Fruits Available**: ${challenger.fruits.length}`
+                        `**Fruits Available**: ${challenger.fruits?.length || 0}`
                     ].join('\n'),
                     inline: true
                 },
@@ -748,71 +628,27 @@ module.exports = {
                     name: `🏴‍☠️ ${opponent.username}`,
                     value: [
                         `**Level**: ${opponent.level}`,
-                        `**Battle CP**: ${opponent.battleCP.toLocaleString()}`,
+                        `**Balanced CP**: ${opponent.balancedCP.toLocaleString()}`,
                         `**Battle HP**: ${opponent.maxHealth}`,
-                        `**Fruits Available**: ${opponent.fruits.length}`
+                        `**Fruits Available**: ${opponent.fruits?.length || 0}`
                     ].join('\n'),
                     inline: true
                 },
                 {
-                    name: '⚔️ Battle Rules',
+                    name: '⚔️ Balanced Battle Rules',
                     value: [
                         '• Each player selects 5 Devil Fruits',
                         '• Bot randomly bans 2 from each side',
                         '• 3v3 battle with remaining fruits',
                         '• Turn-based: one fruit per turn',
                         '• Dice roll determines turn order',
+                        '• **Advanced Balance System ensures fairness**',
                         '• Victory by HP depletion or no fruits left'
                     ].join('\n'),
                     inline: false
                 }
             ])
-            .setTimestamp();
-    },
-
-    // Quick battle simulation (simplified for now)
-    async simulateBattle(fighter1, fighter2) {
-        // Simplified simulation - can be enhanced later
-        const healthRatio = fighter1.maxHealth / fighter2.maxHealth;
-        const cpRatio = fighter1.battleCP / fighter2.battleCP;
-        const combinedRatio = (healthRatio + cpRatio) / 2;
-        
-        const winner = combinedRatio > 1 ? fighter1 : fighter2;
-        const loser = winner === fighter1 ? fighter2 : fighter1;
-        
-        return {
-            winner,
-            loser,
-            turns: Math.floor(Math.random() * 10) + 5,
-            summary: `${winner.username} wins after ${Math.floor(Math.random() * 10) + 5} turns!`
-        };
-    },
-
-    createBattleResultEmbed(battleResult) {
-        const { winner, loser, turns, summary } = battleResult;
-        
-        return new EmbedBuilder()
-            .setColor(0x00FF00)
-            .setTitle('⚔️ Quick Battle Simulation Results')
-            .setDescription(summary)
-            .addFields([
-                {
-                    name: '🏆 Winner',
-                    value: `**${winner.username}**\nLevel ${winner.level} • ${winner.battleCP.toLocaleString()} CP`,
-                    inline: true
-                },
-                {
-                    name: '💔 Loser',
-                    value: `**${loser.username}**\nLevel ${loser.level} • ${loser.battleCP.toLocaleString()} CP`,
-                    inline: true
-                },
-                {
-                    name: '📊 Battle Info',
-                    value: `**Duration**: ${turns} turns\n**Type**: Quick Simulation`,
-                    inline: true
-                }
-            ])
-            .setFooter({ text: 'Use /pvp challenge for a real 3v3 battle!' })
+            .setFooter({ text: 'Powered by Advanced PvP Balance System' })
             .setTimestamp();
     },
 
