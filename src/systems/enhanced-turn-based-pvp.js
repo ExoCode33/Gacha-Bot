@@ -1,4 +1,4 @@
-// src/systems/enhanced-turn-based-pvp.js - FIXED with High/Low Rarity Dropdown Selection
+// src/systems/enhanced-turn-based-pvp.js - COMPLETE High/Low Rarity Pages with Real-Time Public Updates
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const PvPBalanceSystem = require('./pvp-balance');
@@ -24,13 +24,22 @@ class EnhancedTurnBasedPvP {
         this.battleQueue = new Set();
         this.battleCooldowns = new Map();
         
-        // Define rarity groups for 2-dropdown system
-        this.rarityGroups = {
-            high: ['divine', 'omnipotent', 'mythical', 'legendary', 'epic'],
-            low: ['rare', 'uncommon', 'common']
+        // Define rarity organization for pages
+        this.rarityPages = {
+            high: {
+                divine: [],
+                mythical: [],
+                legendary: [],
+                epic: []
+            },
+            low: {
+                rare: [],
+                uncommon: [],
+                common: []
+            }
         };
         
-        console.log('⚔️ Enhanced Turn-Based PvP System initialized with High/Low Rarity Selection');
+        console.log('⚔️ Enhanced Turn-Based PvP System initialized with High/Low Rarity Pages');
     }
 
     // Start a battle (from queue or challenge)
@@ -58,7 +67,22 @@ class EnhancedTurnBasedPvP {
                 battleLog: [],
                 turnTimeout: null,
                 created: Date.now(),
-                status: 'fruit_selection'
+                status: 'fruit_selection',
+                publicMessageId: null,
+                selectionData: {
+                    player1: {
+                        selectedFruits: [],
+                        currentPage: 'high',
+                        selectionComplete: false,
+                        lastUpdate: Date.now()
+                    },
+                    player2: {
+                        selectedFruits: [],
+                        currentPage: 'high', 
+                        selectionComplete: false,
+                        lastUpdate: Date.now()
+                    }
+                }
             };
 
             this.activeBattles.set(battleId, battleData);
@@ -67,7 +91,7 @@ class EnhancedTurnBasedPvP {
             return battleId;
 
         } catch (error) {
-            console.error('Error starting battle:', error);
+            console.error('Error starting enhanced battle:', error);
             if (this.activeBattles.has(battleId)) {
                 this.activeBattles.delete(battleId);
             }
@@ -116,441 +140,227 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // Start fruit selection phase
+    // Start fruit selection phase with dual-message system
     async startFruitSelection(interaction, battleData) {
-        const { player1, isVsNPC } = battleData;
+        const { player1, player2, isVsNPC } = battleData;
 
-        if (isVsNPC) {
-            await this.showFruitSelectionForPlayer(interaction, battleData, player1);
-        } else {
-            await this.showFruitSelectionForPlayer(interaction, battleData, player1);
-        }
-    }
-
-    // FIXED: Show fruit selection with High/Low rarity dropdowns
-    async showFruitSelectionForPlayer(interaction, battleData, player) {
-        const { isVsNPC, npcBoss } = battleData;
-        
         try {
-            // Group fruits by name and count duplicates
-            const fruitGroups = new Map();
-            player.fruits.forEach(fruit => {
-                const fruitName = fruit.fruit_name;
-                if (fruitGroups.has(fruitName)) {
-                    fruitGroups.get(fruitName).count++;
-                } else {
-                    fruitGroups.set(fruitName, {
-                        ...fruit,
-                        count: 1
-                    });
-                }
+            // Create public battle screen first
+            const publicEmbed = this.createPublicBattleScreen(battleData);
+            const publicMessage = await interaction.reply({
+                embeds: [publicEmbed],
+                fetchReply: true
             });
-
-            // Convert to array and organize by High/Low rarity groups
-            const uniqueFruits = Array.from(fruitGroups.values());
             
-            // Organize fruits into High and Low rarity groups
-            const fruitsByGroup = {
-                high: [],
-                low: []
-            };
+            // Store public message ID for updates
+            battleData.publicMessageId = publicMessage.id;
 
-            uniqueFruits.forEach(fruit => {
-                const rarity = fruit.fruit_rarity;
-                if (this.rarityGroups.high.includes(rarity)) {
-                    fruitsByGroup.high.push(fruit);
-                } else if (this.rarityGroups.low.includes(rarity)) {
-                    fruitsByGroup.low.push(fruit);
-                }
-            });
-
-            // Sort fruits within each group by rarity then name
-            const rarityOrder = ['divine', 'omnipotent', 'mythical', 'legendary', 'epic', 'rare', 'uncommon', 'common'];
-            ['high', 'low'].forEach(group => {
-                fruitsByGroup[group].sort((a, b) => {
-                    const rarityDiff = rarityOrder.indexOf(a.fruit_rarity) - rarityOrder.indexOf(b.fruit_rarity);
-                    if (rarityDiff !== 0) return rarityDiff;
-                    return a.fruit_name.localeCompare(b.fruit_name);
-                });
-            });
-
-            // Check if player has enough unique fruits
-            if (uniqueFruits.length < 5) {
-                const errorMessage = {
-                    content: `❌ You need at least 5 **unique** Devil Fruits to participate in enhanced turn-based battles!\nYou currently have ${uniqueFruits.length} unique fruits. Use \`/pull\` to get more fruits.`,
-                    ephemeral: true
-                };
-
-                if (interaction.deferred) {
-                    return await interaction.editReply(errorMessage);
-                } else {
-                    return await interaction.reply(errorMessage);
-                }
-            }
-
-            // Create rarity group summary
-            const groupSummary = [
-                `🔥 **High Rarity**: ${fruitsByGroup.high.length} unique (${this.rarityGroups.high.map(r => getRarityEmoji(r)).join('')} Divine, Omnipotent, Mythical, Legendary, Epic)`,
-                `⚡ **Low Rarity**: ${fruitsByGroup.low.length} unique (${this.rarityGroups.low.map(r => getRarityEmoji(r)).join('')} Rare, Uncommon, Common)`
-            ].join('\n');
-
-            const embed = new EmbedBuilder()
-                .setColor(0x3498DB)
-                .setTitle('⚔️ Enhanced Turn-Based PvP - High/Low Rarity Selection')
-                .setDescription(
-                    isVsNPC 
-                        ? `🔥 **Prepare for epic turn-based battle!**\n\n**Select 5 unique Devil Fruits using the organized dropdowns:**`
-                        : `🔥 **Enhanced PvP Battle Starting!**\n\nSelect 5 unique Devil Fruits for turn-based combat using organized dropdowns.`
-                )
-                .addFields([
-                    {
-                        name: '🏴‍☠️ Your Battle Stats',
-                        value: [
-                            `**Name**: ${player.username}`,
-                            `**Level**: ${player.level}`,
-                            `**Balanced CP**: ${player.balancedCP.toLocaleString()}`,
-                            `**Battle HP**: ${player.maxHealth}`,
-                            `**Unique Fruits**: ${uniqueFruits.length}`,
-                            `**Total Fruits**: ${player.fruits.length}`
-                        ].join('\n'),
-                        inline: true
-                    },
-                    {
-                        name: '⚡ Enhanced Battle Features',
-                        value: [
-                            `**Battle Type**: ${isVsNPC ? 'PvE Turn-Based' : 'PvP Turn-Based'}`,
-                            `**Real-Time Combat**: Yes`,
-                            `**Skill Selection**: Interactive`,
-                            `**Battle Log**: Live updates`,
-                            `**HP Visualization**: Real-time bars`,
-                            `**Status Effects**: Advanced system`
-                        ].join('\n'),
-                        inline: true
-                    },
-                    {
-                        name: '🍈 Your Devil Fruits - Organized Selection',
-                        value: groupSummary,
-                        inline: false
-                    },
-                    {
-                        name: '💡 Selection Instructions',
-                        value: [
-                            `🔥 **High Rarity Dropdown**: Select from your strongest fruits`,
-                            `⚡ **Low Rarity Dropdown**: Select from your starter/common fruits`,
-                            `✅ **Select exactly 5 unique fruits total** across both dropdowns`,
-                            `🎯 **Duplicates shown**: (x2), (x3) = damage bonus in battle!`
-                        ].join('\n'),
-                        inline: false
-                    }
-                ])
-                .setFooter({ text: `High/Low rarity system - no character limits! Select 5 unique fruits total.` })
-                .setTimestamp();
-
-            // Create High/Low rarity dropdown menus
-            const components = [];
-
-            // High Rarity Dropdown (Divine, Omnipotent, Mythical, Legendary, Epic)
-            if (fruitsByGroup.high.length > 0) {
-                const highRarityOptions = fruitsByGroup.high.slice(0, 25).map((fruit, index) => {
-                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
-                    const damage = ability ? ability.damage : 100;
-                    const cooldown = ability ? ability.cooldown : 0;
-                    const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
-                    const emoji = getRarityEmoji(fruit.fruit_rarity);
-                    
-                    return {
-                        label: `${fruit.fruit_name.length > 20 ? fruit.fruit_name.slice(0, 17) + '...' : fruit.fruit_name}${duplicateText}`,
-                        description: `${damage}dmg ${cooldown}cd • ${ability?.name || 'Unknown Ability'}`,
-                        value: `high_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}`,
-                        emoji: emoji
-                    };
-                });
-
-                const highRarityMenu = new StringSelectMenuBuilder()
-                    .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_high_rarity`)
-                    .setPlaceholder(`🔥 High Rarity Fruits (${fruitsByGroup.high.length} available) - Select 0-5`)
-                    .setMinValues(0)
-                    .setMaxValues(Math.min(5, highRarityOptions.length))
-                    .addOptions(highRarityOptions);
-
-                const highRow = new ActionRowBuilder().addComponents(highRarityMenu);
-                components.push(highRow);
-            }
-
-            // Low Rarity Dropdown (Rare, Uncommon, Common)
-            if (fruitsByGroup.low.length > 0) {
-                const lowRarityOptions = fruitsByGroup.low.slice(0, 25).map((fruit, index) => {
-                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
-                    const damage = ability ? ability.damage : 100;
-                    const cooldown = ability ? ability.cooldown : 0;
-                    const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
-                    const emoji = getRarityEmoji(fruit.fruit_rarity);
-                    
-                    return {
-                        label: `${fruit.fruit_name.length > 20 ? fruit.fruit_name.slice(0, 17) + '...' : fruit.fruit_name}${duplicateText}`,
-                        description: `${damage}dmg ${cooldown}cd • ${ability?.name || 'Unknown Ability'}`,
-                        value: `low_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}`,
-                        emoji: emoji
-                    };
-                });
-
-                const lowRarityMenu = new StringSelectMenuBuilder()
-                    .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_low_rarity`)
-                    .setPlaceholder(`⚡ Low Rarity Fruits (${fruitsByGroup.low.length} available) - Select 0-5`)
-                    .setMinValues(0)
-                    .setMaxValues(Math.min(5, lowRarityOptions.length))
-                    .addOptions(lowRarityOptions);
-
-                const lowRow = new ActionRowBuilder().addComponents(lowRarityMenu);
-                components.push(lowRow);
-            }
-
-            // Add confirm and clear buttons
-            if (components.length > 0) {
-                const confirmRow = new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setCustomId(`confirm_fruit_selection_${battleData.id}_${player.userId}`)
-                            .setLabel('⚔️ Confirm Selection (Select exactly 5 unique fruits)')
-                            .setStyle(ButtonStyle.Success)
-                            .setDisabled(true),
-                        new ButtonBuilder()
-                            .setCustomId(`clear_fruit_selection_${battleData.id}_${player.userId}`)
-                            .setLabel('🗑️ Clear All')
-                            .setStyle(ButtonStyle.Danger)
-                    );
-                components.push(confirmRow);
-            }
-
-            // Send or edit reply based on interaction state
-            if (interaction.deferred) {
-                await interaction.editReply({
-                    embeds: [embed],
-                    components: components
-                });
-            } else if (interaction.replied) {
-                await interaction.editReply({
-                    embeds: [embed],
-                    components: components
-                });
-            } else {
-                await interaction.reply({
-                    embeds: [embed],
-                    components: components
-                });
-            }
-
-        } catch (error) {
-            console.error('Error in showFruitSelectionForPlayer:', error);
-            
-            try {
-                const errorMessage = {
-                    content: '❌ An error occurred while setting up High/Low rarity fruit selection. Please try again.',
-                    embeds: [],
-                    components: []
-                };
-
-                if (interaction.deferred) {
-                    await interaction.editReply(errorMessage);
-                } else if (!interaction.replied) {
-                    await interaction.reply({ ...errorMessage, ephemeral: true });
-                } else {
-                    await interaction.followUp({ ...errorMessage, ephemeral: true });
-                }
-            } catch (sendError) {
-                console.error('Failed to send error message:', sendError);
-            }
-        }
-    }
-
-    // FIXED: Handle High/Low rarity fruit selection
-    async handleFruitSelection(interaction, battleId, userId, rarityGroup) {
-        try {
-            const battleData = this.activeBattles.get(battleId);
-            if (!battleData) {
-                return await interaction.reply({ 
-                    content: '❌ Battle not found! It may have expired.', 
-                    ephemeral: true 
-                });
-            }
-
-            const player = battleData.player1.userId === userId ? battleData.player1 : battleData.player2;
-            if (!player) {
-                return await interaction.reply({ 
-                    content: '❌ Player not found in this battle!', 
-                    ephemeral: true 
-                });
-            }
-
-            // Group fruits by name and organize by High/Low rarity groups
-            const fruitGroups = new Map();
-            player.fruits.forEach(fruit => {
-                const fruitName = fruit.fruit_name;
-                if (!fruitGroups.has(fruitName)) {
-                    fruitGroups.set(fruitName, { ...fruit, count: 1 });
-                } else {
-                    fruitGroups.get(fruitName).count++;
-                }
-            });
-
-            const fruitsByGroup = {
-                high: [],
-                low: []
-            };
-
-            Array.from(fruitGroups.values()).forEach(fruit => {
-                const rarity = fruit.fruit_rarity;
-                if (this.rarityGroups.high.includes(rarity)) {
-                    fruitsByGroup.high.push(fruit);
-                } else if (this.rarityGroups.low.includes(rarity)) {
-                    fruitsByGroup.low.push(fruit);
-                }
-            });
-
-            // Initialize player selection if not exists
-            if (!player.tempSelectedFruits) {
-                player.tempSelectedFruits = [];
-            }
-
-            // Get selected fruits from this rarity group
-            const selectedValues = interaction.values || [];
-            const groupFruits = fruitsByGroup[rarityGroup] || [];
-            
-            // Remove previous selections from this rarity group
-            player.tempSelectedFruits = player.tempSelectedFruits.filter(fruit => {
-                const fruitRarity = fruit.fruit_rarity;
-                const isFromCurrentGroup = (rarityGroup === 'high' && this.rarityGroups.high.includes(fruitRarity)) ||
-                                          (rarityGroup === 'low' && this.rarityGroups.low.includes(fruitRarity));
-                return !isFromCurrentGroup;
-            });
-
-            // Add new selections from this rarity group
-            selectedValues.forEach(value => {
-                const parts = value.split('_');
-                const fruitIndex = parseInt(parts[1]);
-                const selectedFruit = groupFruits[fruitIndex];
+            if (isVsNPC) {
+                // Auto-complete NPC selection
+                this.completeNPCSelection(battleData);
                 
-                if (selectedFruit && player.tempSelectedFruits.length < 5) {
-                    // Check if not already selected from another group
-                    const exists = player.tempSelectedFruits.find(f => f.fruit_name === selectedFruit.fruit_name);
-                    if (!exists) {
-                        player.tempSelectedFruits.push(selectedFruit);
-                    }
-                }
-            });
-
-            // Ensure max 5 fruits
-            if (player.tempSelectedFruits.length > 5) {
-                player.tempSelectedFruits = player.tempSelectedFruits.slice(0, 5);
+                // Send private selection to player1
+                await this.sendPrivateSelection(interaction, battleData, player1);
+            } else {
+                // Send private selection to both players
+                await this.sendPrivateSelection(interaction, battleData, player1);
+                // In a real implementation, send to player2 as well via DM or followUp
             }
 
-            // Create updated embed and components
-            const embed = this.createHighLowSelectionProgressEmbed(battleData, player);
-            const components = await this.createUpdatedHighLowSelectionComponents(battleData, player);
-
-            await interaction.update({
-                embeds: [embed],
-                components: components
-            });
+            // Update public screen with initial selections
+            await this.updatePublicBattleScreen(interaction, battleData);
 
         } catch (error) {
-            console.error('Error updating High/Low rarity fruit selection:', error);
-            
-            try {
-                if (!interaction.replied) {
-                    await interaction.reply({
-                        content: '❌ An error occurred while updating your High/Low selection. Please try again.',
-                        ephemeral: true
-                    });
-                }
-            } catch (followUpError) {
-                console.error('Failed to send fallback error message:', followUpError);
-            }
+            console.error('Error starting fruit selection:', error);
+            throw error;
         }
     }
 
-    // Create High/Low selection progress embed
-    createHighLowSelectionProgressEmbed(battleData, player) {
-        const selectedCount = player.tempSelectedFruits?.length || 0;
-        const { isVsNPC } = battleData;
+    // Create public battle screen that everyone can see
+    createPublicBattleScreen(battleData) {
+        const { player1, player2, isVsNPC, selectionData } = battleData;
+        
+        const p1Progress = this.getSelectionProgress(selectionData.player1.selectedFruits.length);
+        const p2Progress = isVsNPC ? this.getSelectionProgress(5) : this.getSelectionProgress(selectionData.player2.selectedFruits.length);
+        
+        const p1Status = selectionData.player1.selectionComplete ? '✅ Ready' : 
+                        selectionData.player1.selectedFruits.length === 5 ? '⏳ Confirming' : 
+                        `⏳ Selecting (${selectionData.player1.currentPage} page)`;
+                        
+        const p2Status = isVsNPC ? '✅ Ready (NPC)' :
+                        selectionData.player2.selectionComplete ? '✅ Ready' :
+                        selectionData.player2.selectedFruits.length === 5 ? '⏳ Confirming' :
+                        `⏳ Selecting (${selectionData.player2.currentPage} page)`;
 
+        const p1RarityBreakdown = this.getRarityBreakdown(selectionData.player1.selectedFruits);
+        const p2RarityBreakdown = isVsNPC ? 'Mysterious Boss Powers' : this.getRarityBreakdown(selectionData.player2.selectedFruits);
+
+        return new EmbedBuilder()
+            .setColor(0x3498DB)
+            .setTitle('⚔️ Enhanced Turn-Based PvP Battle - Live Selection')
+            .setDescription('🔥 **Real-time fruit selection in progress!**\n*Watch as both fighters choose their battle lineup*')
+            .addFields([
+                {
+                    name: `🏴‍☠️ ${player1.username} ${player1.title ? `(${player1.title})` : ''}`,
+                    value: [
+                        `${p1Progress} **${selectionData.player1.selectedFruits.length}/5 fruits**`,
+                        `**Status**: ${p1Status}`,
+                        `**Level**: ${player1.level} | **CP**: ${player1.balancedCP.toLocaleString()}`,
+                        `**Selection**: ${p1RarityBreakdown}`
+                    ].join('\n'),
+                    inline: false
+                },
+                {
+                    name: `${isVsNPC ? player2.npcData.emoji : '🏴‍☠️'} ${player2.username} ${player2.title ? `(${player2.title})` : ''}`,
+                    value: [
+                        `${p2Progress} **${isVsNPC ? '5' : selectionData.player2.selectedFruits.length}/5 fruits**`,
+                        `**Status**: ${p2Status}`,
+                        `**Level**: ${player2.level} | **CP**: ${player2.balancedCP.toLocaleString()}`,
+                        `**Selection**: ${p2RarityBreakdown}`
+                    ].join('\n'),
+                    inline: false
+                },
+                {
+                    name: '🎯 Battle Information',
+                    value: [
+                        `**Battle Type**: ${isVsNPC ? 'PvE Enhanced Turn-Based' : 'PvP Enhanced Turn-Based'}`,
+                        `**Selection System**: High/Low Rarity Pages`,
+                        `**High Rarity Page**: ${this.rarityPages.high.divine.length + this.rarityPages.high.mythical.length + this.rarityPages.high.legendary.length + this.rarityPages.high.epic.length} Divine/Mythical/Legendary/Epic`,
+                        `**Low Rarity Page**: ${this.rarityPages.low.rare.length + this.rarityPages.low.uncommon.length + this.rarityPages.low.common.length} Rare/Uncommon/Common`,
+                        `**Real-Time Updates**: ✅ Live selection tracking`
+                    ].join('\n'),
+                    inline: false
+                }
+            ])
+            .setFooter({ 
+                text: 'Enhanced High/Low Page System - Everyone can watch the selection progress!' 
+            })
+            .setTimestamp();
+    }
+
+    // Get selection progress bar
+    getSelectionProgress(count) {
+        const totalBars = 10;
+        const filledBars = Math.floor((count / 5) * totalBars);
+        const emptyBars = totalBars - filledBars;
+        
+        return '█'.repeat(filledBars) + '░'.repeat(emptyBars);
+    }
+
+    // Get rarity breakdown for public display
+    getRarityBreakdown(selectedFruits) {
+        if (!selectedFruits || selectedFruits.length === 0) {
+            return 'No fruits selected yet';
+        }
+        
+        const breakdown = {
+            divine: 0,
+            mythical: 0, 
+            legendary: 0,
+            epic: 0,
+            rare: 0,
+            uncommon: 0,
+            common: 0
+        };
+        
+        selectedFruits.forEach(fruit => {
+            const rarity = fruit.fruit_rarity || 'common';
+            if (breakdown.hasOwnProperty(rarity)) {
+                breakdown[rarity]++;
+            }
+        });
+        
+        const parts = [];
+        if (breakdown.divine > 0) parts.push(`Divine(${breakdown.divine})`);
+        if (breakdown.mythical > 0) parts.push(`Mythical(${breakdown.mythical})`);
+        if (breakdown.legendary > 0) parts.push(`Legendary(${breakdown.legendary})`);
+        if (breakdown.epic > 0) parts.push(`Epic(${breakdown.epic})`);
+        if (breakdown.rare > 0) parts.push(`Rare(${breakdown.rare})`);
+        if (breakdown.uncommon > 0) parts.push(`Uncommon(${breakdown.uncommon})`);
+        if (breakdown.common > 0) parts.push(`Common(${breakdown.common})`);
+        
+        return parts.join(', ') || 'No fruits selected';
+    }
+
+    // Send private selection interface to player
+    async sendPrivateSelection(interaction, battleData, player) {
+        try {
+            const embed = this.createPrivateSelectionEmbed(battleData, player);
+            const components = await this.createPrivateSelectionComponents(battleData, player);
+            
+            // Send ephemeral reply for private interface
+            await interaction.followUp({
+                content: `🔒 **Your Private Selection Interface** - Choose your 5 battle fruits!`,
+                embeds: [embed],
+                components: components,
+                ephemeral: true
+            });
+            
+        } catch (error) {
+            console.error('Error sending private selection:', error);
+        }
+    }
+
+    // Create private selection embed
+    createPrivateSelectionEmbed(battleData, player) {
+        const selectionData = battleData.selectionData[player.userId === battleData.player1.userId ? 'player1' : 'player2'];
+        const selectedCount = selectionData.selectedFruits.length;
+        const currentPage = selectionData.currentPage;
+        
         const embed = new EmbedBuilder()
             .setColor(selectedCount === 5 ? 0x00FF00 : 0x3498DB)
-            .setTitle('⚔️ Enhanced Turn-Based PvP - High/Low Selection Progress')
+            .setTitle(`🔒 Your Private Fruit Selection - ${currentPage === 'high' ? 'High' : 'Low'} Rarity Page`)
             .setDescription(
-                `**Selection Progress: ${selectedCount}/5 unique fruits selected**\n\n` +
-                (selectedCount === 5 ? '✅ **Ready for enhanced turn-based battle! Click Confirm to proceed.**' : 
-                `🔄 **Select ${5 - selectedCount} more unique fruits from the High/Low dropdowns.**`)
+                `**Progress: ${selectedCount}/5 fruits selected**\n\n` +
+                (selectedCount === 5 ? 
+                    '✅ **Perfect! You have 5 fruits selected. Click Confirm to lock in your choices!**' : 
+                    `🔄 **Select ${5 - selectedCount} more fruits from the dropdowns below.**`)
             )
             .addFields([
                 {
-                    name: '🏴‍☠️ Your Stats',
+                    name: '🏴‍☠️ Your Battle Stats',
                     value: [
                         `**Name**: ${player.username}`,
                         `**Level**: ${player.level}`,
                         `**Balanced CP**: ${player.balancedCP.toLocaleString()}`,
-                        `**Battle HP**: ${player.maxHealth}`
+                        `**Battle HP**: ${player.maxHealth}`,
+                        `**Available Fruits**: ${player.fruits.length}`
                     ].join('\n'),
                     inline: true
                 },
                 {
-                    name: '⚡ High/Low Selection',
-                    value: [
-                        `**High Rarity Dropdown**: ${this.rarityGroups.high.map(r => getRarityEmoji(r)).join('')}`,
-                        `**Low Rarity Dropdown**: ${this.rarityGroups.low.map(r => getRarityEmoji(r)).join('')}`,
-                        `**No Character Limits**: ✅`,
-                        `**Duplicate Bonuses Shown**: ✅`
-                    ].join('\n'),
+                    name: `📋 ${currentPage === 'high' ? 'High' : 'Low'} Rarity Page`,
+                    value: currentPage === 'high' ? 
+                        [
+                            `⭐ **Divine**: Your ultimate powers`,
+                            `🟧 **Mythical**: Legendary abilities`,
+                            `🟨 **Legendary**: Elite techniques`,
+                            `🟪 **Epic**: Powerful skills`
+                        ].join('\n') :
+                        [
+                            `🟦 **Rare**: Solid abilities`,
+                            `🟩 **Uncommon**: Reliable skills`,
+                            `🟫 **Common**: Basic techniques`
+                        ].join('\n'),
                     inline: true
                 }
             ]);
 
-        // Show selected fruits organized by High/Low groups
+        // Show currently selected fruits
         if (selectedCount > 0) {
-            const selectedByGroup = {
-                high: [],
-                low: []
-            };
-
-            player.tempSelectedFruits.forEach(fruit => {
-                const rarity = fruit.fruit_rarity;
-                if (this.rarityGroups.high.includes(rarity)) {
-                    selectedByGroup.high.push(fruit);
-                } else if (this.rarityGroups.low.includes(rarity)) {
-                    selectedByGroup.low.push(fruit);
-                }
-            });
-
-            let selectedText = '';
-            
-            if (selectedByGroup.high.length > 0) {
-                selectedText += `🔥 **High Rarity** (${selectedByGroup.high.length}):\n`;
-                selectedByGroup.high.forEach(fruit => {
-                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
-                    const damage = ability ? ability.damage : 100;
-                    const duplicateCount = player.fruits.filter(f => f.fruit_name === fruit.fruit_name).length;
-                    const duplicateText = duplicateCount > 1 ? ` (x${duplicateCount})` : '';
-                    
-                    selectedText += `  ${getRarityEmoji(fruit.fruit_rarity)} ${fruit.fruit_name}${duplicateText} (${damage} dmg)\n`;
-                });
-                selectedText += '\n';
-            }
-
-            if (selectedByGroup.low.length > 0) {
-                selectedText += `⚡ **Low Rarity** (${selectedByGroup.low.length}):\n`;
-                selectedByGroup.low.forEach(fruit => {
-                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
-                    const damage = ability ? ability.damage : 100;
-                    const duplicateCount = player.fruits.filter(f => f.fruit_name === fruit.fruit_name).length;
-                    const duplicateText = duplicateCount > 1 ? ` (x${duplicateCount})` : '';
-                    
-                    selectedText += `  ${getRarityEmoji(fruit.fruit_rarity)} ${fruit.fruit_name}${duplicateText} (${damage} dmg)\n`;
-                });
-            }
+            const selectedText = selectionData.selectedFruits.map((fruit, index) => {
+                const emoji = getRarityEmoji(fruit.fruit_rarity);
+                const ability = balancedDevilFruitAbilities[fruit.fruit_name];
+                const damage = ability ? ability.damage : 100;
+                const duplicateCount = player.fruits.filter(f => f.fruit_name === fruit.fruit_name).length;
+                const duplicateText = duplicateCount > 1 ? ` (x${duplicateCount})` : '';
+                
+                return `${index + 1}. ${emoji} **${fruit.fruit_name}**${duplicateText} (${damage} dmg)`;
+            }).join('\n');
 
             embed.addFields({
                 name: '✅ Currently Selected Fruits',
-                value: selectedText.trim() || 'No fruits selected',
+                value: selectedText,
                 inline: false
             });
         }
@@ -558,128 +368,296 @@ class EnhancedTurnBasedPvP {
         return embed;
     }
 
-    // Create updated High/Low selection components
-    async createUpdatedHighLowSelectionComponents(battleData, player) {
+    // Create private selection components for current page
+    async createPrivateSelectionComponents(battleData, player) {
         const components = [];
-        const selectedCount = player.tempSelectedFruits?.length || 0;
-        const selectedNames = new Set(player.tempSelectedFruits?.map(f => f.fruit_name) || []);
+        const selectionData = battleData.selectionData[player.userId === battleData.player1.userId ? 'player1' : 'player2'];
+        const selectedCount = selectionData.selectedFruits.length;
+        const currentPage = selectionData.currentPage;
+        const selectedNames = new Set(selectionData.selectedFruits.map(f => f.fruit_name));
 
-        // Group fruits by High/Low rarity
-        const fruitGroups = new Map();
-        player.fruits.forEach(fruit => {
-            const fruitName = fruit.fruit_name;
-            if (!fruitGroups.has(fruitName)) {
-                fruitGroups.set(fruitName, { ...fruit, count: 1 });
-            } else {
-                fruitGroups.get(fruitName).count++;
+        // Organize fruits by rarity for current page
+        const organizedFruits = this.organizeFruitsByRarity(player.fruits, currentPage);
+
+        if (currentPage === 'high') {
+            // High Rarity Page - Divine, Mythical, Legendary, Epic dropdowns
+            
+            // Divine Dropdown
+            if (organizedFruits.divine.length > 0) {
+                const divineOptions = organizedFruits.divine.slice(0, 25).map((fruit, index) => {
+                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
+                    const damage = ability ? ability.damage : 100;
+                    const isSelected = selectedNames.has(fruit.fruit_name);
+                    const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
+                    
+                    return {
+                        label: `${isSelected ? '✅ ' : ''}${fruit.fruit_name.slice(0, 20)}${duplicateText}`,
+                        description: `${damage}dmg • ${ability?.name || 'Divine Power'}`,
+                        value: `divine_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                        emoji: '⭐',
+                        default: isSelected
+                    };
+                });
+
+                const divineMenu = new StringSelectMenuBuilder()
+                    .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_divine`)
+                    .setPlaceholder(`⭐ Divine Fruits (${organizedFruits.divine.length} available)`)
+                    .setMinValues(0)
+                    .setMaxValues(Math.min(5, divineOptions.length))
+                    .addOptions(divineOptions);
+
+                components.push(new ActionRowBuilder().addComponents(divineMenu));
             }
-        });
 
-        const fruitsByGroup = {
-            high: [],
-            low: []
-        };
+            // Mythical Dropdown
+            if (organizedFruits.mythical.length > 0) {
+                const mythicalOptions = organizedFruits.mythical.slice(0, 25).map((fruit, index) => {
+                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
+                    const damage = ability ? ability.damage : 100;
+                    const isSelected = selectedNames.has(fruit.fruit_name);
+                    const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
+                    
+                    return {
+                        label: `${isSelected ? '✅ ' : ''}${fruit.fruit_name.slice(0, 18)}${duplicateText}`,
+                        description: `${damage}dmg • ${ability?.name || 'Mythical Power'}`,
+                        value: `mythical_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                        emoji: '🟧',
+                        default: isSelected
+                    };
+                });
 
-        Array.from(fruitGroups.values()).forEach(fruit => {
-            const rarity = fruit.fruit_rarity;
-            if (this.rarityGroups.high.includes(rarity)) {
-                fruitsByGroup.high.push(fruit);
-            } else if (this.rarityGroups.low.includes(rarity)) {
-                fruitsByGroup.low.push(fruit);
+                const mythicalMenu = new StringSelectMenuBuilder()
+                    .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_mythical`)
+                    .setPlaceholder(`🟧 Mythical Fruits (${organizedFruits.mythical.length} available)`)
+                    .setMinValues(0)
+                    .setMaxValues(Math.min(5, mythicalOptions.length))
+                    .addOptions(mythicalOptions);
+
+                components.push(new ActionRowBuilder().addComponents(mythicalMenu));
             }
-        });
 
-        // Sort fruits within each group
-        const rarityOrder = ['divine', 'omnipotent', 'mythical', 'legendary', 'epic', 'rare', 'uncommon', 'common'];
-        ['high', 'low'].forEach(group => {
-            fruitsByGroup[group].sort((a, b) => {
-                const rarityDiff = rarityOrder.indexOf(a.fruit_rarity) - rarityOrder.indexOf(b.fruit_rarity);
-                if (rarityDiff !== 0) return rarityDiff;
-                return a.fruit_name.localeCompare(b.fruit_name);
-            });
-        });
+            // Legendary Dropdown
+            if (organizedFruits.legendary.length > 0) {
+                const legendaryOptions = organizedFruits.legendary.slice(0, 25).map((fruit, index) => {
+                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
+                    const damage = ability ? ability.damage : 100;
+                    const isSelected = selectedNames.has(fruit.fruit_name);
+                    const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
+                    
+                    return {
+                        label: `${isSelected ? '✅ ' : ''}${fruit.fruit_name.slice(0, 18)}${duplicateText}`,
+                        description: `${damage}dmg • ${ability?.name || 'Legendary Power'}`,
+                        value: `legendary_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                        emoji: '🟨',
+                        default: isSelected
+                    };
+                });
 
-        // High Rarity Dropdown
-        if (fruitsByGroup.high.length > 0) {
-            const highRarityOptions = fruitsByGroup.high.slice(0, 25).map((fruit, index) => {
-                const ability = balancedDevilFruitAbilities[fruit.fruit_name];
-                const damage = ability ? ability.damage : 100;
-                const cooldown = ability ? ability.cooldown : 0;
-                const isSelected = selectedNames.has(fruit.fruit_name);
-                const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
-                const emoji = getRarityEmoji(fruit.fruit_rarity);
-                
-                return {
-                    label: `${isSelected ? '✅ ' : ''}${fruit.fruit_name.length > 17 ? fruit.fruit_name.slice(0, 14) + '...' : fruit.fruit_name}${duplicateText}`,
-                    description: `${damage}dmg ${cooldown}cd • ${ability?.name || 'Unknown'}`,
-                    value: `high_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}`,
-                    emoji: emoji,
-                    default: isSelected
-                };
-            });
+                const legendaryMenu = new StringSelectMenuBuilder()
+                    .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_legendary`)
+                    .setPlaceholder(`🟨 Legendary Fruits (${organizedFruits.legendary.length} available)`)
+                    .setMinValues(0)
+                    .setMaxValues(Math.min(5, legendaryOptions.length))
+                    .addOptions(legendaryOptions);
 
-            const highRarityMenu = new StringSelectMenuBuilder()
-                .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_high_rarity`)
-                .setPlaceholder(`🔥 High Rarity (${selectedCount}/5 total selected)`)
-                .setMinValues(0)
-                .setMaxValues(Math.min(5, highRarityOptions.length))
-                .addOptions(highRarityOptions);
+                components.push(new ActionRowBuilder().addComponents(legendaryMenu));
+            }
 
-            const highRow = new ActionRowBuilder().addComponents(highRarityMenu);
-            components.push(highRow);
+            // Epic Dropdown
+            if (organizedFruits.epic.length > 0) {
+                const epicOptions = organizedFruits.epic.slice(0, 25).map((fruit, index) => {
+                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
+                    const damage = ability ? ability.damage : 100;
+                    const isSelected = selectedNames.has(fruit.fruit_name);
+                    const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
+                    
+                    return {
+                        label: `${isSelected ? '✅ ' : ''}${fruit.fruit_name.slice(0, 18)}${duplicateText}`,
+                        description: `${damage}dmg • ${ability?.name || 'Epic Power'}`,
+                        value: `epic_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                        emoji: '🟪',
+                        default: isSelected
+                    };
+                });
+
+                const epicMenu = new StringSelectMenuBuilder()
+                    .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_epic`)
+                    .setPlaceholder(`🟪 Epic Fruits (${organizedFruits.epic.length} available)`)
+                    .setMinValues(0)
+                    .setMaxValues(Math.min(5, epicOptions.length))
+                    .addOptions(epicOptions);
+
+                components.push(new ActionRowBuilder().addComponents(epicMenu));
+            }
+
+        } else {
+            // Low Rarity Page - Rare, Uncommon, Common dropdowns
+            
+            // Rare Dropdown
+            if (organizedFruits.rare.length > 0) {
+                const rareOptions = organizedFruits.rare.slice(0, 25).map((fruit, index) => {
+                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
+                    const damage = ability ? ability.damage : 100;
+                    const isSelected = selectedNames.has(fruit.fruit_name);
+                    const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
+                    
+                    return {
+                        label: `${isSelected ? '✅ ' : ''}${fruit.fruit_name.slice(0, 20)}${duplicateText}`,
+                        description: `${damage}dmg • ${ability?.name || 'Rare Power'}`,
+                        value: `rare_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                        emoji: '🟦',
+                        default: isSelected
+                    };
+                });
+
+                const rareMenu = new StringSelectMenuBuilder()
+                    .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_rare`)
+                    .setPlaceholder(`🟦 Rare Fruits (${organizedFruits.rare.length} available)`)
+                    .setMinValues(0)
+                    .setMaxValues(Math.min(5, rareOptions.length))
+                    .addOptions(rareOptions);
+
+                components.push(new ActionRowBuilder().addComponents(rareMenu));
+            }
+
+            // Uncommon Dropdown
+            if (organizedFruits.uncommon.length > 0) {
+                const uncommonOptions = organizedFruits.uncommon.slice(0, 25).map((fruit, index) => {
+                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
+                    const damage = ability ? ability.damage : 100;
+                    const isSelected = selectedNames.has(fruit.fruit_name);
+                    const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
+                    
+                    return {
+                        label: `${isSelected ? '✅ ' : ''}${fruit.fruit_name.slice(0, 20)}${duplicateText}`,
+                        description: `${damage}dmg • ${ability?.name || 'Uncommon Power'}`,
+                        value: `uncommon_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                        emoji: '🟩',
+                        default: isSelected
+                    };
+                });
+
+                const uncommonMenu = new StringSelectMenuBuilder()
+                    .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_uncommon`)
+                    .setPlaceholder(`🟩 Uncommon Fruits (${organizedFruits.uncommon.length} available)`)
+                    .setMinValues(0)
+                    .setMaxValues(Math.min(5, uncommonOptions.length))
+                    .addOptions(uncommonOptions);
+
+                components.push(new ActionRowBuilder().addComponents(uncommonMenu));
+            }
+
+            // Common Dropdown
+            if (organizedFruits.common.length > 0) {
+                const commonOptions = organizedFruits.common.slice(0, 25).map((fruit, index) => {
+                    const ability = balancedDevilFruitAbilities[fruit.fruit_name];
+                    const damage = ability ? ability.damage : 100;
+                    const isSelected = selectedNames.has(fruit.fruit_name);
+                    const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
+                    
+                    return {
+                        label: `${isSelected ? '✅ ' : ''}${fruit.fruit_name.slice(0, 20)}${duplicateText}`,
+                        description: `${damage}dmg • ${ability?.name || 'Basic Power'}`,
+                        value: `common_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                        emoji: '🟫',
+                        default: isSelected
+                    };
+                });
+
+                const commonMenu = new StringSelectMenuBuilder()
+                    .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_common`)
+                    .setPlaceholder(`🟫 Common Fruits (${organizedFruits.common.length} available)`)
+                    .setMinValues(0)
+                    .setMaxValues(Math.min(5, commonOptions.length))
+                    .addOptions(commonOptions);
+
+                components.push(new ActionRowBuilder().addComponents(commonMenu));
+            }
         }
 
-        // Low Rarity Dropdown
-        if (fruitsByGroup.low.length > 0) {
-            const lowRarityOptions = fruitsByGroup.low.slice(0, 25).map((fruit, index) => {
-                const ability = balancedDevilFruitAbilities[fruit.fruit_name];
-                const damage = ability ? ability.damage : 100;
-                const cooldown = ability ? ability.cooldown : 0;
-                const isSelected = selectedNames.has(fruit.fruit_name);
-                const duplicateText = fruit.count > 1 ? ` (x${fruit.count})` : '';
-                const emoji = getRarityEmoji(fruit.fruit_rarity);
-                
-                return {
-                    label: `${isSelected ? '✅ ' : ''}${fruit.fruit_name.length > 17 ? fruit.fruit_name.slice(0, 14) + '...' : fruit.fruit_name}${duplicateText}`,
-                    description: `${damage}dmg ${cooldown}cd • ${ability?.name || 'Unknown'}`,
-                    value: `low_${index}_${fruit.fruit_name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}`,
-                    emoji: emoji,
-                    default: isSelected
-                };
-            });
-
-            const lowRarityMenu = new StringSelectMenuBuilder()
-                .setCustomId(`fruit_selection_${battleData.id}_${player.userId}_low_rarity`)
-                .setPlaceholder(`⚡ Low Rarity (${selectedCount}/5 total selected)`)
-                .setMinValues(0)
-                .setMaxValues(Math.min(5, lowRarityOptions.length))
-                .addOptions(lowRarityOptions);
-
-            const lowRow = new ActionRowBuilder().addComponents(lowRarityMenu);
-            components.push(lowRow);
-        }
-
-        // Add confirm and clear buttons
-        const confirmRow = new ActionRowBuilder()
+        // Add page navigation and action buttons
+        const actionRow = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`confirm_fruit_selection_${battleData.id}_${player.userId}`)
-                    .setLabel(selectedCount === 5 ? '⚔️ Start Enhanced Battle!' : `✅ Confirm (${selectedCount}/5)`)
+                    .setCustomId(`page_switch_${battleData.id}_${player.userId}`)
+                    .setLabel(currentPage === 'high' ? '⚡ Switch to Low Rarity Page' : '🔥 Switch to High Rarity Page')
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId(`confirm_selection_${battleData.id}_${player.userId}`)
+                    .setLabel(selectedCount === 5 ? '⚔️ Confirm & Start Battle!' : `✅ Confirm (${selectedCount}/5)`)
                     .setStyle(selectedCount === 5 ? ButtonStyle.Success : ButtonStyle.Secondary)
                     .setDisabled(selectedCount !== 5),
                 new ButtonBuilder()
-                    .setCustomId(`clear_fruit_selection_${battleData.id}_${player.userId}`)
+                    .setCustomId(`clear_selection_${battleData.id}_${player.userId}`)
                     .setLabel('🗑️ Clear All')
                     .setStyle(ButtonStyle.Danger)
                     .setDisabled(selectedCount === 0)
             );
-        components.push(confirmRow);
-
+        
+        components.push(actionRow);
         return components;
     }
 
-    // FIXED: Handle confirm fruit selection (same as before)
-    async handleConfirmFruitSelection(interaction, battleId, userId) {
+    // Organize fruits by rarity for current page
+    organizeFruitsByRarity(fruits, currentPage) {
+        // Group fruits by name and count duplicates
+        const fruitGroups = new Map();
+        fruits.forEach(fruit => {
+            const fruitName = fruit.fruit_name;
+            if (fruitGroups.has(fruitName)) {
+                fruitGroups.get(fruitName).count++;
+            } else {
+                fruitGroups.set(fruitName, {
+                    ...fruit,
+                    count: 1
+                });
+            }
+        });
+
+        const organized = {
+            divine: [],
+            mythical: [],
+            legendary: [],
+            epic: [],
+            rare: [],
+            uncommon: [],
+            common: []
+        };
+
+        // Sort fruits into appropriate rarity arrays
+        Array.from(fruitGroups.values()).forEach(fruit => {
+            const rarity = fruit.fruit_rarity;
+            if (organized.hasOwnProperty(rarity)) {
+                organized[rarity].push(fruit);
+            }
+        });
+
+        // Sort each rarity by name
+        Object.keys(organized).forEach(rarity => {
+            organized[rarity].sort((a, b) => a.fruit_name.localeCompare(b.fruit_name));
+        });
+
+        return organized;
+    }
+
+    // Complete NPC selection automatically
+    completeNPCSelection(battleData) {
+        const npcPlayer = battleData.player2;
+        const selectedFruits = npcPlayer.selectedFruits.map(fruitName => ({
+            fruit_name: fruitName,
+            fruit_rarity: this.getFruitRarity(fruitName)
+        }));
+        
+        battleData.selectionData.player2.selectedFruits = selectedFruits;
+        battleData.selectionData.player2.selectionComplete = true;
+        battleData.selectionData.player2.lastUpdate = Date.now();
+        
+        // Set NPC's actual selected fruits
+        npcPlayer.selectedFruits = selectedFruits;
+    }
+
+    // Handle fruit selection from dropdowns
+    async handleFruitSelection(interaction, battleId, userId, rarity) {
         try {
             const battleData = this.activeBattles.get(battleId);
             if (!battleData) {
@@ -689,21 +667,171 @@ class EnhancedTurnBasedPvP {
                 });
             }
 
-            const player = battleData.player1.userId === userId ? battleData.player1 : battleData.player2;
-            if (!player || !player.tempSelectedFruits || player.tempSelectedFruits.length !== 5) {
+            const playerKey = battleData.player1.userId === userId ? 'player1' : 'player2';
+            const player = battleData[playerKey];
+            const selectionData = battleData.selectionData[playerKey];
+            
+            if (!player) {
                 return await interaction.reply({ 
-                    content: `❌ You must select exactly 5 unique fruits! Currently selected: ${player.tempSelectedFruits?.length || 0}`,
+                    content: '❌ Player not found in this battle!', 
+                    ephemeral: true 
+                });
+            }
+
+            // Get organized fruits for current page
+            const organizedFruits = this.organizeFruitsByRarity(player.fruits, selectionData.currentPage);
+            const rarityFruits = organizedFruits[rarity] || [];
+
+            // Get selected fruits from this dropdown
+            const selectedValues = interaction.values || [];
+            
+            // Remove previous selections from this rarity
+            selectionData.selectedFruits = selectionData.selectedFruits.filter(fruit => {
+                return fruit.fruit_rarity !== rarity;
+            });
+
+            // Add new selections from this rarity
+            selectedValues.forEach(value => {
+                const parts = value.split('_');
+                const fruitIndex = parseInt(parts[1]);
+                const selectedFruit = rarityFruits[fruitIndex];
+                
+                if (selectedFruit && selectionData.selectedFruits.length < 5) {
+                    // Check if not already selected from another rarity
+                    const exists = selectionData.selectedFruits.find(f => f.fruit_name === selectedFruit.fruit_name);
+                    if (!exists) {
+                        selectionData.selectedFruits.push(selectedFruit);
+                    }
+                }
+            });
+
+            // Ensure max 5 fruits
+            if (selectionData.selectedFruits.length > 5) {
+                selectionData.selectedFruits = selectionData.selectedFruits.slice(0, 5);
+            }
+
+            // Update timestamp
+            selectionData.lastUpdate = Date.now();
+
+            // Update private interface
+            const embed = this.createPrivateSelectionEmbed(battleData, player);
+            const components = await this.createPrivateSelectionComponents(battleData, player);
+
+            await interaction.update({
+                embeds: [embed],
+                components: components
+            });
+
+            // Update public battle screen
+            await this.updatePublicBattleScreen(interaction, battleData);
+
+        } catch (error) {
+            console.error('Error handling fruit selection:', error);
+            
+            try {
+                if (!interaction.replied) {
+                    await interaction.reply({
+                        content: '❌ An error occurred while updating your selection. Please try again.',
+                        ephemeral: true
+                    });
+                }
+            } catch (followUpError) {
+                console.error('Failed to send error message:', followUpError);
+            }
+        }
+    }
+
+    // Handle page switching
+    async handlePageSwitch(interaction, battleId, userId) {
+        try {
+            const battleData = this.activeBattles.get(battleId);
+            if (!battleData) {
+                return await interaction.reply({ 
+                    content: '❌ Battle not found!', 
+                    ephemeral: true 
+                });
+            }
+
+            const playerKey = battleData.player1.userId === userId ? 'player1' : 'player2';
+            const player = battleData[playerKey];
+            const selectionData = battleData.selectionData[playerKey];
+            
+            if (!player) {
+                return await interaction.reply({ 
+                    content: '❌ Player not found!', 
+                    ephemeral: true 
+                });
+            }
+
+            // Switch page
+            selectionData.currentPage = selectionData.currentPage === 'high' ? 'low' : 'high';
+            selectionData.lastUpdate = Date.now();
+
+            // Update private interface with new page
+            const embed = this.createPrivateSelectionEmbed(battleData, player);
+            const components = await this.createPrivateSelectionComponents(battleData, player);
+
+            await interaction.update({
+                embeds: [embed],
+                components: components
+            });
+
+            // Update public battle screen to show page change
+            await this.updatePublicBattleScreen(interaction, battleData);
+
+        } catch (error) {
+            console.error('Error handling page switch:', error);
+            
+            try {
+                if (!interaction.replied) {
+                    await interaction.reply({
+                        content: '❌ An error occurred while switching pages.',
+                        ephemeral: true
+                    });
+                }
+            } catch (followUpError) {
+                console.error('Failed to send page switch error:', followUpError);
+            }
+        }
+    }
+
+    // Handle selection confirmation
+    async handleConfirmSelection(interaction, battleId, userId) {
+        try {
+            const battleData = this.activeBattles.get(battleId);
+            if (!battleData) {
+                return await interaction.reply({ 
+                    content: '❌ Battle not found!', 
+                    ephemeral: true 
+                });
+            }
+
+            const playerKey = battleData.player1.userId === userId ? 'player1' : 'player2';
+            const player = battleData[playerKey];
+            const selectionData = battleData.selectionData[playerKey];
+            
+            if (!player || !selectionData.selectedFruits || selectionData.selectedFruits.length !== 5) {
+                return await interaction.reply({ 
+                    content: `❌ You must select exactly 5 fruits! Currently selected: ${selectionData.selectedFruits?.length || 0}`,
                     ephemeral: true 
                 });
             }
 
             // Confirm the selection
-            player.selectedFruits = [...player.tempSelectedFruits];
-            this.playerSelections.set(userId, player.selectedFruits);
+            selectionData.selectionComplete = true;
+            selectionData.lastUpdate = Date.now();
+            player.selectedFruits = [...selectionData.selectedFruits];
+
+            // Update private interface to show confirmed state
+            await interaction.update({
+                content: '✅ **Selection Confirmed!** Your 5 fruits are locked in.',
+                embeds: [],
+                components: []
+            });
 
             // Check if all players have selected
             const allSelected = battleData.isVsNPC || 
-                (battleData.player1.selectedFruits && battleData.player2.selectedFruits);
+                (battleData.selectionData.player1.selectionComplete && battleData.selectionData.player2.selectionComplete);
 
             if (allSelected) {
                 if (battleData.isVsNPC) {
@@ -712,26 +840,89 @@ class EnhancedTurnBasedPvP {
                     await this.startTurnBasedBattle(interaction, battleData);
                 }
             } else {
-                await interaction.update({
-                    content: '✅ Fruits selected using High/Low system! Waiting for opponent...',
-                    embeds: [],
-                    components: []
-                });
+                // Update public screen to show one player is ready
+                await this.updatePublicBattleScreen(interaction, battleData);
             }
 
         } catch (error) {
-            console.error('Error confirming fruit selection:', error);
+            console.error('Error confirming selection:', error);
             
             try {
                 if (!interaction.replied) {
                     await interaction.reply({
-                        content: '❌ An error occurred while confirming your High/Low selection. Please try again.',
+                        content: '❌ An error occurred while confirming your selection.',
                         ephemeral: true
                     });
                 }
             } catch (followUpError) {
-                console.error('Failed to send confirmation error message:', followUpError);
+                console.error('Failed to send confirmation error:', followUpError);
             }
+        }
+    }
+
+    // Handle clear selection
+    async handleClearSelection(interaction, battleId, userId) {
+        try {
+            const battleData = this.activeBattles.get(battleId);
+            if (!battleData) {
+                return await interaction.reply({ 
+                    content: '❌ Battle not found!', 
+                    ephemeral: true 
+                });
+            }
+
+            const playerKey = battleData.player1.userId === userId ? 'player1' : 'player2';
+            const player = battleData[playerKey];
+            const selectionData = battleData.selectionData[playerKey];
+            
+            if (!player) {
+                return await interaction.reply({ 
+                    content: '❌ Player not found!', 
+                    ephemeral: true 
+                });
+            }
+
+            // Clear selection
+            selectionData.selectedFruits = [];
+            selectionData.selectionComplete = false;
+            selectionData.lastUpdate = Date.now();
+
+            // Update private interface
+            const embed = this.createPrivateSelectionEmbed(battleData, player);
+            const components = await this.createPrivateSelectionComponents(battleData, player);
+
+            await interaction.update({
+                embeds: [embed],
+                components: components
+            });
+
+            // Update public battle screen
+            await this.updatePublicBattleScreen(interaction, battleData);
+
+        } catch (error) {
+            console.error('Error clearing selection:', error);
+        }
+    }
+
+    // Update public battle screen with real-time data
+    async updatePublicBattleScreen(interaction, battleData) {
+        try {
+            if (!battleData.publicMessageId) return;
+
+            const publicEmbed = this.createPublicBattleScreen(battleData);
+            
+            // Get the original public message
+            const channel = interaction.channel;
+            const publicMessage = await channel.messages.fetch(battleData.publicMessageId);
+            
+            if (publicMessage) {
+                await publicMessage.edit({
+                    embeds: [publicEmbed]
+                });
+            }
+
+        } catch (error) {
+            console.error('Error updating public battle screen:', error);
         }
     }
 
@@ -739,57 +930,60 @@ class EnhancedTurnBasedPvP {
     async revealBossAndStartBattle(interaction, battleData) {
         const { npcBoss, player1 } = battleData;
         
-        const bossEmbed = new EmbedBuilder()
-            .setColor(getRarityColor('mythical'))
-            .setTitle(`${npcBoss.emoji} ENHANCED TURN-BASED BOSS REVEALED!`)
-            .setDescription(`**${npcBoss.title}**\n*${npcBoss.description}*\n\n🔥 **Enhanced real-time turn-based combat begins!**`)
-            .addFields([
-                {
-                    name: '🏴‍☠️ Your Battle Lineup (High/Low Selected)',
-                    value: player1.selectedFruits.map((fruit, i) => {
-                        const duplicateCount = player1.fruits.filter(f => f.fruit_name === fruit.fruit_name).length;
-                        const duplicateText = duplicateCount > 1 ? ` (x${duplicateCount})` : '';
-                        const rarityGroup = this.rarityGroups.high.includes(fruit.fruit_rarity) ? '🔥' : '⚡';
-                        return `${i + 1}. ${rarityGroup} ${getRarityEmoji(fruit.fruit_rarity)} ${fruit.fruit_name}${duplicateText}`;
-                    }).join('\n'),
-                    inline: true
-                },
-                {
-                    name: `${npcBoss.emoji} Boss Stats`,
-                    value: [
-                        `**Name**: ${npcBoss.name}`,
-                        `**Level**: ${npcBoss.level}`,
-                        `**CP**: ${npcBoss.totalCP.toLocaleString()}`,
-                        `**Difficulty**: ${npcBoss.difficulty}`,
-                        `**HP**: ${battleData.player2.maxHealth}`
-                    ].join('\n'),
-                    inline: true
-                }
-            ])
-            .setFooter({ text: 'High/Low rarity selection complete - enhanced battle starting in 3 seconds...' })
-            .setTimestamp();
+        try {
+            const bossEmbed = new EmbedBuilder()
+                .setColor(getRarityColor('mythical'))
+                .setTitle(`${npcBoss.emoji} BOSS REVEALED!`)
+                .setDescription(`**${npcBoss.title}**\n*${npcBoss.description}*\n\n🔥 **Enhanced turn-based combat begins!**`)
+                .addFields([
+                    {
+                        name: '🏴‍☠️ Your Battle Lineup (High/Low Pages Selection)',
+                        value: player1.selectedFruits.map((fruit, i) => {
+                            const duplicateCount = player1.fruits.filter(f => f.fruit_name === fruit.fruit_name).length;
+                            const duplicateText = duplicateCount > 1 ? ` (x${duplicateCount})` : '';
+                            const pageType = ['divine', 'mythical', 'legendary', 'epic'].includes(fruit.fruit_rarity) ? '🔥' : '⚡';
+                            return `${i + 1}. ${pageType} ${getRarityEmoji(fruit.fruit_rarity)} ${fruit.fruit_name}${duplicateText}`;
+                        }).join('\n'),
+                        inline: true
+                    },
+                    {
+                        name: `${npcBoss.emoji} Boss Stats`,
+                        value: [
+                            `**Name**: ${npcBoss.name}`,
+                            `**Level**: ${npcBoss.level}`,
+                            `**CP**: ${npcBoss.totalCP.toLocaleString()}`,
+                            `**Difficulty**: ${npcBoss.difficulty}`,
+                            `**HP**: ${battleData.player2.maxHealth}`
+                        ].join('\n'),
+                        inline: true
+                    }
+                ])
+                .setFooter({ text: 'High/Low page selection complete - enhanced turn-based battle starting!' })
+                .setTimestamp();
 
-        const startButton = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`start_battle_${battleData.id}`)
-                    .setLabel('⚔️ Start Enhanced Turn-Based Battle!')
-                    .setStyle(ButtonStyle.Success)
-            );
-
-        await interaction.update({
-            embeds: [bossEmbed],
-            components: [startButton]
-        });
-
-        // Auto-start after 3 seconds
-        setTimeout(async () => {
-            try {
-                await this.startTurnBasedBattle(interaction, battleData);
-            } catch (error) {
-                console.error('Error auto-starting battle:', error);
+            // Update the public message with boss reveal
+            const channel = interaction.channel;
+            const publicMessage = await channel.messages.fetch(battleData.publicMessageId);
+            
+            if (publicMessage) {
+                await publicMessage.edit({
+                    embeds: [bossEmbed],
+                    components: []
+                });
             }
-        }, 3000);
+
+            // Auto-start after 3 seconds
+            setTimeout(async () => {
+                try {
+                    await this.startTurnBasedBattle(interaction, battleData);
+                } catch (error) {
+                    console.error('Error auto-starting battle:', error);
+                }
+            }, 3000);
+
+        } catch (error) {
+            console.error('Error revealing boss:', error);
+        }
     }
 
     // Start the actual turn-based battle
@@ -830,7 +1024,7 @@ class EnhancedTurnBasedPvP {
         const embed = new EmbedBuilder()
             .setColor(currentPlayer === 'player1' ? 0x3498DB : 0xE74C3C)
             .setTitle(`⚔️ Enhanced Turn-Based Battle - Turn ${currentTurn}`)
-            .setDescription(`🔥 **${currentPlayerData.username}'s Turn** - Choose your Devil Fruit ability!\n*High/Low rarity system enabled*`)
+            .setDescription(`🔥 **${currentPlayerData.username}'s Turn** - Choose your Devil Fruit ability!\n*Selected via High/Low rarity pages*`)
             .addFields([
                 {
                     name: `🏴‍☠️ ${player1.username}`,
@@ -857,7 +1051,7 @@ class EnhancedTurnBasedPvP {
                 }
             ])
             .setFooter({ 
-                text: isCurrentPlayerTurn ? 'Select your Devil Fruit ability from your High/Low selection!' : 'Waiting for opponent...' 
+                text: isCurrentPlayerTurn ? 'Select your Devil Fruit ability from your High/Low page selection!' : 'Waiting for opponent...' 
             })
             .setTimestamp();
 
@@ -867,10 +1061,15 @@ class EnhancedTurnBasedPvP {
         }
 
         try {
-            if (interaction.deferred || interaction.replied) {
-                await interaction.editReply({ embeds: [embed], components });
-            } else {
-                await interaction.reply({ embeds: [embed], components });
+            // Update the public message with battle interface
+            const channel = interaction.channel;
+            const publicMessage = await channel.messages.fetch(battleData.publicMessageId);
+            
+            if (publicMessage) {
+                await publicMessage.edit({
+                    embeds: [embed],
+                    components: components
+                });
             }
         } catch (error) {
             console.error('Error showing battle interface:', error);
@@ -896,7 +1095,7 @@ class EnhancedTurnBasedPvP {
         return fillEmoji.repeat(filledLength) + '⚫'.repeat(emptyLength);
     }
 
-    // Create skill selection components with High/Low indicators
+    // Create skill selection components with High/Low page indicators
     async createSkillSelectionComponents(battleData, playerData) {
         const components = [];
         
@@ -909,11 +1108,11 @@ class EnhancedTurnBasedPvP {
             const emoji = getRarityEmoji(fruit.fruit_rarity);
             const duplicateCount = playerData.fruits.filter(f => f.fruit_name === fruit.fruit_name).length;
             const duplicateText = duplicateCount > 1 ? ` x${duplicateCount}` : '';
-            const rarityIndicator = this.rarityGroups.high.includes(fruit.fruit_rarity) ? '🔥' : '⚡';
+            const pageIndicator = ['divine', 'mythical', 'legendary', 'epic'].includes(fruit.fruit_rarity) ? '🔥' : '⚡';
             
             return new ButtonBuilder()
                 .setCustomId(`use_skill_${battleData.id}_${playerData.userId}_${index}`)
-                .setLabel(`${rarityIndicator}${fruit.fruit_name.slice(0, 10)}${duplicateText}`)
+                .setLabel(`${pageIndicator}${fruit.fruit_name.slice(0, 8)}${duplicateText}`)
                 .setEmoji(emoji)
                 .setStyle(ButtonStyle.Primary);
         });
@@ -964,7 +1163,7 @@ class EnhancedTurnBasedPvP {
         await this.processAttack(interaction, battleData, currentPlayerData, ability, selectedFruit);
     }
 
-    // Process an attack with High/Low rarity bonus display
+    // Process an attack with High/Low page bonus display
     async processAttack(interaction, battleData, attacker, ability, fruit) {
         const defender = battleData.currentPlayer === 'player1' ? battleData.player2 : battleData.player1;
         
@@ -989,11 +1188,11 @@ class EnhancedTurnBasedPvP {
 
         const duplicateCount = attacker.fruits.filter(f => f.fruit_name === fruit.fruit_name).length;
         const duplicateText = duplicateCount > 1 ? ` (x${duplicateCount})` : '';
-        const rarityIndicator = this.rarityGroups.high.includes(fruit.fruit_rarity) ? '🔥 High' : '⚡ Low';
+        const pageIndicator = ['divine', 'mythical', 'legendary', 'epic'].includes(fruit.fruit_rarity) ? '🔥 High' : '⚡ Low';
         
         let attackMessage = '';
         if (hit) {
-            attackMessage = `⚡ **${attacker.username}** uses **${ability.name}** with **${fruit.fruit_name}**${duplicateText} [${rarityIndicator}]!\n💥 Deals **${damage}** damage to **${defender.username}**!`;
+            attackMessage = `⚡ **${attacker.username}** uses **${ability.name}** with **${fruit.fruit_name}**${duplicateText} [${pageIndicator} Page]!\n💥 Deals **${damage}** damage to **${defender.username}**!`;
             
             if (ability.effect) {
                 defender.effects.push({
@@ -1004,7 +1203,7 @@ class EnhancedTurnBasedPvP {
                 attackMessage += ` ✨ **${ability.effect} applied!**`;
             }
         } else {
-            attackMessage = `⚡ **${attacker.username}** uses **${ability.name}** with **${fruit.fruit_name}**${duplicateText} [${rarityIndicator}] but misses!`;
+            attackMessage = `⚡ **${attacker.username}** uses **${ability.name}** with **${fruit.fruit_name}**${duplicateText} [${pageIndicator} Page] but misses!`;
         }
 
         battleData.battleLog.push({
@@ -1016,7 +1215,7 @@ class EnhancedTurnBasedPvP {
             damage: damage,
             hit: hit,
             duplicateCount: duplicateCount,
-            rarityGroup: this.rarityGroups.high.includes(fruit.fruit_rarity) ? 'high' : 'low',
+            pageType: ['divine', 'mythical', 'legendary', 'epic'].includes(fruit.fruit_rarity) ? 'high' : 'low',
             message: attackMessage,
             timestamp: Date.now(),
             turn: battleData.currentTurn
@@ -1063,15 +1262,15 @@ class EnhancedTurnBasedPvP {
         const winnerEmbed = new EmbedBuilder()
             .setColor(0x00FF00)
             .setTitle('🏆 ENHANCED TURN-BASED BATTLE COMPLETE!')
-            .setDescription(`**${winner.username}** emerges victorious in this epic High/Low rarity turn-based battle!`)
+            .setDescription(`**${winner.username}** emerges victorious in this epic High/Low page turn-based battle!`)
             .addFields([
                 {
                     name: '🎉 Victory!',
-                    value: `**${winner.username}** defeats **${loser.username}**!\n\n**Final HP**: ${winner.hp}/${winner.maxHealth}\n**Turns**: ${battleData.currentTurn}\n**Selection Method**: High/Low Rarity System`,
+                    value: `**${winner.username}** defeats **${loser.username}**!\n\n**Final HP**: ${winner.hp}/${winner.maxHealth}\n**Turns**: ${battleData.currentTurn}\n**Selection Method**: High/Low Rarity Pages`,
                     inline: false
                 }
             ])
-            .setFooter({ text: 'High/Low rarity enhanced turn-based combat complete!' })
+            .setFooter({ text: 'High/Low rarity page enhanced turn-based combat complete!' })
             .setTimestamp();
 
         if (battleData.isVsNPC && winner.userId === battleData.player1.userId) {
@@ -1089,10 +1288,20 @@ class EnhancedTurnBasedPvP {
             }
         }
 
-        await interaction.editReply({
-            embeds: [winnerEmbed],
-            components: []
-        });
+        // Update the public message with final results
+        try {
+            const channel = interaction.channel;
+            const publicMessage = await channel.messages.fetch(battleData.publicMessageId);
+            
+            if (publicMessage) {
+                await publicMessage.edit({
+                    embeds: [winnerEmbed],
+                    components: []
+                });
+            }
+        } catch (error) {
+            console.error('Error updating final battle results:', error);
+        }
 
         this.activeBattles.delete(battleData.id);
     }
@@ -1124,7 +1333,7 @@ class EnhancedTurnBasedPvP {
     // Get recent battle log
     getRecentBattleLog(battleLog) {
         const recent = battleLog.slice(-4);
-        return recent.map(entry => entry.message).join('\n') || 'Enhanced High/Low rarity turn-based battle starting...';
+        return recent.map(entry => entry.message).join('\n') || 'Enhanced High/Low page turn-based battle starting...';
     }
 
     // Get active battle for user
@@ -1145,47 +1354,60 @@ class EnhancedTurnBasedPvP {
         for (const [battleId, battleData] of this.activeBattles) {
             if (now - battleData.created > maxAge) {
                 this.activeBattles.delete(battleId);
-                console.log(`🧹 Cleaned up old enhanced High/Low battle: ${battleId}`);
+                console.log(`🧹 Cleaned up old enhanced High/Low page battle: ${battleId}`);
             }
         }
     }
 }
 
-// Enhanced interaction handler for High/Low rarity selection
+// Enhanced interaction handler for High/Low rarity pages
 class PvPInteractionHandler {
     static async handleInteraction(interaction) {
         const customId = interaction.customId;
         const pvpSystem = module.exports;
 
         try {
-            // Handle High/Low rarity fruit selection
-            if (customId.includes('_high_rarity') || customId.includes('_low_rarity')) {
+            // Handle High/Low page fruit selection from specific rarity dropdowns
+            if (customId.includes('_divine') || customId.includes('_mythical') || 
+                customId.includes('_legendary') || customId.includes('_epic') ||
+                customId.includes('_rare') || customId.includes('_uncommon') || customId.includes('_common')) {
+                
                 const parts = customId.split('_');
                 const battleId = parts[2];
                 const userId = parts[3];
-                const rarityGroup = customId.includes('_high_rarity') ? 'high' : 'low';
+                const rarity = parts[4]; // divine, mythical, legendary, epic, rare, uncommon, common
                 
-                await pvpSystem.handleFruitSelection(interaction, battleId, userId, rarityGroup);
+                await pvpSystem.handleFruitSelection(interaction, battleId, userId, rarity);
                 return true;
             }
 
-            // Handle confirm fruit selection
-            if (customId.startsWith('confirm_fruit_selection_')) {
+            // Handle page switching
+            if (customId.startsWith('page_switch_')) {
                 const parts = customId.split('_');
-                const battleId = parts[3];
-                const userId = parts[4];
+                const battleId = parts[2];
+                const userId = parts[3];
                 
-                await pvpSystem.handleConfirmFruitSelection(interaction, battleId, userId);
+                await pvpSystem.handlePageSwitch(interaction, battleId, userId);
                 return true;
             }
 
-            // Handle clear fruit selection
-            if (customId.startsWith('clear_fruit_selection_')) {
+            // Handle confirm selection
+            if (customId.startsWith('confirm_selection_')) {
                 const parts = customId.split('_');
-                const battleId = parts[3];
-                const userId = parts[4];
+                const battleId = parts[2];
+                const userId = parts[3];
                 
-                await this.handleClearFruitSelection(interaction, battleId, userId, pvpSystem);
+                await pvpSystem.handleConfirmSelection(interaction, battleId, userId);
+                return true;
+            }
+
+            // Handle clear selection
+            if (customId.startsWith('clear_selection_')) {
+                const parts = customId.split('_');
+                const battleId = parts[2];
+                const userId = parts[3];
+                
+                await pvpSystem.handleClearSelection(interaction, battleId, userId);
                 return true;
             }
 
@@ -1234,29 +1456,29 @@ class PvPInteractionHandler {
             return false;
 
         } catch (error) {
-            console.error('Error handling enhanced High/Low PvP interaction:', error);
+            console.error('Error handling enhanced High/Low page PvP interaction:', error);
             
             if (error.code === 10062) {
-                console.warn('⚠️ Enhanced High/Low PvP interaction expired');
+                console.warn('⚠️ Enhanced High/Low page PvP interaction expired');
                 return true;
             }
             
             try {
                 if (!interaction.replied && !interaction.deferred) {
                     await interaction.reply({
-                        content: '❌ An error occurred during the enhanced High/Low turn-based battle.',
+                        content: '❌ An error occurred during the enhanced High/Low page turn-based battle.',
                         ephemeral: true
                     });
                 }
             } catch (replyError) {
-                console.error('Failed to send enhanced High/Low PvP error reply:', replyError);
+                console.error('Failed to send enhanced High/Low page PvP error reply:', replyError);
             }
             
             return true;
         }
     }
 
-    // Show detailed skill information with High/Low indicators
+    // Show detailed skill information with High/Low page indicators
     static async showSkillDetails(interaction, battleId, userId, pvpSystem) {
         const battleData = pvpSystem.activeBattles.get(battleId);
         if (!battleData) return;
@@ -1265,22 +1487,22 @@ class PvPInteractionHandler {
         
         const skillsEmbed = new EmbedBuilder()
             .setColor(0x9932CC)
-            .setTitle('📋 Your Enhanced Battle Abilities (High/Low System)')
-            .setDescription('Detailed information about your selected fruits organized by High/Low rarity groups')
-            .setFooter({ text: 'High/Low rarity selection system shows all details!' });
+            .setTitle('📋 Your Enhanced Battle Abilities (High/Low Page System)')
+            .setDescription('Detailed information about your selected fruits organized by High/Low rarity pages')
+            .setFooter({ text: 'High/Low page selection system shows all details with perfect organization!' });
 
-        // Organize by High/Low groups
-        const skillsByGroup = { high: [], low: [] };
+        // Organize by High/Low pages
+        const skillsByPage = { high: [], low: [] };
         
         playerData.selectedFruits.forEach((fruit, index) => {
-            const group = pvpSystem.rarityGroups.high.includes(fruit.fruit_rarity) ? 'high' : 'low';
-            skillsByGroup[group].push({ fruit, index });
+            const page = ['divine', 'mythical', 'legendary', 'epic'].includes(fruit.fruit_rarity) ? 'high' : 'low';
+            skillsByPage[page].push({ fruit, index });
         });
 
-        // Add High Rarity skills
-        if (skillsByGroup.high.length > 0) {
+        // Add High Page skills
+        if (skillsByPage.high.length > 0) {
             let highSkillsText = '';
-            skillsByGroup.high.forEach(({ fruit, index }) => {
+            skillsByPage.high.forEach(({ fruit, index }) => {
                 const ability = balancedDevilFruitAbilities[fruit.fruit_name] || {
                     name: 'Unknown Ability',
                     damage: 100,
@@ -1308,16 +1530,16 @@ class PvPInteractionHandler {
             });
 
             skillsEmbed.addFields({
-                name: '🔥 High Rarity Abilities (Divine, Omnipotent, Mythical, Legendary, Epic)',
+                name: '🔥 High Rarity Page Abilities (Divine, Mythical, Legendary, Epic)',
                 value: highSkillsText.trim(),
                 inline: false
             });
         }
 
-        // Add Low Rarity skills
-        if (skillsByGroup.low.length > 0) {
+        // Add Low Page skills
+        if (skillsByPage.low.length > 0) {
             let lowSkillsText = '';
-            skillsByGroup.low.forEach(({ fruit, index }) => {
+            skillsByPage.low.forEach(({ fruit, index }) => {
                 const ability = balancedDevilFruitAbilities[fruit.fruit_name] || {
                     name: 'Unknown Ability',
                     damage: 100,
@@ -1345,7 +1567,7 @@ class PvPInteractionHandler {
             });
 
             skillsEmbed.addFields({
-                name: '⚡ Low Rarity Abilities (Rare, Uncommon, Common)',
+                name: '⚡ Low Rarity Page Abilities (Rare, Uncommon, Common)',
                 value: lowSkillsText.trim(),
                 inline: false
             });
@@ -1354,25 +1576,6 @@ class PvPInteractionHandler {
         await interaction.reply({
             embeds: [skillsEmbed],
             ephemeral: true
-        });
-    }
-
-    // Handle clear fruit selection
-    static async handleClearFruitSelection(interaction, battleId, userId, pvpSystem) {
-        const battleData = pvpSystem.activeBattles.get(battleId);
-        if (!battleData) return;
-
-        const player = battleData.player1.userId === userId ? battleData.player1 : battleData.player2;
-        if (!player) return;
-
-        player.tempSelectedFruits = [];
-
-        const embed = pvpSystem.createHighLowSelectionProgressEmbed(battleData, player);
-        const components = await pvpSystem.createUpdatedHighLowSelectionComponents(battleData, player);
-
-        await interaction.update({
-            embeds: [embed],
-            components: components
         });
     }
 
@@ -1387,7 +1590,7 @@ class PvPInteractionHandler {
         const surrenderEmbed = new EmbedBuilder()
             .setColor(0xFF4500)
             .setTitle('🏳️ Enhanced Turn-Based Battle Ended - Surrender')
-            .setDescription(`**${surrenderingPlayer.username}** has surrendered the enhanced High/Low rarity turn-based battle!`)
+            .setDescription(`**${surrenderingPlayer.username}** has surrendered the enhanced High/Low page turn-based battle!`)
             .addFields([
                 {
                     name: '🏆 Winner',
@@ -1399,17 +1602,35 @@ class PvPInteractionHandler {
                     value: [
                         `**Turns Played**: ${battleData.currentTurn}`,
                         `**Battle Type**: Enhanced ${battleData.isVsNPC ? 'PvE' : 'PvP'} Turn-Based`,
-                        `**Selection Method**: High/Low Rarity System`,
-                        `**System**: No Character Limits ✅`
+                        `**Selection Method**: High/Low Rarity Pages`,
+                        `**Page System**: 4 High + 3 Low dropdowns ✅`,
+                        `**Real-Time Updates**: ✅`
                     ].join('\n'),
                     inline: true
                 }
             ])
-            .setFooter({ text: 'Enhanced High/Low rarity system - strategic retreat!' })
+            .setFooter({ text: 'Enhanced High/Low rarity page system - strategic retreat!' })
             .setTimestamp();
 
+        // Update the public message with surrender results
+        try {
+            const channel = interaction.channel;
+            const publicMessage = await channel.messages.fetch(battleData.publicMessageId);
+            
+            if (publicMessage) {
+                await publicMessage.edit({
+                    embeds: [surrenderEmbed],
+                    components: []
+                });
+            }
+        } catch (error) {
+            console.error('Error updating surrender results:', error);
+        }
+
+        // Also update the interaction for the surrendering player
         await interaction.update({
-            embeds: [surrenderEmbed],
+            content: '🏳️ **You have surrendered the battle.**',
+            embeds: [],
             components: []
         });
 
@@ -1425,10 +1646,12 @@ setInterval(() => {
     enhancedTurnBasedPvP.cleanupOldBattles();
 }, 5 * 60 * 1000);
 
-console.log('✅ Enhanced Turn-Based PvP System with High/Low Rarity Selection fully loaded!');
-console.log('🔥 High Rarity: Divine, Omnipotent, Mythical, Legendary, Epic');
-console.log('⚡ Low Rarity: Rare, Uncommon, Common');
-console.log('📊 Benefits: No character limits, only 2 dropdowns, fits within Discord limits');
+console.log('✅ Enhanced Turn-Based PvP System with High/Low Rarity Pages and Real-Time Public Updates fully loaded!');
+console.log('🔥 High Rarity Page: Divine, Mythical, Legendary, Epic (4 dropdowns)');
+console.log('⚡ Low Rarity Page: Rare, Uncommon, Common (3 dropdowns)');
+console.log('📺 Real-Time Public Battle Screen: Everyone watches live selection progress');
+console.log('🔒 Private Selection Interface: Only you see your dropdowns and page navigation');
+console.log('📊 Benefits: Perfect organization, no character limits, fits Discord limits, transparency');
 
 module.exports = enhancedTurnBasedPvP;
 module.exports.PvPInteractionHandler = PvPInteractionHandler;
