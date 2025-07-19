@@ -1,4 +1,4 @@
-// src/events/interactionCreate.js - Updated with Enhanced Turn-Based PvP Support
+// src/events/interactionCreate.js - COMPLETE UPDATED FILE
 const { Events } = require('discord.js');
 
 module.exports = {
@@ -101,8 +101,19 @@ async function handleEnhancedTurnBasedPvP(interaction) {
     const customId = interaction.customId;
     
     try {
-        // Import the PvP interaction handler
-        const { PvPInteractionHandler } = require('../systems/enhanced-turn-based-pvp');
+        // Try to import the PvP interaction handler safely
+        let PvPInteractionHandler = null;
+        try {
+            const enhancedPvP = require('../systems/enhanced-turn-based-pvp');
+            PvPInteractionHandler = enhancedPvP.PvPInteractionHandler;
+        } catch (error) {
+            // Enhanced PvP system not available
+            return false;
+        }
+
+        if (!PvPInteractionHandler) {
+            return false;
+        }
         
         // Check if this is a turn-based PvP interaction
         const pvpPrefixes = [
