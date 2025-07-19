@@ -1,4 +1,4 @@
-// src/events/interactionCreate.js - COMPLETE UPDATED FILE
+// src/events/interactionCreate.js - UPDATED for Multi-Menu Fruit Selection
 const { Events } = require('discord.js');
 
 module.exports = {
@@ -92,7 +92,7 @@ module.exports = {
     }
 };
 
-// Handle Enhanced Turn-Based PvP interactions (NEW SYSTEM)
+// UPDATED: Handle Enhanced Turn-Based PvP interactions with multi-menu support
 async function handleEnhancedTurnBasedPvP(interaction) {
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
         return false;
@@ -115,9 +115,11 @@ async function handleEnhancedTurnBasedPvP(interaction) {
             return false;
         }
         
-        // Check if this is a turn-based PvP interaction
+        // UPDATED: Check if this is a turn-based PvP interaction (including multi-menu support)
         const pvpPrefixes = [
-            'fruit_selection_',
+            'fruit_selection_',      // Multi-menu fruit selection
+            'confirm_fruit_selection_', // Confirm selection
+            'clear_fruit_selection_',   // Clear selection
             'use_skill_',
             'start_battle_',
             'show_skills_',
