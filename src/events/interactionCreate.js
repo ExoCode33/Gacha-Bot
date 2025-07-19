@@ -1,4 +1,4 @@
-// src/events/interactionCreate.js - Updated Interaction Event with Enhanced PvP Support
+// src/events/interactionCreate.js - Updated with Enhanced Turn-Based PvP Support
 const { Events } = require('discord.js');
 
 module.exports = {
@@ -32,9 +32,9 @@ module.exports = {
             return;
         }
 
-        // Handle Enhanced PvP interactions
-        if (await handleEnhancedPvPInteractions(interaction)) {
-            return; // Enhanced PvP interaction was handled
+        // Handle Enhanced Turn-Based PvP interactions (PRIORITY)
+        if (await handleEnhancedTurnBasedPvP(interaction)) {
+            return; // Enhanced turn-based PvP interaction was handled
         }
 
         // Handle other button interactions
@@ -85,92 +85,47 @@ module.exports = {
 
         // Handle select menu interactions
         if (interaction.isStringSelectMenu()) {
-            // Enhanced PvP select menus are handled above
+            // Enhanced turn-based PvP select menus are handled above
             console.log(`Unhandled select menu interaction: ${interaction.customId}`);
             return;
         }
     }
 };
 
-// Handle Enhanced PvP interactions
-async function handleEnhancedPvPInteractions(interaction) {
+// Handle Enhanced Turn-Based PvP interactions (NEW SYSTEM)
+async function handleEnhancedTurnBasedPvP(interaction) {
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
         return false;
     }
 
     const customId = interaction.customId;
-    const EnhancedPvPInteractions = require('../systems/enhanced-pvp-interactions');
-
+    
     try {
-        // Handle PvP challenge responses
-        if (customId.startsWith('pvp_accept_') || customId.startsWith('pvp_decline_') || customId.startsWith('pvp_preview_')) {
-            const parts = customId.split('_');
-            const action = parts[1]; // accept, decline, preview
-            const battleId = parts.slice(2).join('_'); // Rejoin in case battleId has underscores
-            
-            await EnhancedPvPInteractions.handleChallengeResponse(interaction, battleId, action);
-            return true;
+        // Import the PvP interaction handler
+        const { PvPInteractionHandler } = require('../systems/enhanced-turn-based-pvp');
+        
+        // Check if this is a turn-based PvP interaction
+        const pvpPrefixes = [
+            'fruit_selection_',
+            'use_skill_',
+            'start_battle_',
+            'show_skills_',
+            'surrender_',
+            'view_log_',
+            'battle_stats_'
+        ];
+
+        const isPvPInteraction = pvpPrefixes.some(prefix => customId.startsWith(prefix));
+        
+        if (isPvPInteraction) {
+            console.log(`🎮 Handling turn-based PvP interaction: ${customId}`);
+            return await PvPInteractionHandler.handleInteraction(interaction);
         }
 
-        // Handle fruit selection button (enhanced version)
-        if (customId.startsWith('enhanced_fruit_select_')) {
-            const battleId = customId.replace('enhanced_fruit_select_', '');
-            await EnhancedPvPInteractions.handleFruitSelection(interaction, battleId);
-            return true;
-        }
-
-        // Handle fruit selection button (original version for backward compatibility)
-        if (customId.startsWith('fruit_select_')) {
-            const battleId = customId.replace('fruit_select_', '');
-            await EnhancedPvPInteractions.handleFruitSelection(interaction, battleId);
-            return true;
-        }
-
-        // Handle fruit selection menus
-        if (customId.startsWith('enhanced_fruit_menu_')) {
-            const parts = customId.split('_');
-            const battleId = parts[3];
-            const userId = parts[4];
-            const menuIndex = parseInt(parts[5]);
-            
-            await EnhancedPvPInteractions.handleFruitMenuSelection(interaction, battleId, userId, menuIndex);
-            return true;
-        }
-
-        // Handle confirm selection buttons
-        if (customId.startsWith('enhanced_confirm_fruits_')) {
-            const parts = customId.split('_');
-            const battleId = parts[3];
-            const userId = parts[4];
-            
-            await EnhancedPvPInteractions.handleConfirmSelection(interaction, battleId, userId);
-            return true;
-        }
-
-        // Handle battle fruit selection
-        if (customId.startsWith('enhanced_battle_fruit_')) {
-            const parts = customId.split('_');
-            const battleId = parts[3];
-            const userId = parts[4];
-            
-            await EnhancedPvPInteractions.handleBattleFruitSelection(interaction, battleId, userId);
-            return true;
-        }
-
-        // Handle cancel battle
-        if (customId.startsWith('enhanced_cancel_battle_')) {
-            const parts = customId.split('_');
-            const battleId = parts[3];
-            const userId = parts[4];
-            
-            await EnhancedPvPInteractions.handleCancelBattle(interaction, battleId, userId);
-            return true;
-        }
-
-        return false; // Not an enhanced PvP interaction
+        return false; // Not a turn-based PvP interaction
 
     } catch (error) {
-        console.error('Error handling enhanced PvP interaction:', error);
+        console.error('Error handling enhanced turn-based PvP interaction:', error);
         
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
