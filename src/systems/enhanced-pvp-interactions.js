@@ -101,7 +101,53 @@ class EnhancedTurnBasedPvP {
             )
             .addFields([
                 {
-                    name: '🏴‍☠️ Your Stats',
+                    name: `🏴‍☠️ ${player1.username} Stats`,
+                    value: [
+                        `**Attacks Made**: ${p1Attacks.length}`,
+                        `**Successful Hits**: ${p1Hits.length}`,
+                        `**Hit Rate**: ${p1Attacks.length > 0 ? ((p1Hits.length / p1Attacks.length) * 100).toFixed(1) : 0}%`,
+                        `**Total Damage Dealt**: ${p1TotalDamage.toLocaleString()}`,
+                        `**Average Damage**: ${p1Hits.length > 0 ? Math.round(p1TotalDamage / p1Hits.length) : 0}`,
+                        `**HP Remaining**: ${player1.hp}/${player1.maxHealth} (${((player1.hp / player1.maxHealth) * 100).toFixed(1)}%)`
+                    ].join('\n'),
+                    inline: true
+                },
+                {
+                    name: `${player2.isNPC ? player2.npcData.emoji : '🏴‍☠️'} ${player2.username} Stats`,
+                    value: [
+                        `**Attacks Made**: ${p2Attacks.length}`,
+                        `**Successful Hits**: ${p2Hits.length}`,
+                        `**Hit Rate**: ${p2Attacks.length > 0 ? ((p2Hits.length / p2Attacks.length) * 100).toFixed(1) : 0}%`,
+                        `**Total Damage Dealt**: ${p2TotalDamage.toLocaleString()}`,
+                        `**Average Damage**: ${p2Hits.length > 0 ? Math.round(p2TotalDamage / p2Hits.length) : 0}`,
+                        `**HP Remaining**: ${player2.hp}/${player2.maxHealth} (${((player2.hp / player2.maxHealth) * 100).toFixed(1)}%)`
+                    ].join('\n'),
+                    inline: true
+                },
+                {
+                    name: '⚔️ Battle Overview',
+                    value: [
+                        `**Current Turn**: ${currentTurn}`,
+                        `**Battle Type**: ${battleData.isVsNPC ? 'PvE (Player vs Boss)' : 'PvP (Player vs Player)'}`,
+                        `**Total Events**: ${battleLog.length}`,
+                        `**Combat Events**: ${p1Attacks.length + p2Attacks.length}`,
+                        `**Critical Hits**: ${battleLog.filter(l => l.critical).length}`,
+                        `**Status Effects Applied**: ${battleLog.filter(l => l.type === 'effect').length}`
+                    ].join('\n'),
+                    inline: false
+                }
+            ])
+            .setFooter({ text: 'Live stats update each turn!' })
+            .setTimestamp();
+
+        await interaction.reply({
+            embeds: [embed],
+            ephemeral: true
+        });
+    }
+}
+
+module.exports.PvPInteractionHandler = PvPInteractionHandler;: '🏴‍☠️ Your Stats',
                     value: [
                         `**Name**: ${player.username}`,
                         `**Level**: ${player.level}`,
@@ -747,6 +793,139 @@ class PvPInteractionHandler {
             }
             return true;
         }
+    }
+
+    // Show all skills with detailed stats
+    static async showAllSkills(interaction, battleId, userId, pvpSystem) {
+        const battleData = pvpSystem.activeBattles.get(battleId);
+        if (!battleData) return;
+
+        const playerData = battleData.player1.userId === userId ? battleData.player1 : battleData.player2;
+        
+        const embed = new EmbedBuilder()
+            .setColor(0x9932CC)
+            .setTitle('📋 Devil Fruit Battle Arsenal')
+            .setDescription(`**${playerData.username}'s** selected fruits and their combat abilities`)
+            .setFooter({ text: 'Choose wisely - each skill has unique properties!' });
+
+        playerData.selectedFruits.forEach((fruit, index) => {
+            const ability = balancedDevilFruitAbilities[fruit.fruit_name];
+            const fruitData = getFruitByName(fruit.fruit_name);
+            const emoji = getRarityEmoji(fruit.fruit_rarity);
+            
+            if (ability) {
+                let fieldValue = [
+                    `⚔️ **${ability.name}**`,
+                    `💥 **Base Damage**: ${ability.damage}`,
+                    `⏱️ **Cooldown**: ${ability.cooldown} turns`,
+                    `🎯 **Accuracy**: ${ability.accuracy || 85}%`,
+                    `🔷 **Type**: ${ability.type || 'Unknown'}`
+                ];
+
+                if (ability.effect && statusEffects[ability.effect]) {
+                    const effect = statusEffects[ability.effect];
+                    fieldValue.push(`✨ **Special Effect**: ${effect.description}`);
+                    
+                    if (effect.duration) fieldValue.push(`⏳ **Effect Duration**: ${effect.duration} turns`);
+                    if (effect.damage) fieldValue.push(`🔥 **DoT Damage**: ${effect.damage} per turn`);
+                    if (effect.damageReduction) fieldValue.push(`🛡️ **Damage Reduction**: ${effect.damageReduction}%`);
+                }
+
+                fieldValue.push(`📖 **Description**: ${ability.description}`);
+
+                embed.addFields({
+                    name: `${index + 1}. ${emoji} ${fruit.fruit_name} (${fruit.fruit_rarity})`,
+                    value: fieldValue.join('\n'),
+                    inline: false
+                });
+            }
+        });
+
+        await interaction.reply({
+            embeds: [embed],
+            ephemeral: true
+        });
+    }
+
+    // Handle special battle events
+    static async handleSpecialEvent(interaction, battleId, eventType, pvpSystem) {
+        const battleData = pvpSystem.activeBattles.get(battleId);
+        if (!battleData) return;
+
+        switch (eventType) {
+            case 'view_log':
+                await this.showFullBattleLog(interaction, battleData);
+                break;
+            case 'battle_stats':
+                await this.showBattleStats(interaction, battleData);
+                break;
+            default:
+                await interaction.reply({
+                    content: '❌ Unknown battle event.',
+                    ephemeral: true
+                });
+        }
+    }
+
+    // Show full battle log
+    static async showFullBattleLog(interaction, battleData) {
+        const embed = new EmbedBuilder()
+            .setColor(0x34495E)
+            .setTitle('📜 Complete Battle Log')
+            .setDescription(`Turn-by-turn breakdown of the battle between **${battleData.player1.username}** and **${battleData.player2.username}**`)
+            .setFooter({ text: `Turn ${battleData.currentTurn} • ${battleData.battleLog.length} total events` });
+
+        // Group battle log by turns for better readability
+        const logByTurns = {};
+        battleData.battleLog.forEach(entry => {
+            if (entry.type === 'attack' || entry.type === 'effect') {
+                const turn = entry.turn || battleData.currentTurn;
+                if (!logByTurns[turn]) logByTurns[turn] = [];
+                logByTurns[turn].push(entry.message);
+            }
+        });
+
+        // Show last 5 turns
+        const recentTurns = Object.keys(logByTurns).slice(-5);
+        recentTurns.forEach(turn => {
+            embed.addFields({
+                name: `🔥 Turn ${turn}`,
+                value: logByTurns[turn].join('\n') || 'No events',
+                inline: false
+            });
+        });
+
+        if (Object.keys(logByTurns).length === 0) {
+            embed.setDescription('Battle just started - no combat events yet!');
+        }
+
+        await interaction.reply({
+            embeds: [embed],
+            ephemeral: true
+        });
+    }
+
+    // Show detailed battle statistics
+    static async showBattleStats(interaction, battleData) {
+        const { player1, player2, battleLog, currentTurn } = battleData;
+        
+        // Calculate battle statistics
+        const p1Attacks = battleLog.filter(l => l.type === 'attack' && l.attacker === player1.username);
+        const p2Attacks = battleLog.filter(l => l.type === 'attack' && l.attacker === player2.username);
+        
+        const p1Hits = p1Attacks.filter(a => a.hit);
+        const p2Hits = p2Attacks.filter(a => a.hit);
+        
+        const p1TotalDamage = p1Hits.reduce((sum, a) => sum + a.damage, 0);
+        const p2TotalDamage = p2Hits.reduce((sum, a) => sum + a.damage, 0);
+
+        const embed = new EmbedBuilder()
+            .setColor(0x9B59B6)
+            .setTitle('📊 Live Battle Statistics')
+            .setDescription(`Detailed combat analysis for turn ${currentTurn}`)
+            .addFields([
+                {
+                    name
     }
 
     // Show detailed skill information
