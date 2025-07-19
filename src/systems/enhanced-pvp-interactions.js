@@ -1,4 +1,4 @@
-// src/systems/enhanced-pvp-interactions.js - Complete Fixed Enhanced PvP Interactions
+// src/systems/enhanced-pvp-interactions.js - COMPLETE FILE
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const { getRarityEmoji, getFruitByName } = require('../data/devil-fruits');
