@@ -1,4 +1,4 @@
-// src/events/interactionCreate.js - UPDATED for Multi-Menu Fruit Selection
+// src/events/interactionCreate.js - FIXED for Enhanced Turn-Based PvP
 const { Events } = require('discord.js');
 
 module.exports = {
@@ -32,7 +32,7 @@ module.exports = {
             return;
         }
 
-        // Handle Enhanced Turn-Based PvP interactions (PRIORITY)
+        // Handle Enhanced Turn-Based PvP interactions (PRIORITY - FIXED)
         if (await handleEnhancedTurnBasedPvP(interaction)) {
             return; // Enhanced turn-based PvP interaction was handled
         }
@@ -92,7 +92,7 @@ module.exports = {
     }
 };
 
-// UPDATED: Handle Enhanced Turn-Based PvP interactions with multi-menu support
+// FIXED: Handle Enhanced Turn-Based PvP interactions with proper loading
 async function handleEnhancedTurnBasedPvP(interaction) {
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
         return false;
@@ -101,37 +101,53 @@ async function handleEnhancedTurnBasedPvP(interaction) {
     const customId = interaction.customId;
     
     try {
-        // Try to import the PvP interaction handler safely
+        // FIXED: Try multiple ways to import the enhanced PvP system
         let PvPInteractionHandler = null;
+        
+        // Method 1: Try from the command module
         try {
-            const enhancedPvP = require('../systems/enhanced-turn-based-pvp');
-            PvPInteractionHandler = enhancedPvP.PvPInteractionHandler;
+            const enhancedPvPCommand = require('../commands/enhanced-pvp');
+            if (enhancedPvPCommand.PvPInteractionHandler) {
+                PvPInteractionHandler = enhancedPvPCommand.PvPInteractionHandler;
+                console.log('✅ Loaded PvP handler from enhanced-pvp command');
+            }
         } catch (error) {
-            // Enhanced PvP system not available
-            return false;
+            console.log('⚠️ Could not load PvP handler from command');
+        }
+        
+        // Method 2: Try direct import
+        if (!PvPInteractionHandler) {
+            try {
+                const enhancedPvP = require('../systems/enhanced-turn-based-pvp');
+                PvPInteractionHandler = enhancedPvP.PvPInteractionHandler;
+                console.log('✅ Loaded PvP handler from direct import');
+            } catch (error) {
+                console.log('⚠️ Could not load PvP handler from direct import');
+            }
         }
 
         if (!PvPInteractionHandler) {
+            console.log('❌ Enhanced Turn-Based PvP system not available');
             return false;
         }
         
-        // UPDATED: Check if this is a turn-based PvP interaction (including multi-menu support)
+        // FIXED: Check if this is a turn-based PvP interaction (enhanced patterns)
         const pvpPrefixes = [
-            'fruit_selection_',      // Multi-menu fruit selection
+            'fruit_selection_',      // Enhanced multi-menu fruit selection
             'confirm_fruit_selection_', // Confirm selection
             'clear_fruit_selection_',   // Clear selection
-            'use_skill_',
-            'start_battle_',
-            'show_skills_',
-            'surrender_',
-            'view_log_',
-            'battle_stats_'
+            'use_skill_',            // Enhanced skill usage
+            'start_battle_',         // Enhanced battle start
+            'show_skills_',          // Enhanced skill display
+            'surrender_',            // Enhanced surrender
+            'view_log_',             // Enhanced battle log
+            'battle_stats_'          // Enhanced battle stats
         ];
 
         const isPvPInteraction = pvpPrefixes.some(prefix => customId.startsWith(prefix));
         
         if (isPvPInteraction) {
-            console.log(`🎮 Handling turn-based PvP interaction: ${customId}`);
+            console.log(`🎮 Handling enhanced turn-based PvP interaction: ${customId}`);
             return await PvPInteractionHandler.handleInteraction(interaction);
         }
 
@@ -140,11 +156,15 @@ async function handleEnhancedTurnBasedPvP(interaction) {
     } catch (error) {
         console.error('Error handling enhanced turn-based PvP interaction:', error);
         
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({
-                content: '❌ An error occurred while processing your battle interaction.',
-                ephemeral: true
-            });
+        try {
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ An error occurred while processing your enhanced battle interaction.',
+                    ephemeral: true
+                });
+            }
+        } catch (replyError) {
+            console.error('Failed to send enhanced PvP error reply:', replyError);
         }
         
         return true; // We attempted to handle it
