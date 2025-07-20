@@ -1073,10 +1073,27 @@ class EnhancedTurnBasedPvP {
                     .setStyle(ButtonStyle.Success)
             );
 
-        await interaction.editReply({
-            embeds: [bossEmbed],
-            components: [startButton]
-        });
+        // Check if interaction has been replied to or deferred
+        try {
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({
+                    embeds: [bossEmbed],
+                    components: [startButton]
+                });
+            } else {
+                await interaction.update({
+                    embeds: [bossEmbed],
+                    components: [startButton]
+                });
+            }
+        } catch (error) {
+            console.error('Error revealing boss:', error);
+            // Fallback to followUp if update fails
+            await interaction.followUp({
+                embeds: [bossEmbed],
+                components: [startButton]
+            });
+        }
 
         // Auto-start after 3 seconds
         setTimeout(async () => {
@@ -1128,10 +1145,32 @@ class EnhancedTurnBasedPvP {
             .setFooter({ text: 'Enhanced Turn-Based Battle System - Combat mechanics ready!' })
             .setTimestamp();
 
-        await interaction.editReply({
-            embeds: [battleEmbed],
-            components: []
-        });
+        // Check the current state of the interaction
+        try {
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({
+                    embeds: [battleEmbed],
+                    components: []
+                });
+            } else if (interaction.isButton()) {
+                await interaction.update({
+                    embeds: [battleEmbed],
+                    components: []
+                });
+            } else {
+                await interaction.reply({
+                    embeds: [battleEmbed],
+                    components: []
+                });
+            }
+        } catch (error) {
+            console.error('Error starting battle interface:', error);
+            // Fallback to followUp
+            await interaction.followUp({
+                embeds: [battleEmbed],
+                components: []
+            });
+        }
 
         console.log(`⚔️ Enhanced turn-based battle ${battleData.id} started successfully!`);
     }
