@@ -703,36 +703,56 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // FIXED: Handle fruit selection with improved battle ID handling
+    // FIXED: Handle fruit selection with robust battle ID lookup
     async handleFruitSelection(interaction, battleId, userId, rarity) {
         try {
-            console.log(`🍈 Handling fruit selection: Battle ${battleId}, User ${userId}, Rarity ${rarity}`);
+            console.log(`🍈 Handling fruit selection: Battle "${battleId}", User "${userId}", Rarity "${rarity}"`);
             console.log(`📊 Active battles: ${this.activeBattles.size}`);
-            console.log(`📊 Available battle IDs: ${Array.from(this.activeBattles.keys()).join(', ')}`);
+            console.log(`📊 Available battle IDs: [${Array.from(this.activeBattles.keys()).map(id => `"${id}"`).join(', ')}]`);
             
-            // Try to find battle with exact ID first
-            let battleData = this.activeBattles.get(battleId);
+            // Try multiple lookup strategies
+            let battleData = null;
+            let finalBattleId = battleId;
             
-            // If not found, try to find by partial ID (timestamp part)
+            // Strategy 1: Exact match
+            battleData = this.activeBattles.get(battleId);
+            if (battleData) {
+                console.log(`✅ Found battle with exact match: "${battleId}"`);
+            }
+            
+            // Strategy 2: Partial match by timestamp
             if (!battleData && battleId.includes('_')) {
                 const timestampPart = battleId.split('_')[0];
-                console.log(`🔍 Searching for battle with timestamp: ${timestampPart}`);
+                console.log(`🔍 Searching for battle with timestamp: "${timestampPart}"`);
                 
                 for (const [storedBattleId, storedBattleData] of this.activeBattles) {
                     if (storedBattleId.startsWith(timestampPart)) {
                         battleData = storedBattleData;
-                        battleId = storedBattleId; // Update to use the correct stored ID
-                        console.log(`✅ Found battle with corrected ID: ${battleId}`);
+                        finalBattleId = storedBattleId;
+                        console.log(`✅ Found battle with timestamp match: "${finalBattleId}"`);
+                        break;
+                    }
+                }
+            }
+            
+            // Strategy 3: Reverse lookup - timestamp only
+            if (!battleData) {
+                console.log(`🔍 Trying reverse lookup for timestamp: "${battleId}"`);
+                
+                for (const [storedBattleId, storedBattleData] of this.activeBattles) {
+                    if (storedBattleId.startsWith(battleId)) {
+                        battleData = storedBattleData;
+                        finalBattleId = storedBattleId;
+                        console.log(`✅ Found battle with reverse lookup: "${finalBattleId}"`);
                         break;
                     }
                 }
             }
             
             if (!battleData) {
-                console.error(`❌ Battle ${battleId} not found in active battles`);
-                console.error(`Available battles: ${Array.from(this.activeBattles.keys())}`);
+                console.error(`❌ Battle "${battleId}" not found after all lookup strategies`);
                 return await interaction.reply({ 
-                    content: `❌ Battle not found! Battle ID: \`${battleId}\`\nAvailable battles: ${Array.from(this.activeBattles.keys()).join(', ') || 'none'}\nThis battle may have expired.`, 
+                    content: `❌ Battle not found!\n**Looking for**: \`${battleId}\`\n**Available**: \`${Array.from(this.activeBattles.keys()).join('`, `')}\`\n\nThe battle may have expired or there's an ID mismatch.`, 
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -743,7 +763,7 @@ class EnhancedTurnBasedPvP {
             
             if (!player) {
                 return await interaction.reply({ 
-                    content: '❌ Player not found in this battle!', 
+                    content: `❌ Player "${userId}" not found in battle "${finalBattleId}"!`, 
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -752,11 +772,14 @@ class EnhancedTurnBasedPvP {
             const rarityFruits = organizedFruits[rarity] || [];
 
             const selectedValues = interaction.values || [];
+            console.log(`🎯 Selected values: ${JSON.stringify(selectedValues)}`);
             
             // Remove all fruits of this rarity from selection first
+            const previousCount = selectionData.selectedFruits.length;
             selectionData.selectedFruits = selectionData.selectedFruits.filter(fruit => {
                 return fruit.fruit_rarity !== rarity;
             });
+            console.log(`🗑️ Removed ${previousCount - selectionData.selectedFruits.length} fruits of rarity "${rarity}"`);
 
             // Add newly selected fruits of this rarity
             selectedValues.forEach(value => {
@@ -768,6 +791,7 @@ class EnhancedTurnBasedPvP {
                     const exists = selectionData.selectedFruits.find(f => f.fruit_name === selectedFruit.fruit_name);
                     if (!exists) {
                         selectionData.selectedFruits.push(selectedFruit);
+                        console.log(`✅ Added fruit: ${selectedFruit.fruit_name} (${selectedFruit.fruit_rarity})`);
                     }
                 }
             });
@@ -778,7 +802,9 @@ class EnhancedTurnBasedPvP {
             }
 
             selectionData.lastUpdate = Date.now();
-            this.activeBattles.set(battleId, battleData);
+            this.activeBattles.set(finalBattleId, battleData);
+
+            console.log(`📊 Final selection count: ${selectionData.selectedFruits.length}/5`);
 
             // Update the private interface
             const embed = this.createPrivateSelectionEmbed(battleData, player);
@@ -800,7 +826,7 @@ class EnhancedTurnBasedPvP {
             try {
                 if (!interaction.replied) {
                     await interaction.reply({
-                        content: '❌ An error occurred while updating your selection.',
+                        content: `❌ Error during fruit selection: ${error.message}`,
                         flags: MessageFlags.Ephemeral
                     });
                 }
@@ -1149,15 +1175,35 @@ class PvPInteractionHandler {
         try {
             console.log(`🎮 Processing PvP interaction: ${customId}`);
 
-            // FIXED: Handle fruit selection from specific rarity dropdowns
+            // FIXED: Handle fruit selection from specific rarity dropdowns with improved ID parsing
             if (customId.includes('_divine') || customId.includes('_mythical') || 
                 customId.includes('_legendary') || customId.includes('_epic') ||
                 customId.includes('_rare') || customId.includes('_uncommon') || customId.includes('_common')) {
                 
+                console.log(`🔍 Parsing fruit selection custom ID: ${customId}`);
+                
+                // Extract parts more carefully
                 const parts = customId.split('_');
-                const battleId = parts[2];
-                const userId = parts[3];
-                const rarity = parts[4];
+                console.log(`🔍 Custom ID parts: ${JSON.stringify(parts)}`);
+                
+                // Find fruit_selection prefix index
+                const selectionIndex = parts.findIndex(part => part === 'selection');
+                if (selectionIndex === -1 || selectionIndex + 3 >= parts.length) {
+                    console.error(`❌ Invalid fruit selection custom ID format: ${customId}`);
+                    return false;
+                }
+                
+                // Extract battle ID (everything between fruit_selection and user ID)
+                // Format: fruit_selection_BATTLEID_USERID_RARITY
+                const battleIdStart = selectionIndex + 1;
+                const userIdIndex = parts.length - 2; // Second to last part is user ID
+                const rarityIndex = parts.length - 1;  // Last part is rarity
+                
+                const battleId = parts.slice(battleIdStart, userIdIndex).join('_');
+                const userId = parts[userIdIndex];
+                const rarity = parts[rarityIndex];
+                
+                console.log(`🔍 Extracted - Battle ID: "${battleId}", User ID: "${userId}", Rarity: "${rarity}"`);
                 
                 await pvpSystem.handleFruitSelection(interaction, battleId, userId, rarity);
                 return true;
