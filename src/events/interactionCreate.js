@@ -32,9 +32,11 @@ module.exports = {
             return;
         }
 
-        // Handle Enhanced Turn-Based PvP interactions (PRIORITY - FIXED)
-        if (await handleEnhancedTurnBasedPvP(interaction)) {
-            return; // Enhanced turn-based PvP interaction was handled
+        // PRIORITY: Handle Enhanced Turn-Based PvP interactions FIRST
+        if (interaction.isButton() || interaction.isStringSelectMenu()) {
+            if (await handleEnhancedTurnBasedPvP(interaction)) {
+                return; // Enhanced turn-based PvP interaction was handled
+            }
         }
 
         // Handle other button interactions
@@ -92,7 +94,7 @@ module.exports = {
     }
 };
 
-// FIXED: Handle Enhanced Turn-Based PvP interactions with proper loading
+// FIXED: Handle Enhanced Turn-Based PvP interactions with comprehensive pattern matching
 async function handleEnhancedTurnBasedPvP(interaction) {
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
         return false;
@@ -131,20 +133,31 @@ async function handleEnhancedTurnBasedPvP(interaction) {
             return false;
         }
         
-        // FIXED: Check if this is a turn-based PvP interaction (enhanced patterns)
+        // FIXED: Comprehensive check for enhanced turn-based PvP interactions
         const pvpPrefixes = [
-            'fruit_selection_',      // Enhanced multi-menu fruit selection
-            'confirm_fruit_selection_', // Confirm selection
-            'clear_fruit_selection_',   // Clear selection
-            'use_skill_',            // Enhanced skill usage
-            'start_battle_',         // Enhanced battle start
-            'show_skills_',          // Enhanced skill display
-            'surrender_',            // Enhanced surrender
-            'view_log_',             // Enhanced battle log
-            'battle_stats_'          // Enhanced battle stats
+            'fruit_selection_',         // Enhanced multi-rarity fruit selection
+            'confirm_selection_',       // Confirm fruit selection
+            'clear_selection_',         // Clear fruit selection
+            'page_switch_',            // FIXED: Page switching between High/Low
+            'use_skill_',              // Enhanced skill usage
+            'start_battle_',           // Enhanced battle start
+            'show_skills_',            // Enhanced skill display
+            'surrender_',              // Enhanced surrender
+            'view_log_',               // Enhanced battle log
+            'battle_stats_'            // Enhanced battle stats
         ];
 
-        const isPvPInteraction = pvpPrefixes.some(prefix => customId.startsWith(prefix));
+        // FIXED: Enhanced pattern matching for all PvP interactions
+        const isPvPInteraction = pvpPrefixes.some(prefix => customId.startsWith(prefix)) ||
+                                customId.includes('_divine') ||
+                                customId.includes('_mythical') ||
+                                customId.includes('_legendary') ||
+                                customId.includes('_epic') ||
+                                customId.includes('_rare') ||
+                                customId.includes('_uncommon') ||
+                                customId.includes('_common') ||
+                                customId.includes('battle_') ||
+                                customId.includes('_battle_');
         
         if (isPvPInteraction) {
             console.log(`🎮 Handling enhanced turn-based PvP interaction: ${customId}`);
@@ -155,6 +168,12 @@ async function handleEnhancedTurnBasedPvP(interaction) {
 
     } catch (error) {
         console.error('Error handling enhanced turn-based PvP interaction:', error);
+        
+        // Check for specific Discord error codes
+        if (error.code === 10062) {
+            console.warn('⚠️ Enhanced PvP interaction expired - this is normal for old interactions');
+            return true; // Mark as handled to prevent further processing
+        }
         
         try {
             if (!interaction.replied && !interaction.deferred) {
