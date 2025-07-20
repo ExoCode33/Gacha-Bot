@@ -61,10 +61,10 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // Generate battle ID
+    // Generate battle ID (simplified for better compatibility)
     generateBattleId() {
         const timestamp = Date.now();
-        const randomId = Math.random().toString(36).substr(2, 9);
+        const randomId = Math.random().toString(36).substr(2, 5);
         return `${timestamp}_${randomId}`;
     }
 
@@ -703,16 +703,36 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // FIXED: Handle fruit selection with proper parsing
+    // FIXED: Handle fruit selection with improved battle ID handling
     async handleFruitSelection(interaction, battleId, userId, rarity) {
         try {
             console.log(`🍈 Handling fruit selection: Battle ${battleId}, User ${userId}, Rarity ${rarity}`);
+            console.log(`📊 Active battles: ${this.activeBattles.size}`);
+            console.log(`📊 Available battle IDs: ${Array.from(this.activeBattles.keys()).join(', ')}`);
             
-            const battleData = this.activeBattles.get(battleId);
+            // Try to find battle with exact ID first
+            let battleData = this.activeBattles.get(battleId);
+            
+            // If not found, try to find by partial ID (timestamp part)
+            if (!battleData && battleId.includes('_')) {
+                const timestampPart = battleId.split('_')[0];
+                console.log(`🔍 Searching for battle with timestamp: ${timestampPart}`);
+                
+                for (const [storedBattleId, storedBattleData] of this.activeBattles) {
+                    if (storedBattleId.startsWith(timestampPart)) {
+                        battleData = storedBattleData;
+                        battleId = storedBattleId; // Update to use the correct stored ID
+                        console.log(`✅ Found battle with corrected ID: ${battleId}`);
+                        break;
+                    }
+                }
+            }
+            
             if (!battleData) {
                 console.error(`❌ Battle ${battleId} not found in active battles`);
+                console.error(`Available battles: ${Array.from(this.activeBattles.keys())}`);
                 return await interaction.reply({ 
-                    content: `❌ Battle not found! Battle ID: \`${battleId}\`\nThis battle may have expired.`, 
+                    content: `❌ Battle not found! Battle ID: \`${battleId}\`\nAvailable battles: ${Array.from(this.activeBattles.keys()).join(', ') || 'none'}\nThis battle may have expired.`, 
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -790,12 +810,29 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // FIXED: Handle page switching with proper parsing
+    // FIXED: Handle page switching with improved battle ID handling
     async handlePageSwitch(interaction, battleId, userId) {
         try {
             console.log(`🔄 Handling page switch: Battle ${battleId}, User ${userId}`);
             
-            const battleData = this.activeBattles.get(battleId);
+            // Try to find battle with exact ID first
+            let battleData = this.activeBattles.get(battleId);
+            
+            // If not found, try to find by partial ID (timestamp part)
+            if (!battleData && battleId.includes('_')) {
+                const timestampPart = battleId.split('_')[0];
+                console.log(`🔍 Searching for battle with timestamp: ${timestampPart}`);
+                
+                for (const [storedBattleId, storedBattleData] of this.activeBattles) {
+                    if (storedBattleId.startsWith(timestampPart)) {
+                        battleData = storedBattleData;
+                        battleId = storedBattleId; // Update to use the correct stored ID
+                        console.log(`✅ Found battle with corrected ID: ${battleId}`);
+                        break;
+                    }
+                }
+            }
+            
             if (!battleData) {
                 return await interaction.reply({ 
                     content: `❌ Battle not found! Battle ID: \`${battleId}\``, 
