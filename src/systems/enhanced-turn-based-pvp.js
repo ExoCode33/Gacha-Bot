@@ -1140,5 +1140,10 @@ setInterval(() => {
 console.log('✅ Enhanced Turn-Based PvP System with FIXED High/Low Rarity Pages loaded!');
 console.log('✅ Features: Separate dropdowns for each rarity, working page switching, proper selection handling');
 
+// Export both the main system and the interaction handler
 module.exports = enhancedTurnBasedPvP;
 module.exports.PvPInteractionHandler = PvPInteractionHandler;
+module.exports.activeBattles = enhancedTurnBasedPvP.activeBattles;
+
+// Also add to the main system for direct access
+enhancedTurnBasedPvP.PvPInteractionHandler = PvPInteractionHandler;
