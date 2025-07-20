@@ -1,4 +1,4 @@
-// src/events/interactionCreate.js - FIXED for Enhanced Turn-Based PvP
+// src/events/interactionCreate.js - UPDATED for Enhanced PvP with Queue System
 const { Events } = require('discord.js');
 
 module.exports = {
@@ -36,6 +36,11 @@ module.exports = {
         if (interaction.isButton() || interaction.isStringSelectMenu()) {
             if (await handleEnhancedTurnBasedPvP(interaction)) {
                 return; // Enhanced turn-based PvP interaction was handled
+            }
+            
+            // Handle Queue System button interactions
+            if (await handleQueueSystemButtons(interaction)) {
+                return; // Queue system interaction was handled
             }
         }
 
@@ -94,7 +99,7 @@ module.exports = {
     }
 };
 
-// FIXED: Handle Enhanced Turn-Based PvP interactions with improved error handling
+// UPDATED: Handle Enhanced Turn-Based PvP interactions with Queue System support
 async function handleEnhancedTurnBasedPvP(interaction) {
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
         return false;
@@ -103,7 +108,7 @@ async function handleEnhancedTurnBasedPvP(interaction) {
     const customId = interaction.customId;
     
     try {
-        // FIXED: Try to load the enhanced PvP system
+        // Try to load the enhanced PvP system
         let enhancedPvPSystem = null;
         
         try {
@@ -119,7 +124,7 @@ async function handleEnhancedTurnBasedPvP(interaction) {
             return false;
         }
         
-        // FIXED: Comprehensive check for enhanced turn-based PvP interactions
+        // Enhanced pattern matching for all PvP interactions
         const pvpPrefixes = [
             'fruit_selection_',         // Enhanced multi-rarity fruit selection
             'confirm_selection_',       // Confirm fruit selection
@@ -133,7 +138,7 @@ async function handleEnhancedTurnBasedPvP(interaction) {
             'battle_stats_'            // Enhanced battle stats
         ];
 
-        // FIXED: Enhanced pattern matching for all PvP interactions
+        // Enhanced pattern matching for all PvP interactions
         const isPvPInteraction = pvpPrefixes.some(prefix => customId.startsWith(prefix)) ||
                                 customId.includes('_divine') ||
                                 customId.includes('_mythical') ||
@@ -176,6 +181,54 @@ async function handleEnhancedTurnBasedPvP(interaction) {
             }
         } catch (replyError) {
             console.error('Failed to send enhanced PvP error reply:', replyError);
+        }
+        
+        return true; // We attempted to handle it
+    }
+}
+
+// NEW: Handle Queue System button interactions
+async function handleQueueSystemButtons(interaction) {
+    if (!interaction.isButton()) {
+        return false;
+    }
+
+    const customId = interaction.customId;
+
+    try {
+        // Handle leave queue button
+        if (customId.startsWith('leave_queue_')) {
+            const userId = customId.replace('leave_queue_', '');
+            
+            // Load the enhanced PvP command to access the queue system
+            const enhancedPvPCommand = require('../commands/enhanced-pvp');
+            const queueSystem = enhancedPvPCommand.PvPQueueSystem;
+            
+            if (!queueSystem) {
+                return await interaction.reply({
+                    content: '❌ Queue system is not available.',
+                    ephemeral: true
+                });
+            }
+            
+            await queueSystem.handleLeaveQueueButton(interaction, userId);
+            return true;
+        }
+
+        return false; // Not a queue system interaction
+
+    } catch (error) {
+        console.error('Error handling queue system interaction:', error);
+        
+        try {
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ An error occurred while processing your queue interaction.',
+                    ephemeral: true
+                });
+            }
+        } catch (replyError) {
+            console.error('Failed to send queue system error reply:', replyError);
         }
         
         return true; // We attempted to handle it
