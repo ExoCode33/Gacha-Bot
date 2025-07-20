@@ -94,7 +94,7 @@ module.exports = {
     }
 };
 
-// FIXED: Handle Enhanced Turn-Based PvP interactions with comprehensive pattern matching
+// FIXED: Handle Enhanced Turn-Based PvP interactions with improved error handling
 async function handleEnhancedTurnBasedPvP(interaction) {
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
         return false;
@@ -103,33 +103,19 @@ async function handleEnhancedTurnBasedPvP(interaction) {
     const customId = interaction.customId;
     
     try {
-        // FIXED: Try multiple ways to import the enhanced PvP system
-        let PvPInteractionHandler = null;
+        // FIXED: Try to load the enhanced PvP system
+        let enhancedPvPSystem = null;
         
-        // Method 1: Try from the command module
         try {
-            const enhancedPvPCommand = require('../commands/enhanced-pvp');
-            if (enhancedPvPCommand.PvPInteractionHandler) {
-                PvPInteractionHandler = enhancedPvPCommand.PvPInteractionHandler;
-                console.log('✅ Loaded PvP handler from enhanced-pvp command');
-            }
+            enhancedPvPSystem = require('../systems/enhanced-turn-based-pvp');
+            console.log('✅ Loaded Enhanced PvP system successfully');
         } catch (error) {
-            console.log('⚠️ Could not load PvP handler from command');
-        }
-        
-        // Method 2: Try direct import
-        if (!PvPInteractionHandler) {
-            try {
-                const enhancedPvP = require('../systems/enhanced-turn-based-pvp');
-                PvPInteractionHandler = enhancedPvP.PvPInteractionHandler;
-                console.log('✅ Loaded PvP handler from direct import');
-            } catch (error) {
-                console.log('⚠️ Could not load PvP handler from direct import');
-            }
+            console.error('❌ Could not load Enhanced PvP system:', error);
+            return false;
         }
 
-        if (!PvPInteractionHandler) {
-            console.log('❌ Enhanced Turn-Based PvP system not available');
+        if (!enhancedPvPSystem || !enhancedPvPSystem.interactionHandler) {
+            console.log('❌ Enhanced Turn-Based PvP system or interaction handler not available');
             return false;
         }
         
@@ -138,7 +124,7 @@ async function handleEnhancedTurnBasedPvP(interaction) {
             'fruit_selection_',         // Enhanced multi-rarity fruit selection
             'confirm_selection_',       // Confirm fruit selection
             'clear_selection_',         // Clear fruit selection
-            'page_switch_',            // FIXED: Page switching between High/Low
+            'page_switch_',            // Page switching between High/Low
             'use_skill_',              // Enhanced skill usage
             'start_battle_',           // Enhanced battle start
             'show_skills_',            // Enhanced skill display
@@ -161,7 +147,7 @@ async function handleEnhancedTurnBasedPvP(interaction) {
         
         if (isPvPInteraction) {
             console.log(`🎮 Handling enhanced turn-based PvP interaction: ${customId}`);
-            return await PvPInteractionHandler.handleInteraction(interaction);
+            return await enhancedPvPSystem.interactionHandler.handleInteraction(interaction);
         }
 
         return false; // Not a turn-based PvP interaction
@@ -173,6 +159,12 @@ async function handleEnhancedTurnBasedPvP(interaction) {
         if (error.code === 10062) {
             console.warn('⚠️ Enhanced PvP interaction expired - this is normal for old interactions');
             return true; // Mark as handled to prevent further processing
+        }
+        
+        // Check for interaction already replied
+        if (error.code === 'InteractionNotReplied' || error.message.includes('InteractionNotReplied')) {
+            console.warn('⚠️ Interaction not replied - this can happen during complex battle flows');
+            return true; // Mark as handled
         }
         
         try {
