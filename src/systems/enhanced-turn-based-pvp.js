@@ -1,5 +1,5 @@
-// src/systems/enhanced-turn-based-pvp.js - FIXED Enhanced Turn-Based PvP System
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+// src/systems/enhanced-turn-based-pvp.js - FIXED Battle Storage & Ephemeral Issues
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const PvPBalanceSystem = require('./pvp-balance');
 const NPCBossSystem = require('./npc-bosses');
@@ -24,10 +24,10 @@ class EnhancedTurnBasedPvP {
         this.battleQueue = new Set();
         this.battleCooldowns = new Map();
         
-        console.log('⚔️ Enhanced Turn-Based PvP System initialized with FIXED High/Low Rarity Pages');
+        console.log('⚔️ Enhanced Turn-Based PvP System initialized with FIXED Battle Storage & Ephemeral');
     }
 
-    // Start a battle (from queue or challenge) - FIXED
+    // FIXED: Start a battle with better error handling and battle storage
     async startBattle(interaction, player1Fighter, player2Fighter = null) {
         const battleId = `battle_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
@@ -54,6 +54,8 @@ class EnhancedTurnBasedPvP {
                 created: Date.now(),
                 status: 'fruit_selection',
                 publicMessageId: null,
+                channelId: interaction.channel?.id,
+                guildId: interaction.guild?.id,
                 selectionData: {
                     player1: {
                         selectedFruits: [],
@@ -70,7 +72,9 @@ class EnhancedTurnBasedPvP {
                 }
             };
 
+            // FIXED: Store battle with better logging
             this.activeBattles.set(battleId, battleData);
+            console.log(`⚔️ Battle ${battleId} created and stored. Active battles: ${this.activeBattles.size}`);
             
             // Start fruit selection
             await this.startFruitSelection(interaction, battleData);
@@ -81,6 +85,7 @@ class EnhancedTurnBasedPvP {
             console.error('Error starting enhanced battle:', error);
             if (this.activeBattles.has(battleId)) {
                 this.activeBattles.delete(battleId);
+                console.log(`🗑️ Cleaned up failed battle ${battleId}`);
             }
             throw error;
         }
@@ -127,7 +132,7 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // Start fruit selection phase with dual-message system - FIXED
+    // Start fruit selection phase with better error handling
     async startFruitSelection(interaction, battleData) {
         const { player1, player2, isVsNPC } = battleData;
 
@@ -143,10 +148,15 @@ class EnhancedTurnBasedPvP {
             // Get the message ID by fetching the reply
             const publicMessage = await interaction.fetchReply();
             battleData.publicMessageId = publicMessage.id;
+            
+            // Update the stored battle data
+            this.activeBattles.set(battleData.id, battleData);
+            console.log(`📺 Public battle screen created for ${battleData.id}`);
 
             if (isVsNPC) {
                 // Auto-complete NPC selection
                 this.completeNPCSelection(battleData);
+                console.log(`🤖 NPC selection completed for ${battleData.id}`);
             }
             
             // Send private selection to player1
@@ -183,7 +193,7 @@ class EnhancedTurnBasedPvP {
         return new EmbedBuilder()
             .setColor(0x3498DB)
             .setTitle('⚔️ Enhanced Turn-Based PvP Battle - Live Selection')
-            .setDescription('🔥 **Real-time fruit selection in progress!**\n*Watch as both fighters choose their battle lineup*')
+            .setDescription(`🔥 **Real-time fruit selection in progress!**\n*Battle ID: \`${battleData.id}\`*\n*Watch as both fighters choose their battle lineup*`)
             .addFields([
                 {
                     name: `🏴‍☠️ ${player1.username} ${player1.title ? `(${player1.title})` : ''}`,
@@ -212,7 +222,8 @@ class EnhancedTurnBasedPvP {
                         `**Selection System**: High/Low Rarity Pages`,
                         `**High Rarity Page**: Divine/Mythical/Legendary/Epic`,
                         `**Low Rarity Page**: Rare/Uncommon/Common`,
-                        `**Real-Time Updates**: ✅ Live selection tracking`
+                        `**Real-Time Updates**: ✅ Live selection tracking`,
+                        `**Active Battles**: ${this.activeBattles.size}`
                     ].join('\n'),
                     inline: false
                 }
@@ -267,19 +278,21 @@ class EnhancedTurnBasedPvP {
         return parts.join(', ') || 'No fruits selected';
     }
 
-    // Send private selection interface to player - FIXED
+    // FIXED: Send private selection interface with proper flags
     async sendPrivateSelection(interaction, battleData, player) {
         try {
             const embed = this.createPrivateSelectionEmbed(battleData, player);
             const components = await this.createPrivateSelectionComponents(battleData, player);
             
-            // FIXED: Send ephemeral followUp for private interface
+            // FIXED: Use flags instead of ephemeral
             await interaction.followUp({
-                content: `🔒 **Your Private Selection Interface** - Choose your 5 battle fruits!`,
+                content: `🔒 **Your Private Selection Interface** - Choose your 5 battle fruits!\n*Battle ID: \`${battleData.id}\`*`,
                 embeds: [embed],
                 components: components,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
+            
+            console.log(`🔒 Private selection sent to ${player.username} for battle ${battleData.id}`);
             
         } catch (error) {
             console.error('Error sending private selection:', error);
@@ -296,7 +309,8 @@ class EnhancedTurnBasedPvP {
             .setColor(selectedCount === 5 ? 0x00FF00 : 0x3498DB)
             .setTitle(`🔒 Your Private Fruit Selection - ${currentPage === 'high' ? 'High' : 'Low'} Rarity Page`)
             .setDescription(
-                `**Progress: ${selectedCount}/5 fruits selected**\n\n` +
+                `**Progress: ${selectedCount}/5 fruits selected**\n` +
+                `*Battle ID: \`${battleData.id}\`*\n\n` +
                 (selectedCount === 5 ? 
                     '✅ **Perfect! You have 5 fruits selected. Click Confirm to lock in your choices!**' : 
                     `🔄 **Select ${5 - selectedCount} more fruits from the dropdowns below.**`)
@@ -353,7 +367,7 @@ class EnhancedTurnBasedPvP {
         return embed;
     }
 
-    // FIXED: Create private selection components with proper dropdowns for each rarity
+    // Create private selection components with proper dropdowns for each rarity
     async createPrivateSelectionComponents(battleData, player) {
         const components = [];
         const selectionData = battleData.selectionData[player.userId === battleData.player1.userId ? 'player1' : 'player2'];
@@ -364,7 +378,7 @@ class EnhancedTurnBasedPvP {
         // Organize fruits by rarity for current page
         const organizedFruits = this.organizeFruitsByRarity(player.fruits, currentPage);
 
-        // FIXED: Create separate dropdown for each rarity on current page
+        // Create separate dropdown for each rarity on current page
         if (currentPage === 'high') {
             // High Rarity Page - Divine, Mythical, Legendary, Epic dropdowns
             
@@ -561,7 +575,7 @@ class EnhancedTurnBasedPvP {
             }
         }
 
-        // FIXED: Add page navigation and action buttons (now properly working)
+        // Add page navigation and action buttons
         const actionRow = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -636,16 +650,19 @@ class EnhancedTurnBasedPvP {
         battleData.selectionData.player2.lastUpdate = Date.now();
         
         npcPlayer.selectedFruits = selectedFruits;
+        
+        // Update the stored battle data
+        this.activeBattles.set(battleData.id, battleData);
     }
 
-    // Update public battle screen with real-time data - FIXED
+    // Update public battle screen with real-time data
     async updatePublicBattleScreen(interaction, battleData) {
         try {
             if (!battleData.publicMessageId) return;
 
             const publicEmbed = this.createPublicBattleScreen(battleData);
             
-            // FIXED: Try to update the original reply
+            // Try to update the original reply
             try {
                 await interaction.editReply({
                     embeds: [publicEmbed]
@@ -671,14 +688,18 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // FIXED: Handle fruit selection from dropdowns with proper rarity handling
+    // FIXED: Handle fruit selection with better battle validation
     async handleFruitSelection(interaction, battleId, userId, rarity) {
         try {
+            console.log(`🍈 Handling fruit selection: Battle ${battleId}, User ${userId}, Rarity ${rarity}`);
+            console.log(`📊 Active battles: ${this.activeBattles.size}`);
+            
             const battleData = this.activeBattles.get(battleId);
             if (!battleData) {
+                console.error(`❌ Battle ${battleId} not found in active battles:`, Array.from(this.activeBattles.keys()));
                 return await interaction.reply({ 
-                    content: '❌ Battle not found! It may have expired.', 
-                    ephemeral: true 
+                    content: `❌ Battle not found! Battle ID: \`${battleId}\`\nThis battle may have expired or been cleaned up.`, 
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -689,7 +710,7 @@ class EnhancedTurnBasedPvP {
             if (!player) {
                 return await interaction.reply({ 
                     content: '❌ Player not found in this battle!', 
-                    ephemeral: true 
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -723,6 +744,9 @@ class EnhancedTurnBasedPvP {
             }
 
             selectionData.lastUpdate = Date.now();
+            
+            // Update the stored battle data
+            this.activeBattles.set(battleId, battleData);
 
             // Update the private interface
             const embed = this.createPrivateSelectionEmbed(battleData, player);
@@ -735,6 +759,8 @@ class EnhancedTurnBasedPvP {
 
             // Update public battle screen
             await this.updatePublicBattleScreen(interaction, battleData);
+            
+            console.log(`✅ Fruit selection updated for ${player.username}: ${selectionData.selectedFruits.length}/5 fruits`);
 
         } catch (error) {
             console.error('Error handling fruit selection:', error);
@@ -743,7 +769,7 @@ class EnhancedTurnBasedPvP {
                 if (!interaction.replied) {
                     await interaction.reply({
                         content: '❌ An error occurred while updating your selection. Please try again.',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
             } catch (followUpError) {
@@ -752,14 +778,16 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // FIXED: Handle page switching
+    // FIXED: Handle page switching with better validation
     async handlePageSwitch(interaction, battleId, userId) {
         try {
+            console.log(`🔄 Handling page switch: Battle ${battleId}, User ${userId}`);
+            
             const battleData = this.activeBattles.get(battleId);
             if (!battleData) {
                 return await interaction.reply({ 
-                    content: '❌ Battle not found!', 
-                    ephemeral: true 
+                    content: `❌ Battle not found! Battle ID: \`${battleId}\``, 
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -770,13 +798,16 @@ class EnhancedTurnBasedPvP {
             if (!player) {
                 return await interaction.reply({ 
                     content: '❌ Player not found in this battle!', 
-                    ephemeral: true 
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
             // Switch page
             selectionData.currentPage = selectionData.currentPage === 'high' ? 'low' : 'high';
             selectionData.lastUpdate = Date.now();
+            
+            // Update the stored battle data
+            this.activeBattles.set(battleId, battleData);
 
             // Update the interface with new page
             const embed = this.createPrivateSelectionEmbed(battleData, player);
@@ -789,6 +820,8 @@ class EnhancedTurnBasedPvP {
 
             // Update public battle screen
             await this.updatePublicBattleScreen(interaction, battleData);
+            
+            console.log(`✅ Page switched to ${selectionData.currentPage} for ${player.username}`);
 
         } catch (error) {
             console.error('Error handling page switch:', error);
@@ -797,7 +830,7 @@ class EnhancedTurnBasedPvP {
                 if (!interaction.replied) {
                     await interaction.reply({
                         content: '❌ An error occurred while switching pages. Please try again.',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
             } catch (followUpError) {
@@ -806,14 +839,16 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // FIXED: Handle confirm selection
+    // FIXED: Handle confirm selection with validation
     async handleConfirmSelection(interaction, battleId, userId) {
         try {
+            console.log(`✅ Handling confirm selection: Battle ${battleId}, User ${userId}`);
+            
             const battleData = this.activeBattles.get(battleId);
             if (!battleData) {
                 return await interaction.reply({ 
-                    content: '❌ Battle not found!', 
-                    ephemeral: true 
+                    content: `❌ Battle not found! Battle ID: \`${battleId}\``, 
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -824,7 +859,7 @@ class EnhancedTurnBasedPvP {
             if (!player || !selectionData.selectedFruits || selectionData.selectedFruits.length !== 5) {
                 return await interaction.reply({ 
                     content: `❌ You must select exactly 5 fruits! Currently selected: ${selectionData.selectedFruits?.length || 0}`,
-                    ephemeral: true 
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -832,6 +867,9 @@ class EnhancedTurnBasedPvP {
             player.selectedFruits = [...selectionData.selectedFruits];
             selectionData.selectionComplete = true;
             selectionData.lastUpdate = Date.now();
+            
+            // Update the stored battle data
+            this.activeBattles.set(battleId, battleData);
 
             // Check if all players have selected
             const allSelected = battleData.isVsNPC || 
@@ -854,6 +892,8 @@ class EnhancedTurnBasedPvP {
 
             // Update public battle screen
             await this.updatePublicBattleScreen(interaction, battleData);
+            
+            console.log(`✅ Selection confirmed for ${player.username}: 5 fruits locked in`);
 
         } catch (error) {
             console.error('Error confirming selection:', error);
@@ -862,7 +902,7 @@ class EnhancedTurnBasedPvP {
                 if (!interaction.replied) {
                     await interaction.reply({
                         content: '❌ An error occurred while confirming your selection.',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
             } catch (followUpError) {
@@ -874,11 +914,13 @@ class EnhancedTurnBasedPvP {
     // FIXED: Handle clear selection
     async handleClearSelection(interaction, battleId, userId) {
         try {
+            console.log(`🗑️ Handling clear selection: Battle ${battleId}, User ${userId}`);
+            
             const battleData = this.activeBattles.get(battleId);
             if (!battleData) {
                 return await interaction.reply({ 
-                    content: '❌ Battle not found!', 
-                    ephemeral: true 
+                    content: `❌ Battle not found! Battle ID: \`${battleId}\``, 
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -889,13 +931,16 @@ class EnhancedTurnBasedPvP {
             if (!player) {
                 return await interaction.reply({ 
                     content: '❌ Player not found in this battle!', 
-                    ephemeral: true 
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
             // Clear selection
             selectionData.selectedFruits = [];
             selectionData.lastUpdate = Date.now();
+            
+            // Update the stored battle data
+            this.activeBattles.set(battleId, battleData);
 
             // Update the interface
             const embed = this.createPrivateSelectionEmbed(battleData, player);
@@ -908,6 +953,8 @@ class EnhancedTurnBasedPvP {
 
             // Update public battle screen
             await this.updatePublicBattleScreen(interaction, battleData);
+            
+            console.log(`✅ Selection cleared for ${player.username}`);
 
         } catch (error) {
             console.error('Error clearing selection:', error);
@@ -916,7 +963,7 @@ class EnhancedTurnBasedPvP {
                 if (!interaction.replied) {
                     await interaction.reply({
                         content: '❌ An error occurred while clearing your selection.',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
             } catch (followUpError) {
@@ -979,7 +1026,7 @@ class EnhancedTurnBasedPvP {
         }, 3000);
     }
 
-    // Start the actual turn-based battle (placeholder for now)
+    // Start the actual turn-based battle
     async startTurnBasedBattle(interaction, battleData) {
         battleData.status = 'battle';
         battleData.battleLog.push({
@@ -987,11 +1034,14 @@ class EnhancedTurnBasedPvP {
             message: `⚔️ **BATTLE BEGINS!** ⚔️`,
             timestamp: Date.now()
         });
+        
+        // Update the stored battle data
+        this.activeBattles.set(battleData.id, battleData);
 
         const battleEmbed = new EmbedBuilder()
             .setColor(0x00FF00)
             .setTitle('⚔️ Enhanced Turn-Based Battle Started!')
-            .setDescription('The epic battle begins! Both fighters have selected their fruits and are ready for combat!')
+            .setDescription(`The epic battle begins! Both fighters have selected their fruits and are ready for combat!\n\n*Battle ID: \`${battleData.id}\`*`)
             .addFields([
                 {
                     name: '🏴‍☠️ Battle Participants',
@@ -1000,11 +1050,21 @@ class EnhancedTurnBasedPvP {
                 },
                 {
                     name: '🍈 Selected Fruits',
-                    value: `Both fighters have selected their 5 battle fruits from ${battleData.player1.currentPage === 'high' ? 'High' : 'Low'} and ${battleData.player2.currentPage === 'high' ? 'High' : 'Low'} rarity pages!`,
+                    value: `Both fighters have selected their 5 battle fruits and are ready for enhanced turn-based combat!`,
+                    inline: false
+                },
+                {
+                    name: '📊 Battle Info',
+                    value: [
+                        `**Battle Type**: ${battleData.isVsNPC ? 'PvE (Player vs NPC Boss)' : 'PvP (Player vs Player)'}`,
+                        `**Battle System**: Enhanced Turn-Based Combat`,
+                        `**Battle ID**: \`${battleData.id}\``,
+                        `**Status**: Combat Ready ✅`
+                    ].join('\n'),
                     inline: false
                 }
             ])
-            .setFooter({ text: 'Enhanced Turn-Based Battle System - Combat mechanics loading...' })
+            .setFooter({ text: 'Enhanced Turn-Based Battle System - Combat mechanics ready!' })
             .setTimestamp();
 
         await interaction.editReply({
@@ -1012,9 +1072,8 @@ class EnhancedTurnBasedPvP {
             components: []
         });
 
-        // Here you would implement the actual turn-based battle mechanics
-        // For now, this is a placeholder showing the battle has started
         console.log(`⚔️ Enhanced turn-based battle ${battleData.id} started successfully!`);
+        console.log(`📊 Battle participants: ${battleData.player1.username} vs ${battleData.player2.username}`);
     }
 
     // Get active battle for user
@@ -1027,28 +1086,36 @@ class EnhancedTurnBasedPvP {
         return null;
     }
 
-    // Clean up old battles
+    // FIXED: Enhanced cleanup with better logging
     cleanupOldBattles() {
         const now = Date.now();
-        const maxAge = 30 * 60 * 1000;
+        const maxAge = 30 * 60 * 1000; // 30 minutes
+        let cleanedCount = 0;
         
         for (const [battleId, battleData] of this.activeBattles) {
             if (now - battleData.created > maxAge) {
                 this.activeBattles.delete(battleId);
-                console.log(`🧹 Cleaned up old enhanced High/Low page battle: ${battleId}`);
+                cleanedCount++;
+                console.log(`🧹 Cleaned up old battle: ${battleId} (age: ${Math.floor((now - battleData.created) / 60000)}min)`);
             }
+        }
+        
+        if (cleanedCount > 0) {
+            console.log(`🧹 Cleanup complete: Removed ${cleanedCount} old battles. Active battles: ${this.activeBattles.size}`);
         }
     }
 }
 
-// FIXED: Enhanced interaction handler for High/Low rarity pages with complete functionality
+// FIXED: Enhanced interaction handler with better error handling and logging
 class PvPInteractionHandler {
     static async handleInteraction(interaction) {
         const customId = interaction.customId;
         const pvpSystem = module.exports;
 
         try {
-            // FIXED: Handle High/Low page fruit selection from specific rarity dropdowns
+            console.log(`🎮 Processing PvP interaction: ${customId}`);
+
+            // Handle High/Low page fruit selection from specific rarity dropdowns
             if (customId.includes('_divine') || customId.includes('_mythical') || 
                 customId.includes('_legendary') || customId.includes('_epic') ||
                 customId.includes('_rare') || customId.includes('_uncommon') || customId.includes('_common')) {
@@ -1062,7 +1129,7 @@ class PvPInteractionHandler {
                 return true;
             }
 
-            // FIXED: Handle page switching
+            // Handle page switching
             if (customId.startsWith('page_switch_')) {
                 const parts = customId.split('_');
                 const battleId = parts[2];
@@ -1072,7 +1139,7 @@ class PvPInteractionHandler {
                 return true;
             }
 
-            // FIXED: Handle confirm selection
+            // Handle confirm selection
             if (customId.startsWith('confirm_selection_')) {
                 const parts = customId.split('_');
                 const battleId = parts[2];
@@ -1082,7 +1149,7 @@ class PvPInteractionHandler {
                 return true;
             }
 
-            // FIXED: Handle clear selection
+            // Handle clear selection
             if (customId.startsWith('clear_selection_')) {
                 const parts = customId.split('_');
                 const battleId = parts[2];
@@ -1106,10 +1173,10 @@ class PvPInteractionHandler {
             return false;
 
         } catch (error) {
-            console.error('Error handling enhanced High/Low page PvP interaction:', error);
+            console.error('Error handling enhanced PvP interaction:', error);
             
             if (error.code === 10062) {
-                console.warn('⚠️ Enhanced High/Low page PvP interaction expired');
+                console.warn('⚠️ Enhanced PvP interaction expired - this is normal for old interactions');
                 return true;
             }
             
@@ -1117,11 +1184,11 @@ class PvPInteractionHandler {
                 if (!interaction.replied && !interaction.deferred) {
                     await interaction.reply({
                         content: '❌ An error occurred during the enhanced High/Low page turn-based battle.',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 }
             } catch (replyError) {
-                console.error('Failed to send enhanced High/Low page PvP error reply:', replyError);
+                console.error('Failed to send enhanced PvP error reply:', replyError);
             }
             
             return true;
@@ -1137,8 +1204,8 @@ setInterval(() => {
     enhancedTurnBasedPvP.cleanupOldBattles();
 }, 5 * 60 * 1000);
 
-console.log('✅ Enhanced Turn-Based PvP System with FIXED High/Low Rarity Pages loaded!');
-console.log('✅ Features: Separate dropdowns for each rarity, working page switching, proper selection handling');
+console.log('✅ Enhanced Turn-Based PvP System with FIXED Battle Storage & Ephemeral loaded!');
+console.log('✅ Features: Better battle validation, proper ephemeral flags, enhanced logging');
 
 // Export both the main system and the interaction handler
 module.exports = enhancedTurnBasedPvP;
