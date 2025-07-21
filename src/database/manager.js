@@ -1,4 +1,4 @@
-// src/database/manager.js - Complete Database Manager Class for PostgreSQL
+// src/database/manager.js - Compatible with existing One Piece structure
 const { Pool } = require('pg');
 require('dotenv').config();
 
@@ -72,92 +72,75 @@ class DatabaseManager {
     }
 
     /**
-     * Create all necessary tables
+     * Create all necessary tables (compatible with existing structure)
      */
     static async createTables() {
         try {
-            // Users table
+            // Users table (compatible with your existing structure)
             await this.query(`
                 CREATE TABLE IF NOT EXISTS users (
-                    id VARCHAR(255) PRIMARY KEY,
+                    user_id TEXT PRIMARY KEY,
                     username VARCHAR(255) NOT NULL,
-                    discriminator VARCHAR(10),
-                    avatar VARCHAR(255),
-                    berries BIGINT DEFAULT 10000,
+                    guild_id TEXT,
+                    level INTEGER DEFAULT 0,
+                    base_cp INTEGER DEFAULT 100,
+                    total_cp INTEGER DEFAULT 0,
+                    berries BIGINT DEFAULT 0,
+                    coins BIGINT DEFAULT 0,
                     gems INTEGER DEFAULT 0,
                     experience BIGINT DEFAULT 0,
-                    level INTEGER DEFAULT 1,
                     daily_streak INTEGER DEFAULT 0,
                     last_daily TIMESTAMP,
-                    pirate_crew VARCHAR(255),
-                    bounty BIGINT DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    last_income TIMESTAMP DEFAULT NOW(),
+                    total_earned BIGINT DEFAULT 0,
+                    total_spent BIGINT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
                 );
-                CREATE INDEX IF NOT EXISTS idx_users_level ON users(level);
-                CREATE INDEX IF NOT EXISTS idx_users_berries ON users(berries);
-                CREATE INDEX IF NOT EXISTS idx_users_bounty ON users(bounty);
             `);
 
-            // Devil Fruits table (characters)
+            // Your existing user_devil_fruits table structure
             await this.query(`
-                CREATE TABLE IF NOT EXISTS devil_fruits (
+                CREATE TABLE IF NOT EXISTS user_devil_fruits (
                     id SERIAL PRIMARY KEY,
-                    user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    name VARCHAR(255) NOT NULL,
-                    fruit_type VARCHAR(50) NOT NULL CHECK (fruit_type IN ('Paramecia', 'Zoan', 'Logia', 'Mythical Zoan', 'Ancient Zoan')),
-                    rarity VARCHAR(20) NOT NULL CHECK (rarity IN ('common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic')),
-                    element VARCHAR(50),
-                    level INTEGER DEFAULT 1,
-                    experience BIGINT DEFAULT 0,
-                    hp INTEGER NOT NULL,
-                    mp INTEGER NOT NULL,
-                    attack INTEGER NOT NULL,
-                    defense INTEGER NOT NULL,
-                    speed INTEGER NOT NULL,
-                    power_level INTEGER DEFAULT 0,
-                    avatar_url TEXT,
-                    description TEXT,
-                    abilities JSONB DEFAULT '[]',
-                    is_favorite BOOLEAN DEFAULT FALSE,
-                    is_active BOOLEAN DEFAULT FALSE,
-                    awakened BOOLEAN DEFAULT FALSE,
-                    obtained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+                    fruit_id VARCHAR(50) NOT NULL,
+                    fruit_name VARCHAR(255) NOT NULL,
+                    fruit_type VARCHAR(50) NOT NULL,
+                    fruit_rarity VARCHAR(50) NOT NULL,
+                    fruit_element VARCHAR(50) NOT NULL DEFAULT 'Unknown',
+                    fruit_fruit_type VARCHAR(50) NOT NULL DEFAULT 'Unknown',
+                    fruit_power TEXT NOT NULL,
+                    fruit_description TEXT,
+                    base_cp INTEGER NOT NULL,
+                    duplicate_count INTEGER DEFAULT 1,
+                    total_cp INTEGER NOT NULL,
+                    obtained_at TIMESTAMP DEFAULT NOW()
                 );
-                CREATE INDEX IF NOT EXISTS idx_devil_fruits_user_id ON devil_fruits(user_id);
-                CREATE INDEX IF NOT EXISTS idx_devil_fruits_rarity ON devil_fruits(rarity);
-                CREATE INDEX IF NOT EXISTS idx_devil_fruits_power_level ON devil_fruits(power_level);
-                CREATE INDEX IF NOT EXISTS idx_devil_fruits_type ON devil_fruits(fruit_type);
-                CREATE INDEX IF NOT EXISTS idx_devil_fruits_element ON devil_fruits(element);
             `);
 
-            // Guild settings table
+            // Add compatibility columns for PvP system
             await this.query(`
-                CREATE TABLE IF NOT EXISTS guild_settings (
-                    guild_id VARCHAR(255) PRIMARY KEY,
-                    gacha_channel VARCHAR(255),
-                    pvp_channel VARCHAR(255),
-                    admin_channel VARCHAR(255),
-                    welcome_channel VARCHAR(255),
-                    daily_reward BOOLEAN DEFAULT TRUE,
-                    gacha_cooldown INTEGER DEFAULT 300,
-                    pvp_enabled BOOLEAN DEFAULT TRUE,
-                    prefix VARCHAR(10) DEFAULT '!',
-                    language VARCHAR(10) DEFAULT 'en',
-                    timezone VARCHAR(50) DEFAULT 'UTC',
-                    marine_role VARCHAR(255),
-                    pirate_role VARCHAR(255),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
+                ALTER TABLE user_devil_fruits 
+                ADD COLUMN IF NOT EXISTS hp INTEGER DEFAULT 1000,
+                ADD COLUMN IF NOT EXISTS mp INTEGER DEFAULT 500,
+                ADD COLUMN IF NOT EXISTS attack INTEGER DEFAULT 100,
+                ADD COLUMN IF NOT EXISTS defense INTEGER DEFAULT 80,
+                ADD COLUMN IF NOT EXISTS speed INTEGER DEFAULT 90,
+                ADD COLUMN IF NOT EXISTS power_level INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+                ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1,
+                ADD COLUMN IF NOT EXISTS experience BIGINT DEFAULT 0
             `);
 
             // PvP queue table
             await this.query(`
                 CREATE TABLE IF NOT EXISTS pvp_queue (
                     id SERIAL PRIMARY KEY,
-                    user_id VARCHAR(255) NOT NULL,
-                    guild_id VARCHAR(255) NOT NULL,
+                    user_id TEXT NOT NULL,
+                    guild_id TEXT NOT NULL,
                     character_data JSONB NOT NULL,
                     queue_type VARCHAR(50) DEFAULT 'ranked',
                     is_npc BOOLEAN DEFAULT FALSE,
@@ -169,19 +152,37 @@ class DatabaseManager {
                 CREATE INDEX IF NOT EXISTS idx_pvp_queue_guild_status ON pvp_queue(guild_id, status);
                 CREATE INDEX IF NOT EXISTS idx_pvp_queue_user_guild ON pvp_queue(user_id, guild_id);
                 CREATE INDEX IF NOT EXISTS idx_pvp_queue_power_level ON pvp_queue(power_level);
-                CREATE INDEX IF NOT EXISTS idx_pvp_queue_joined_at ON pvp_queue(joined_at);
+            `);
+
+            // Guild settings table
+            await this.query(`
+                CREATE TABLE IF NOT EXISTS guild_settings (
+                    guild_id TEXT PRIMARY KEY,
+                    gacha_channel TEXT,
+                    pvp_channel TEXT,
+                    admin_channel TEXT,
+                    welcome_channel TEXT,
+                    daily_reward BOOLEAN DEFAULT TRUE,
+                    gacha_cooldown INTEGER DEFAULT 300,
+                    pvp_enabled BOOLEAN DEFAULT TRUE,
+                    prefix VARCHAR(10) DEFAULT '!',
+                    language VARCHAR(10) DEFAULT 'en',
+                    timezone VARCHAR(50) DEFAULT 'UTC',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
             `);
 
             // Battle history table
             await this.query(`
                 CREATE TABLE IF NOT EXISTS battle_history (
                     id SERIAL PRIMARY KEY,
-                    guild_id VARCHAR(255) NOT NULL,
-                    player1_id VARCHAR(255) NOT NULL,
-                    player2_id VARCHAR(255),
+                    guild_id TEXT NOT NULL,
+                    player1_id TEXT NOT NULL,
+                    player2_id TEXT,
                     player1_character JSONB NOT NULL,
                     player2_character JSONB,
-                    winner_id VARCHAR(255),
+                    winner_id TEXT,
                     battle_type VARCHAR(20) DEFAULT 'pvp' CHECK (battle_type IN ('pvp', 'pve', 'npc', 'marine')),
                     battle_data JSONB DEFAULT '{}',
                     rewards JSONB DEFAULT '{}',
@@ -191,71 +192,6 @@ class DatabaseManager {
                 );
                 CREATE INDEX IF NOT EXISTS idx_battle_history_guild_id ON battle_history(guild_id);
                 CREATE INDEX IF NOT EXISTS idx_battle_history_player1 ON battle_history(player1_id);
-                CREATE INDEX IF NOT EXISTS idx_battle_history_player2 ON battle_history(player2_id);
-                CREATE INDEX IF NOT EXISTS idx_battle_history_winner ON battle_history(winner_id);
-                CREATE INDEX IF NOT EXISTS idx_battle_history_type ON battle_history(battle_type);
-            `);
-
-            // Inventory table
-            await this.query(`
-                CREATE TABLE IF NOT EXISTS inventory (
-                    id SERIAL PRIMARY KEY,
-                    user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    item_type VARCHAR(50) NOT NULL CHECK (item_type IN ('treasure', 'weapon', 'medicine', 'material', 'scroll', 'map')),
-                    item_name VARCHAR(255) NOT NULL,
-                    item_data JSONB DEFAULT '{}',
-                    quantity INTEGER DEFAULT 1,
-                    obtained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX IF NOT EXISTS idx_inventory_user_item ON inventory(user_id, item_type);
-                CREATE INDEX IF NOT EXISTS idx_inventory_item_name ON inventory(item_name);
-            `);
-
-            // Achievements table
-            await this.query(`
-                CREATE TABLE IF NOT EXISTS achievements (
-                    id SERIAL PRIMARY KEY,
-                    user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    achievement_id VARCHAR(100) NOT NULL,
-                    progress INTEGER DEFAULT 0,
-                    completed BOOLEAN DEFAULT FALSE,
-                    completed_at TIMESTAMP,
-                    rewards_claimed BOOLEAN DEFAULT FALSE,
-                    UNIQUE(user_id, achievement_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_achievements_user_id ON achievements(user_id);
-                CREATE INDEX IF NOT EXISTS idx_achievements_completed ON achievements(completed);
-            `);
-
-            // Crew system table
-            await this.query(`
-                CREATE TABLE IF NOT EXISTS crews (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(255) UNIQUE NOT NULL,
-                    captain_id VARCHAR(255) NOT NULL REFERENCES users(id),
-                    description TEXT,
-                    jolly_roger TEXT,
-                    total_bounty BIGINT DEFAULT 0,
-                    member_count INTEGER DEFAULT 1,
-                    max_members INTEGER DEFAULT 10,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX IF NOT EXISTS idx_crews_captain ON crews(captain_id);
-                CREATE INDEX IF NOT EXISTS idx_crews_bounty ON crews(total_bounty);
-            `);
-
-            // Crew members table
-            await this.query(`
-                CREATE TABLE IF NOT EXISTS crew_members (
-                    id SERIAL PRIMARY KEY,
-                    crew_id INTEGER NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
-                    user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    role VARCHAR(50) DEFAULT 'member',
-                    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(user_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_crew_members_crew ON crew_members(crew_id);
-                CREATE INDEX IF NOT EXISTS idx_crew_members_user ON crew_members(user_id);
             `);
 
             console.log('✅ All database tables created/verified successfully');
@@ -265,193 +201,41 @@ class DatabaseManager {
     }
 
     // ===================
-    // USER METHODS
+    // USER METHODS (Compatible with your existing structure)
     // ===================
 
     /**
-     * Get or create user
+     * Ensure user exists (compatible with your existing method)
      */
-    static async getUser(userId, userData = {}) {
+    static async ensureUser(userId, username, guildId = null) {
         try {
-            let user = await this.query(
-                `SELECT * FROM users WHERE id = $1`,
+            const result = await this.query(
+                `INSERT INTO users (user_id, username, guild_id, level, base_cp, total_cp, berries, coins, created_at, updated_at)
+                 VALUES ($1, $2, $3, 0, 100, 100, 0, 1000, NOW(), NOW())
+                 ON CONFLICT (user_id) 
+                 DO UPDATE SET username = $2, guild_id = $3, updated_at = NOW()
+                 RETURNING *`,
+                [userId, username, guildId]
+            );
+            return result[0];
+        } catch (error) {
+            console.error('Error ensuring user:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get user (compatible with your existing method)
+     */
+    static async getUser(userId) {
+        try {
+            const result = await this.query(
+                'SELECT * FROM users WHERE user_id = $1',
                 [userId]
             );
-
-            if (user.length === 0) {
-                // Create new user
-                await this.query(
-                    `INSERT INTO users (id, username, discriminator, avatar) VALUES ($1, $2, $3, $4)`,
-                    [userId, userData.username || 'Unknown', userData.discriminator || '0000', userData.avatar || null]
-                );
-
-                user = await this.query(`SELECT * FROM users WHERE id = $1`, [userId]);
-            }
-
-            return user[0];
+            return result[0];
         } catch (error) {
             console.error('Error getting user:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Ensure user exists (alias for getUser for compatibility)
-     */
-    static async ensureUser(userId, userData = {}) {
-        return await this.getUser(userId, userData);
-    }
-
-    /**
-     * Get user's characters (works with existing 'characters' table)
-     */
-    static async getUserCharacters(userId, options = {}) {
-        try {
-            let query = `SELECT * FROM characters WHERE user_id = $1`;
-            const params = [userId];
-            let paramCount = 1;
-
-            if (options.rarity) {
-                paramCount++;
-                query += ` AND rarity = ${paramCount}`;
-                params.push(options.rarity);
-            }
-
-            if (options.element) {
-                paramCount++;
-                query += ` AND element = ${paramCount}`;
-                params.push(options.element);
-            }
-
-            if (options.is_favorite !== undefined) {
-                paramCount++;
-                query += ` AND is_favorite = ${paramCount}`;
-                params.push(options.is_favorite);
-            }
-
-            if (options.orderBy) {
-                query += ` ORDER BY ${options.orderBy}`;
-                if (options.order === 'DESC') query += ' DESC';
-            }
-
-            if (options.limit) {
-                paramCount++;
-                query += ` LIMIT ${paramCount}`;
-                params.push(options.limit);
-            }
-
-            return await this.query(query, params);
-        } catch (error) {
-            console.error('Error getting user characters:', error);
-            return [];
-        }
-    }
-
-    /**
-     * Get character by ID (works with existing 'characters' table)
-     */
-    static async getCharacter(characterId) {
-        try {
-            const result = await this.query(
-                `SELECT * FROM characters WHERE id = $1`,
-                [characterId]
-            );
-            return result[0] || null;
-        } catch (error) {
-            console.error('Error getting character:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Update character (works with existing 'characters' table)
-     */
-    static async updateCharacter(characterId, updateData) {
-        try {
-            const fields = Object.keys(updateData);
-            const values = Object.values(updateData);
-            const setClause = fields.map((field, index) => `${field} = ${index + 1}`).join(', ');
-
-            await this.query(
-                `UPDATE characters SET ${setClause} WHERE id = ${fields.length + 1}`,
-                [...values, characterId]
-            );
-
-            return true;
-        } catch (error) {
-            console.error('Error updating character:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Set active character (works with existing 'characters' table)
-     */
-    static async setActiveCharacter(userId, characterId) {
-        try {
-            // Remove active status from all user's characters
-            await this.query(
-                `UPDATE characters SET is_active = FALSE WHERE user_id = $1`,
-                [userId]
-            );
-
-            // Set new active character
-            await this.query(
-                `UPDATE characters SET is_active = TRUE WHERE id = $1 AND user_id = $2`,
-                [characterId, userId]
-            );
-
-            return true;
-        } catch (error) {
-            console.error('Error setting active character:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Get user's active character (works with existing 'characters' table)
-     */
-    static async getActiveCharacter(userId) {
-        try {
-            const result = await this.query(
-                `SELECT * FROM characters WHERE user_id = $1 AND is_active = TRUE`,
-                [userId]
-            );
-            return result[0] || null;
-        } catch (error) {
-            console.error('Error getting active character:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Add character to user (works with existing 'characters' table)
-     */
-    static async addCharacter(userId, characterData) {
-        try {
-            const result = await this.query(
-                `INSERT INTO characters (user_id, name, rarity, element, level, experience, hp, mp, attack, defense, speed, power_level, avatar_url) 
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
-                [
-                    userId,
-                    characterData.name,
-                    characterData.rarity,
-                    characterData.element,
-                    characterData.level || 1,
-                    characterData.experience || 0,
-                    characterData.hp,
-                    characterData.mp,
-                    characterData.attack,
-                    characterData.defense,
-                    characterData.speed,
-                    characterData.power_level || 0,
-                    characterData.avatar_url || null
-                ]
-            );
-
-            return result[0]?.id;
-        } catch (error) {
-            console.error('Error adding character:', error);
             return null;
         }
     }
@@ -466,7 +250,7 @@ class DatabaseManager {
             const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
 
             await this.query(
-                `UPDATE users SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = $${fields.length + 1}`,
+                `UPDATE users SET ${setClause}, updated_at = NOW() WHERE user_id = $${fields.length + 1}`,
                 [...values, userId]
             );
 
@@ -477,13 +261,271 @@ class DatabaseManager {
         }
     }
 
+    // ===================
+    // DEVIL FRUIT METHODS (Using your existing table structure)
+    // ===================
+
     /**
-     * Add coins to user (works with existing 'coins' column)
+     * Get user's characters (using your user_devil_fruits table)
+     */
+    static async getUserCharacters(userId, options = {}) {
+        try {
+            let query = `SELECT * FROM user_devil_fruits WHERE user_id = $1`;
+            const params = [userId];
+            let paramCount = 1;
+
+            if (options.rarity) {
+                paramCount++;
+                query += ` AND fruit_rarity = $${paramCount}`;
+                params.push(options.rarity);
+            }
+
+            if (options.element) {
+                paramCount++;
+                query += ` AND (fruit_element = $${paramCount} OR fruit_fruit_type = $${paramCount})`;
+                params.push(options.element);
+            }
+
+            if (options.is_favorite !== undefined) {
+                paramCount++;
+                query += ` AND is_favorite = $${paramCount}`;
+                params.push(options.is_favorite);
+            }
+
+            query += ` ORDER BY obtained_at DESC`;
+
+            if (options.limit) {
+                paramCount++;
+                query += ` LIMIT $${paramCount}`;
+                params.push(options.limit);
+            }
+
+            const result = await this.query(query, params);
+            
+            // Convert to format expected by PvP system
+            return result.map(fruit => ({
+                id: fruit.id,
+                user_id: fruit.user_id,
+                name: fruit.fruit_name,
+                rarity: fruit.fruit_rarity,
+                element: fruit.fruit_element,
+                fruit_type: fruit.fruit_type,
+                level: fruit.level || 1,
+                experience: fruit.experience || 0,
+                hp: fruit.hp || 1000,
+                mp: fruit.mp || 500,
+                attack: fruit.attack || 100,
+                defense: fruit.defense || 80,
+                speed: fruit.speed || 90,
+                power_level: fruit.power_level || fruit.total_cp || 100,
+                avatar_url: fruit.avatar_url,
+                is_favorite: fruit.is_favorite || false,
+                is_active: fruit.is_active || false,
+                obtained_at: fruit.obtained_at
+            }));
+        } catch (error) {
+            console.error('Error getting user characters:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get user's devil fruits (your existing method)
+     */
+    static async getUserDevilFruits(userId) {
+        try {
+            const result = await this.query(
+                `SELECT *, 
+                 (SELECT COUNT(*) FROM user_devil_fruits udf2 
+                  WHERE udf2.user_id = $1 AND udf2.fruit_id = user_devil_fruits.fruit_id) as duplicate_count
+                 FROM user_devil_fruits 
+                 WHERE user_id = $1 
+                 ORDER BY obtained_at DESC`,
+                [userId]
+            );
+            return result;
+        } catch (error) {
+            console.error('Error getting user devil fruits:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get character by ID
+     */
+    static async getCharacter(characterId) {
+        try {
+            const result = await this.query(
+                `SELECT * FROM user_devil_fruits WHERE id = $1`,
+                [characterId]
+            );
+            
+            if (result.length === 0) return null;
+            
+            const fruit = result[0];
+            return {
+                id: fruit.id,
+                user_id: fruit.user_id,
+                name: fruit.fruit_name,
+                rarity: fruit.fruit_rarity,
+                element: fruit.fruit_element,
+                fruit_type: fruit.fruit_type,
+                level: fruit.level || 1,
+                experience: fruit.experience || 0,
+                hp: fruit.hp || 1000,
+                mp: fruit.mp || 500,
+                attack: fruit.attack || 100,
+                defense: fruit.defense || 80,
+                speed: fruit.speed || 90,
+                power_level: fruit.power_level || fruit.total_cp || 100,
+                avatar_url: fruit.avatar_url,
+                is_favorite: fruit.is_favorite || false,
+                is_active: fruit.is_active || false
+            };
+        } catch (error) {
+            console.error('Error getting character:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Update character
+     */
+    static async updateCharacter(characterId, updateData) {
+        try {
+            const fields = Object.keys(updateData);
+            const values = Object.values(updateData);
+            const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
+
+            await this.query(
+                `UPDATE user_devil_fruits SET ${setClause} WHERE id = $${fields.length + 1}`,
+                [...values, characterId]
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Error updating character:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Set active character
+     */
+    static async setActiveCharacter(userId, characterId) {
+        try {
+            // Remove active status from all user's characters
+            await this.query(
+                `UPDATE user_devil_fruits SET is_active = FALSE WHERE user_id = $1`,
+                [userId]
+            );
+
+            // Set new active character
+            await this.query(
+                `UPDATE user_devil_fruits SET is_active = TRUE WHERE id = $1 AND user_id = $2`,
+                [characterId, userId]
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Error setting active character:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get user's active character
+     */
+    static async getActiveCharacter(userId) {
+        try {
+            const result = await this.query(
+                `SELECT * FROM user_devil_fruits WHERE user_id = $1 AND is_active = TRUE`,
+                [userId]
+            );
+            
+            if (result.length === 0) return null;
+            
+            const fruit = result[0];
+            return {
+                id: fruit.id,
+                user_id: fruit.user_id,
+                name: fruit.fruit_name,
+                rarity: fruit.fruit_rarity,
+                element: fruit.fruit_element,
+                fruit_type: fruit.fruit_type,
+                level: fruit.level || 1,
+                experience: fruit.experience || 0,
+                hp: fruit.hp || 1000,
+                mp: fruit.mp || 500,
+                attack: fruit.attack || 100,
+                defense: fruit.defense || 80,
+                speed: fruit.speed || 90,
+                power_level: fruit.power_level || fruit.total_cp || 100,
+                avatar_url: fruit.avatar_url,
+                is_favorite: fruit.is_favorite || false,
+                is_active: fruit.is_active || false
+            };
+        } catch (error) {
+            console.error('Error getting active character:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Add character to user (compatible with your existing addDevilFruit)
+     */
+    static async addCharacter(userId, characterData) {
+        try {
+            const result = await this.query(
+                `INSERT INTO user_devil_fruits (
+                    user_id, fruit_id, fruit_name, fruit_type, fruit_rarity, 
+                    fruit_element, fruit_fruit_type, fruit_power, fruit_description, 
+                    base_cp, total_cp, hp, mp, attack, defense, speed, power_level, 
+                    level, experience, avatar_url, obtained_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW()) 
+                RETURNING id`,
+                [
+                    userId,
+                    characterData.id || `char_${Date.now()}`,
+                    characterData.name,
+                    characterData.fruit_type || characterData.rarity,
+                    characterData.rarity,
+                    characterData.element,
+                    characterData.fruit_type || characterData.element,
+                    characterData.power || 'Devil Fruit Power',
+                    characterData.description || characterData.power,
+                    100, // base_cp
+                    characterData.power_level || 100, // total_cp
+                    characterData.hp || 1000,
+                    characterData.mp || 500,
+                    characterData.attack || 100,
+                    characterData.defense || 80,
+                    characterData.speed || 90,
+                    characterData.power_level || 100,
+                    characterData.level || 1,
+                    characterData.experience || 0,
+                    characterData.avatar_url
+                ]
+            );
+
+            return result[0]?.id;
+        } catch (error) {
+            console.error('Error adding character:', error);
+            return null;
+        }
+    }
+
+    // ===================
+    // ECONOMY METHODS (Compatible with your existing structure)
+    // ===================
+
+    /**
+     * Add coins to user (works with both coins and berries columns)
      */
     static async addCoins(userId, amount) {
         try {
             await this.query(
-                `UPDATE users SET coins = coins + $1 WHERE id = $2`,
+                `UPDATE users SET coins = COALESCE(coins, 0) + $1, berries = COALESCE(berries, 0) + $1 WHERE user_id = $2`,
                 [amount, userId]
             );
             return true;
@@ -494,12 +536,16 @@ class DatabaseManager {
     }
 
     /**
-     * Remove coins from user (works with existing 'coins' column)
+     * Remove coins from user
      */
     static async removeCoins(userId, amount) {
         try {
             const result = await this.query(
-                `UPDATE users SET coins = GREATEST(0, coins - $1) WHERE id = $2 AND coins >= $1 RETURNING coins`,
+                `UPDATE users SET 
+                    coins = GREATEST(0, COALESCE(coins, 0) - $1),
+                    berries = GREATEST(0, COALESCE(berries, 0) - $1)
+                 WHERE user_id = $2 AND COALESCE(coins, 0) >= $1 
+                 RETURNING coins`,
                 [amount, userId]
             );
             return result.length > 0;
@@ -510,250 +556,30 @@ class DatabaseManager {
     }
 
     /**
-     * Add berries to user (alias for addCoins for One Piece theme)
+     * Update user berries (your existing method)
      */
-    static async addBerries(userId, amount) {
-        return await this.addCoins(userId, amount);
-    }
-
-    /**
-     * Remove berries from user (alias for removeCoins for One Piece theme)
-     */
-    static async removeBerries(userId, amount) {
-        return await this.removeCoins(userId, amount);
-    }
-
-    // ===================
-    // DEVIL FRUIT METHODS
-    // ===================
-
-    /**
-     * Add devil fruit to user
-     */
-    static async addDevilFruit(userId, fruitData) {
+    static async updateUserBerries(userId, amount, reason = 'Unknown') {
         try {
             const result = await this.query(
-                `INSERT INTO devil_fruits (user_id, name, fruit_type, rarity, element, level, experience, hp, mp, attack, defense, speed, power_level, avatar_url, description, abilities) 
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
-                [
-                    userId,
-                    fruitData.name,
-                    fruitData.fruit_type,
-                    fruitData.rarity,
-                    fruitData.element,
-                    fruitData.level || 1,
-                    fruitData.experience || 0,
-                    fruitData.hp,
-                    fruitData.mp,
-                    fruitData.attack,
-                    fruitData.defense,
-                    fruitData.speed,
-                    fruitData.power_level || 0,
-                    fruitData.avatar_url || null,
-                    fruitData.description || '',
-                    JSON.stringify(fruitData.abilities || [])
-                ]
+                `UPDATE users 
+                 SET berries = COALESCE(berries, 0) + $2,
+                     coins = COALESCE(coins, 0) + $2,
+                     total_earned = CASE WHEN $2 > 0 THEN COALESCE(total_earned, 0) + $2 ELSE COALESCE(total_earned, 0) END,
+                     total_spent = CASE WHEN $2 < 0 THEN COALESCE(total_spent, 0) + ABS($2) ELSE COALESCE(total_spent, 0) END,
+                     updated_at = NOW()
+                 WHERE user_id = $1
+                 RETURNING berries`,
+                [userId, amount]
             );
-
-            return result[0]?.id;
-        } catch (error) {
-            console.error('Error adding devil fruit:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Get user's devil fruits
-     */
-    static async getUserDevilFruits(userId, options = {}) {
-        try {
-            let query = `SELECT * FROM devil_fruits WHERE user_id = $1`;
-            const params = [userId];
-            let paramCount = 1;
-
-            if (options.rarity) {
-                paramCount++;
-                query += ` AND rarity = $${paramCount}`;
-                params.push(options.rarity);
+            
+            if (result.length === 0) {
+                throw new Error('User not found');
             }
-
-            if (options.fruit_type) {
-                paramCount++;
-                query += ` AND fruit_type = $${paramCount}`;
-                params.push(options.fruit_type);
-            }
-
-            if (options.element) {
-                paramCount++;
-                query += ` AND element = $${paramCount}`;
-                params.push(options.element);
-            }
-
-            if (options.is_favorite !== undefined) {
-                paramCount++;
-                query += ` AND is_favorite = $${paramCount}`;
-                params.push(options.is_favorite);
-            }
-
-            if (options.orderBy) {
-                query += ` ORDER BY ${options.orderBy}`;
-                if (options.order === 'DESC') query += ' DESC';
-            }
-
-            if (options.limit) {
-                paramCount++;
-                query += ` LIMIT $${paramCount}`;
-                params.push(options.limit);
-            }
-
-            return await this.query(query, params);
+            
+            return result[0].berries;
         } catch (error) {
-            console.error('Error getting user devil fruits:', error);
-            return [];
-        }
-    }
-
-    /**
-     * Get devil fruit by ID
-     */
-    static async getDevilFruit(fruitId) {
-        try {
-            const result = await this.query(
-                `SELECT * FROM devil_fruits WHERE id = $1`,
-                [fruitId]
-            );
-            return result[0] || null;
-        } catch (error) {
-            console.error('Error getting devil fruit:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Update devil fruit
-     */
-    static async updateDevilFruit(fruitId, updateData) {
-        try {
-            const fields = Object.keys(updateData);
-            const values = Object.values(updateData);
-            const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
-
-            await this.query(
-                `UPDATE devil_fruits SET ${setClause} WHERE id = $${fields.length + 1}`,
-                [...values, fruitId]
-            );
-
-            return true;
-        } catch (error) {
-            console.error('Error updating devil fruit:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Set active devil fruit
-     */
-    static async setActiveDevilFruit(userId, fruitId) {
-        try {
-            // Remove active status from all user's fruits
-            await this.query(
-                `UPDATE devil_fruits SET is_active = FALSE WHERE user_id = $1`,
-                [userId]
-            );
-
-            // Set new active fruit
-            await this.query(
-                `UPDATE devil_fruits SET is_active = TRUE WHERE id = $1 AND user_id = $2`,
-                [fruitId, userId]
-            );
-
-            return true;
-        } catch (error) {
-            console.error('Error setting active devil fruit:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Get user's active devil fruit
-     */
-    static async getActiveDevilFruit(userId) {
-        try {
-            const result = await this.query(
-                `SELECT * FROM devil_fruits WHERE user_id = $1 AND is_active = TRUE`,
-                [userId]
-            );
-            return result[0] || null;
-        } catch (error) {
-            console.error('Error getting active devil fruit:', error);
-            return null;
-        }
-    }
-
-    // ===================
-    // GUILD SETTINGS METHODS
-    // ===================
-
-    /**
-     * Get guild settings
-     */
-    static async getGuildSettings(guildId) {
-        try {
-            let settings = await this.query(
-                `SELECT * FROM guild_settings WHERE guild_id = $1`,
-                [guildId]
-            );
-
-            if (settings.length === 0) {
-                // Create default settings
-                await this.query(
-                    `INSERT INTO guild_settings (guild_id) VALUES ($1)`,
-                    [guildId]
-                );
-                settings = await this.query(`SELECT * FROM guild_settings WHERE guild_id = $1`, [guildId]);
-            }
-
-            return settings[0];
-        } catch (error) {
-            console.error('Error getting guild settings:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Update guild settings
-     */
-    static async updateGuildSettings(guildId, settings) {
-        try {
-            const fields = Object.keys(settings);
-            const values = Object.values(settings);
-            const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
-
-            await this.query(
-                `UPDATE guild_settings SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE guild_id = $${fields.length + 1}`,
-                [...values, guildId]
-            );
-
-            return true;
-        } catch (error) {
-            console.error('Error updating guild settings:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Get specific guild setting
-     */
-    static async getGuildSetting(guildId, settingName) {
-        try {
-            const result = await this.query(
-                `SELECT ${settingName} FROM guild_settings WHERE guild_id = $1`,
-                [guildId]
-            );
-            return result[0] ? result[0][settingName] : null;
-        } catch (error) {
-            console.error('Error getting guild setting:', error);
-            return null;
+            console.error('Error updating berries:', error);
+            throw error;
         }
     }
 
@@ -929,19 +755,6 @@ class DatabaseManager {
     }
 
     /**
-     * Clear old queue entries (cleanup)
-     */
-    static async clearOldQueueEntries(hoursOld = 24) {
-        try {
-            await this.query(
-                `DELETE FROM pvp_queue WHERE joined_at < NOW() - INTERVAL '${hoursOld} hours'`
-            );
-        } catch (error) {
-            console.error('Error clearing old queue entries:', error);
-        }
-    }
-
-    /**
      * Get queue statistics
      */
     static async getQueueStats(guildId) {
@@ -978,6 +791,73 @@ class DatabaseManager {
                 min_power: 0,
                 max_power: 0
             };
+        }
+    }
+
+    // ===================
+    // GUILD SETTINGS METHODS
+    // ===================
+
+    /**
+     * Get guild settings
+     */
+    static async getGuildSettings(guildId) {
+        try {
+            let settings = await this.query(
+                `SELECT * FROM guild_settings WHERE guild_id = $1`,
+                [guildId]
+            );
+
+            if (settings.length === 0) {
+                // Create default settings
+                await this.query(
+                    `INSERT INTO guild_settings (guild_id) VALUES ($1)`,
+                    [guildId]
+                );
+                settings = await this.query(`SELECT * FROM guild_settings WHERE guild_id = $1`, [guildId]);
+            }
+
+            return settings[0];
+        } catch (error) {
+            console.error('Error getting guild settings:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Update guild settings
+     */
+    static async updateGuildSettings(guildId, settings) {
+        try {
+            const fields = Object.keys(settings);
+            const values = Object.values(settings);
+            const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
+
+            await this.query(
+                `UPDATE guild_settings SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE guild_id = $${fields.length + 1}`,
+                [...values, guildId]
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Error updating guild settings:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get specific guild setting
+     */
+    static async getGuildSetting(guildId, settingName) {
+        try {
+            const result = await this.query(
+                `SELECT ${settingName} FROM guild_settings WHERE guild_id = $1`,
+                [guildId]
+            );
+            return result[0] ? result[0][settingName] : null;
+        } catch (error) {
+            console.error('Error getting guild setting:', error);
+            return null;
         }
     }
 
@@ -1042,246 +922,11 @@ class DatabaseManager {
     }
 
     // ===================
-    // INVENTORY METHODS
-    // ===================
-
-    /**
-     * Add item to inventory
-     */
-    static async addInventoryItem(userId, itemType, itemName, itemData = {}, quantity = 1) {
-        try {
-            // Check if item already exists
-            const existing = await this.query(
-                `SELECT * FROM inventory WHERE user_id = $1 AND item_type = $2 AND item_name = $3`,
-                [userId, itemType, itemName]
-            );
-
-            if (existing.length > 0) {
-                // Update quantity
-                await this.query(
-                    `UPDATE inventory SET quantity = quantity + $1 WHERE id = $2`,
-                    [quantity, existing[0].id]
-                );
-                return existing[0].id;
-            } else {
-                // Insert new item
-                const result = await this.query(
-                    `INSERT INTO inventory (user_id, item_type, item_name, item_data, quantity) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-                    [userId, itemType, itemName, JSON.stringify(itemData), quantity]
-                );
-                return result[0]?.id;
-            }
-        } catch (error) {
-            console.error('Error adding inventory item:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Get user inventory
-     */
-    static async getInventory(userId, itemType = null) {
-        try {
-            let query = `SELECT * FROM inventory WHERE user_id = $1`;
-            const params = [userId];
-
-            if (itemType) {
-                query += ` AND item_type = $2`;
-                params.push(itemType);
-            }
-
-            query += ` ORDER BY item_type, item_name`;
-
-            const result = await this.query(query, params);
-            
-            return result.map(item => ({
-                ...item,
-                item_data: JSON.parse(item.item_data || '{}')
-            }));
-        } catch (error) {
-            console.error('Error getting inventory:', error);
-            return [];
-        }
-    }
-
-    /**
-     * Remove item from inventory
-     */
-    static async removeInventoryItem(userId, itemType, itemName, quantity = 1) {
-        try {
-            const item = await this.query(
-                `SELECT * FROM inventory WHERE user_id = $1 AND item_type = $2 AND item_name = $3`,
-                [userId, itemType, itemName]
-            );
-
-            if (item.length === 0 || item[0].quantity < quantity) {
-                return false;
-            }
-
-            if (item[0].quantity === quantity) {
-                // Remove item completely
-                await this.query(
-                    `DELETE FROM inventory WHERE id = $1`,
-                    [item[0].id]
-                );
-            } else {
-                // Reduce quantity
-                await this.query(
-                    `UPDATE inventory SET quantity = quantity - $1 WHERE id = $2`,
-                    [quantity, item[0].id]
-                );
-            }
-
-            return true;
-        } catch (error) {
-            console.error('Error removing inventory item:', error);
-            return false;
-        }
-    }
-
-    // ===================
-    // CREW METHODS
-    // ===================
-
-    /**
-     * Create a new crew
-     */
-    static async createCrew(captainId, crewName, description = '') {
-        try {
-            // Check if user is already in a crew
-            const existingMember = await this.query(
-                `SELECT * FROM crew_members WHERE user_id = $1`,
-                [captainId]
-            );
-
-            if (existingMember.length > 0) {
-                return { success: false, error: 'Already in a crew' };
-            }
-
-            // Create crew
-            const crewResult = await this.query(
-                `INSERT INTO crews (name, captain_id, description) VALUES ($1, $2, $3) RETURNING id`,
-                [crewName, captainId, description]
-            );
-
-            const crewId = crewResult[0].id;
-
-            // Add captain as member
-            await this.query(
-                `INSERT INTO crew_members (crew_id, user_id, role) VALUES ($1, $2, 'captain')`,
-                [crewId, captainId]
-            );
-
-            // Update user's pirate_crew
-            await this.query(
-                `UPDATE users SET pirate_crew = $1 WHERE id = $2`,
-                [crewName, captainId]
-            );
-
-            return { success: true, crewId: crewId };
-        } catch (error) {
-            console.error('Error creating crew:', error);
-            return { success: false, error: 'Database error' };
-        }
-    }
-
-    /**
-     * Join a crew
-     */
-    static async joinCrew(userId, crewId) {
-        try {
-            // Check if user is already in a crew
-            const existingMember = await this.query(
-                `SELECT * FROM crew_members WHERE user_id = $1`,
-                [userId]
-            );
-
-            if (existingMember.length > 0) {
-                return { success: false, error: 'Already in a crew' };
-            }
-
-            // Check crew exists and has space
-            const crew = await this.query(
-                `SELECT * FROM crews WHERE id = $1`,
-                [crewId]
-            );
-
-            if (crew.length === 0) {
-                return { success: false, error: 'Crew not found' };
-            }
-
-            if (crew[0].member_count >= crew[0].max_members) {
-                return { success: false, error: 'Crew is full' };
-            }
-
-            // Add member
-            await this.query(
-                `INSERT INTO crew_members (crew_id, user_id, role) VALUES ($1, $2, 'member')`,
-                [crewId, userId]
-            );
-
-            // Update crew member count
-            await this.query(
-                `UPDATE crews SET member_count = member_count + 1 WHERE id = $1`,
-                [crewId]
-            );
-
-            // Update user's pirate_crew
-            await this.query(
-                `UPDATE users SET pirate_crew = $1 WHERE id = $2`,
-                [crew[0].name, userId]
-            );
-
-            return { success: true };
-        } catch (error) {
-            console.error('Error joining crew:', error);
-            return { success: false, error: 'Database error' };
-        }
-    }
-
-    /**
-     * Get crew information
-     */
-    static async getCrew(crewId) {
-        try {
-            const crew = await this.query(
-                `SELECT c.*, u.username as captain_name 
-                 FROM crews c 
-                 JOIN users u ON c.captain_id = u.id 
-                 WHERE c.id = $1`,
-                [crewId]
-            );
-
-            if (crew.length === 0) {
-                return null;
-            }
-
-            // Get crew members
-            const members = await this.query(
-                `SELECT cm.*, u.username, u.bounty, u.level 
-                 FROM crew_members cm 
-                 JOIN users u ON cm.user_id = u.id 
-                 WHERE cm.crew_id = $1 
-                 ORDER BY cm.role DESC, cm.joined_at ASC`,
-                [crewId]
-            );
-
-            return {
-                ...crew[0],
-                members: members
-            };
-        } catch (error) {
-            console.error('Error getting crew:', error);
-            return null;
-        }
-    }
-
-    // ===================
     // UTILITY METHODS
     // ===================
 
     /**
-     * Get leaderboard
+     * Get leaderboard (compatible with your existing method)
      */
     static async getLeaderboard(type = 'level', limit = 10, guildId = null) {
         try {
@@ -1290,26 +935,22 @@ class DatabaseManager {
 
             switch (type) {
                 case 'level':
-                    query = `SELECT id, username, level, experience FROM users ORDER BY level DESC, experience DESC LIMIT $1`;
+                    query = `SELECT user_id as id, username, level, experience FROM users ORDER BY level DESC, experience DESC LIMIT $1`;
                     break;
                 case 'berries':
-                    query = `SELECT id, username, berries FROM users ORDER BY berries DESC LIMIT $1`;
+                case 'coins':
+                    query = `SELECT user_id as id, username, COALESCE(berries, 0) as berries, COALESCE(coins, 0) as coins FROM users ORDER BY COALESCE(berries, 0) DESC LIMIT $1`;
                     break;
-                case 'bounty':
-                    query = `SELECT id, username, bounty FROM users ORDER BY bounty DESC LIMIT $1`;
+                case 'cp':
+                    query = `SELECT user_id as id, username, total_cp, level FROM users ORDER BY total_cp DESC LIMIT $1`;
                     break;
                 case 'fruits':
-                    query = `SELECT u.id, u.username, COUNT(df.id) as fruit_count 
+                case 'characters':
+                    query = `SELECT u.user_id as id, u.username, COUNT(df.id) as fruit_count 
                              FROM users u 
-                             LEFT JOIN devil_fruits df ON u.id = df.user_id 
-                             GROUP BY u.id, u.username 
+                             LEFT JOIN user_devil_fruits df ON u.user_id = df.user_id 
+                             GROUP BY u.user_id, u.username 
                              ORDER BY fruit_count DESC 
-                             LIMIT $1`;
-                    break;
-                case 'crews':
-                    query = `SELECT id, name, total_bounty, member_count 
-                             FROM crews 
-                             ORDER BY total_bounty DESC 
                              LIMIT $1`;
                     break;
                 default:
@@ -1324,73 +965,105 @@ class DatabaseManager {
     }
 
     /**
-     * Update user bounty and crew total
+     * Get server stats (your existing method)
      */
-    static async updateBounty(userId, newBounty) {
+    static async getServerStats() {
         try {
-            // Get old bounty
-            const user = await this.query(`SELECT bounty, pirate_crew FROM users WHERE id = $1`, [userId]);
-            if (user.length === 0) return false;
-
-            const oldBounty = user[0].bounty || 0;
-            const bountyDiff = newBounty - oldBounty;
-
-            // Update user bounty
-            await this.query(`UPDATE users SET bounty = $1 WHERE id = $2`, [newBounty, userId]);
-
-            // Update crew total bounty if user is in a crew
-            if (user[0].pirate_crew) {
-                await this.query(
-                    `UPDATE crews SET total_bounty = total_bounty + $1 WHERE name = $2`,
-                    [bountyDiff, user[0].pirate_crew]
-                );
-            }
-
-            return true;
+            const userCount = await this.query('SELECT COUNT(*) as count FROM users');
+            const fruitCount = await this.query('SELECT COUNT(*) as count FROM user_devil_fruits');
+            const totalBerries = await this.query('SELECT SUM(COALESCE(berries, 0)) as total FROM users');
+            
+            return {
+                totalUsers: parseInt(userCount[0].count),
+                totalFruits: parseInt(fruitCount[0].count),
+                totalBerries: parseInt(totalBerries[0].total || 0)
+            };
         } catch (error) {
-            console.error('Error updating bounty:', error);
-            return false;
+            console.error('Error getting server stats:', error);
+            return { totalUsers: 0, totalFruits: 0, totalBerries: 0 };
         }
     }
 
+    // ===================
+    // COMPATIBILITY ALIASES
+    // ===================
+
     /**
-     * Get random devil fruit data for gacha
+     * Aliases for backward compatibility with your existing code
      */
-    static async getRandomDevilFruit(rarity) {
-        // This would typically pull from a devil_fruit_templates table
-        // For now, returning sample data structure
-        const rarityMultipliers = {
-            'common': 1.0,
-            'uncommon': 1.2,
-            'rare': 1.5,
-            'epic': 2.0,
-            'legendary': 3.0,
-            'mythic': 5.0
-        };
+    static async addBerries(userId, amount) {
+        return await this.addCoins(userId, amount);
+    }
 
-        const fruitTypes = ['Paramecia', 'Zoan', 'Logia', 'Mythical Zoan', 'Ancient Zoan'];
-        const elements = ['Fire', 'Water', 'Earth', 'Wind', 'Light', 'Dark', 'Lightning', 'Ice', 'Nature', 'Magma'];
-        
-        const baseStats = {
-            hp: Math.floor((800 + Math.random() * 400) * rarityMultipliers[rarity]),
-            mp: Math.floor((600 + Math.random() * 300) * rarityMultipliers[rarity]),
-            attack: Math.floor((100 + Math.random() * 50) * rarityMultipliers[rarity]),
-            defense: Math.floor((80 + Math.random() * 40) * rarityMultipliers[rarity]),
-            speed: Math.floor((70 + Math.random() * 60) * rarityMultipliers[rarity])
-        };
+    static async removeBerries(userId, amount) {
+        return await this.removeCoins(userId, amount);
+    }
 
-        return {
-            name: `${elements[Math.floor(Math.random() * elements.length)]}-${elements[Math.floor(Math.random() * elements.length)]} Fruit`,
-            fruit_type: fruitTypes[Math.floor(Math.random() * fruitTypes.length)],
-            rarity: rarity,
-            element: elements[Math.floor(Math.random() * elements.length)],
-            ...baseStats,
-            power_level: Math.floor((baseStats.hp * 0.3) + (baseStats.mp * 0.2) + (baseStats.attack * 2) + (baseStats.defense * 1.5) + (baseStats.speed * 1.2)),
-            abilities: [
-                { name: `${elements[Math.floor(Math.random() * elements.length)]} Strike`, damage: baseStats.attack * 1.5, cost: 30 },
-                { name: `${elements[Math.floor(Math.random() * elements.length)]} Blast`, damage: baseStats.attack * 2, cost: 50 }
-            ]
-        };
+    static async getUserBerries(userId) {
+        try {
+            const result = await this.query(
+                'SELECT COALESCE(berries, 0) as berries FROM users WHERE user_id = $1',
+                [userId]
+            );
+            return result[0] ? result[0].berries : 0;
+        } catch (error) {
+            console.error('Error getting berries:', error);
+            return 0;
+        }
+    }
+
+    static async addDevilFruit(userId, fruitData) {
+        return await this.addCharacter(userId, fruitData);
+    }
+
+    static async getDevilFruit(fruitId) {
+        return await this.getCharacter(fruitId);
+    }
+
+    static async updateDevilFruit(fruitId, updateData) {
+        return await this.updateCharacter(fruitId, updateData);
+    }
+
+    static async setActiveDevilFruit(userId, fruitId) {
+        return await this.setActiveCharacter(userId, fruitId);
+    }
+
+    static async getActiveDevilFruit(userId) {
+        return await this.getActiveCharacter(userId);
+    }
+
+    // ===================
+    // DEBUG METHODS
+    // ===================
+
+    /**
+     * Debug method to check database structure and content
+     */
+    static async debugUserData(userId) {
+        try {
+            console.log(`🔍 Debugging user data for: ${userId}`);
+            
+            // Check if user exists
+            const user = await this.query('SELECT * FROM users WHERE user_id = $1', [userId]);
+            console.log('👤 User data:', user[0] || 'User not found');
+            
+            // Check user's devil fruits
+            const fruits = await this.query('SELECT * FROM user_devil_fruits WHERE user_id = $1', [userId]);
+            console.log(`🍎 Devil fruits count: ${fruits.length}`);
+            
+            if (fruits.length > 0) {
+                console.log('🍎 Sample fruit:', fruits[0]);
+            }
+            
+            return {
+                user: user[0] || null,
+                fruitsCount: fruits.length,
+                fruits: fruits
+            };
+        } catch (error) {
+            console.error('Error debugging user data:', error);
+            return null;
+        }
     }
 
     /**
