@@ -1,14 +1,14 @@
-// src/systems/pvp-helpers/battle-interface-helper.js - Battle Interface Module
+// src/systems/pvp/pvp-helpers/battle-interface-helper.js - Battle Interface Module
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
-const { getRarityEmoji } = require('../../data/devil-fruits');
-const DatabaseManager = require('../../database/manager');
+const { getRarityEmoji } = require('../../../data/devil-fruits');
+const DatabaseManager = require('../../../database/manager');
 
 // Import abilities safely
 let balancedDevilFruitAbilities = {};
 let statusEffects = {};
 
 try {
-    const abilitiesData = require('../../data/balanced-devil-fruit-abilities');
+    const abilitiesData = require('../../../data/balanced-devil-fruit-abilities');
     balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
     statusEffects = abilitiesData.statusEffects || {};
 } catch (error) {
