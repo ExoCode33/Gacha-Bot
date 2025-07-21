@@ -18,7 +18,7 @@ if (!clientId || !token) {
     process.exit(1);
 }
 
-// Define your commands with proper subcommands
+// Define your commands with proper subcommands - INCLUDING ALL EXISTING COMMANDS
 const commands = [
     {
         name: 'pvp',
@@ -71,8 +71,42 @@ const commands = [
         description: 'Use the gacha system to get devil fruits'
     },
     {
+        name: 'pull',
+        description: 'Pull from the gacha system (same as gacha)'
+    },
+    {
         name: 'income',
         description: 'Check your income sources and earnings'
+    },
+    {
+        name: 'leaderboard',
+        description: 'View server leaderboards and rankings',
+        options: [
+            {
+                name: 'type',
+                description: 'Which leaderboard to show',
+                type: 3, // STRING
+                required: false,
+                choices: [
+                    {
+                        name: 'coins',
+                        value: 'coins'
+                    },
+                    {
+                        name: 'pvp',
+                        value: 'pvp'
+                    },
+                    {
+                        name: 'level',
+                        value: 'level'
+                    },
+                    {
+                        name: 'all',
+                        value: 'all'
+                    }
+                ]
+            }
+        ]
     },
     {
         name: 'queue',
@@ -81,6 +115,31 @@ const commands = [
     {
         name: 'help',
         description: 'Show available commands and how to use them'
+    },
+    // Add any other commands you have
+    {
+        name: 'profile',
+        description: 'View your or another user\'s profile',
+        options: [
+            {
+                name: 'user',
+                description: 'User to view profile of',
+                type: 6, // USER
+                required: false
+            }
+        ]
+    },
+    {
+        name: 'shop',
+        description: 'View and purchase items from the shop'
+    },
+    {
+        name: 'work',
+        description: 'Work to earn coins'
+    },
+    {
+        name: 'claim',
+        description: 'Claim various rewards'
     }
 ];
 
