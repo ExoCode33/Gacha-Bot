@@ -210,8 +210,8 @@ class DatabaseManager {
     static async ensureUser(userId, username, guildId = null) {
         try {
             const result = await this.query(
-                `INSERT INTO users (user_id, username, guild_id, level, base_cp, total_cp, berries, coins, created_at, updated_at)
-                 VALUES ($1, $2, $3, 0, 100, 100, 0, 1000, NOW(), NOW())
+                `INSERT INTO users (user_id, username, guild_id, level, base_cp, total_cp, berries, created_at, updated_at)
+                 VALUES ($1, $2, $3, 0, 100, 100, 0, NOW(), NOW())
                  ON CONFLICT (user_id) 
                  DO UPDATE SET username = $2, guild_id = $3, updated_at = NOW()
                  RETURNING *`,
@@ -520,12 +520,12 @@ class DatabaseManager {
     // ===================
 
     /**
-     * Add coins to user (works with both coins and berries columns)
+     * Add coins to user (works with existing 'berries' column only)
      */
     static async addCoins(userId, amount) {
         try {
             await this.query(
-                `UPDATE users SET coins = COALESCE(coins, 0) + $1, berries = COALESCE(berries, 0) + $1 WHERE user_id = $2`,
+                `UPDATE users SET berries = COALESCE(berries, 0) + $1 WHERE user_id = $2`,
                 [amount, userId]
             );
             return true;
@@ -536,16 +536,14 @@ class DatabaseManager {
     }
 
     /**
-     * Remove coins from user
+     * Remove coins from user (works with existing 'berries' column only)
      */
     static async removeCoins(userId, amount) {
         try {
             const result = await this.query(
-                `UPDATE users SET 
-                    coins = GREATEST(0, COALESCE(coins, 0) - $1),
-                    berries = GREATEST(0, COALESCE(berries, 0) - $1)
-                 WHERE user_id = $2 AND COALESCE(coins, 0) >= $1 
-                 RETURNING coins`,
+                `UPDATE users SET berries = GREATEST(0, COALESCE(berries, 0) - $1)
+                 WHERE user_id = $2 AND COALESCE(berries, 0) >= $1 
+                 RETURNING berries`,
                 [amount, userId]
             );
             return result.length > 0;
@@ -563,7 +561,6 @@ class DatabaseManager {
             const result = await this.query(
                 `UPDATE users 
                  SET berries = COALESCE(berries, 0) + $2,
-                     coins = COALESCE(coins, 0) + $2,
                      total_earned = CASE WHEN $2 > 0 THEN COALESCE(total_earned, 0) + $2 ELSE COALESCE(total_earned, 0) END,
                      total_spent = CASE WHEN $2 < 0 THEN COALESCE(total_spent, 0) + ABS($2) ELSE COALESCE(total_spent, 0) END,
                      updated_at = NOW()
@@ -939,7 +936,7 @@ class DatabaseManager {
                     break;
                 case 'berries':
                 case 'coins':
-                    query = `SELECT user_id as id, username, COALESCE(berries, 0) as berries, COALESCE(coins, 0) as coins FROM users ORDER BY COALESCE(berries, 0) DESC LIMIT $1`;
+                    query = `SELECT user_id as id, username, COALESCE(berries, 0) as berries FROM users ORDER BY COALESCE(berries, 0) DESC LIMIT $1`;
                     break;
                 case 'cp':
                     query = `SELECT user_id as id, username, total_cp, level FROM users ORDER BY total_cp DESC LIMIT $1`;
