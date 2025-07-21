@@ -179,4 +179,238 @@ class BattleInterfaceHelper {
 
         const currentPlayerData = battleData[battleData.currentPlayer];
         if (currentPlayerData.userId !== userId) {
-            return this.pvpSystem.
+            return this.pvpSystem.safeReply(interaction, '❌ It\'s not your turn!', true);
+        }
+
+        const selectedFruit = currentPlayerData.selectedFruits[skillIndex];
+        const ability = balancedDevilFruitAbilities[selectedFruit.fruit_name] || {
+            name: 'Basic Attack',
+            damage: 100,
+            cooldown: 0,
+            effect: null,
+            accuracy: 85
+        };
+        
+        // Process the attack
+        await this.processAttack(interaction, battleData, currentPlayerData, ability, selectedFruit);
+    }
+
+    // Process an attack
+    async processAttack(interaction, battleData, attacker, ability, fruit) {
+        const defender = battleData.currentPlayer === 'player1' ? battleData.player2 : battleData.player1;
+        
+        // Calculate damage
+        const baseDamage = ability.damage || 100;
+        const accuracy = ability.accuracy || 85;
+        const hit = Math.random() * 100 <= accuracy;
+        
+        let damage = 0;
+        if (hit) {
+            const cpRatio = Math.min(attacker.balancedCP / defender.balancedCP, 1.5);
+            const turnMultiplier = battleData.currentTurn === 1 ? 0.5 : 
+                                 battleData.currentTurn === 2 ? 0.7 : 1.0;
+            
+            damage = Math.floor(baseDamage * cpRatio * turnMultiplier);
+            damage = Math.max(5, damage);
+            
+            defender.hp = Math.max(0, defender.hp - damage);
+        }
+
+        // Create attack message
+        let attackMessage = '';
+        if (hit) {
+            attackMessage = `⚡ **${attacker.username}** uses **${ability.name}**!\n` +
+                          `💥 Deals **${damage}** damage to **${defender.username}**!`;
+            
+            if (ability.effect) {
+                defender.effects.push({
+                    name: ability.effect,
+                    duration: 2,
+                    description: `Affected by ${ability.effect}`
+                });
+                attackMessage += ` ✨ **${ability.effect} applied!**`;
+            }
+        } else {
+            attackMessage = `⚡ **${attacker.username}** uses **${ability.name}** but misses!`;
+        }
+
+        // Add to battle log
+        battleData.battleLog.push({
+            type: 'attack',
+            attacker: attacker.username,
+            defender: defender.username,
+            ability: ability.name,
+            damage: damage,
+            hit: hit,
+            message: attackMessage,
+            timestamp: Date.now(),
+            turn: battleData.currentTurn
+        });
+
+        // Check for battle end
+        if (defender.hp <= 0) {
+            await this.endBattle(interaction, battleData, attacker, defender);
+            return;
+        }
+
+        // Switch turns
+        battleData.currentPlayer = battleData.currentPlayer === 'player1' ? 'player2' : 'player1';
+        battleData.currentTurn++;
+
+        // Check max turns
+        if (battleData.currentTurn > 15) {
+            await this.endBattleByTimeout(interaction, battleData);
+            return;
+        }
+
+        // Process ongoing effects
+        this.processOngoingEffects(battleData);
+
+        // Show updated battle interface
+        await this.showBattleInterface(interaction, battleData);
+    }
+
+    // Process NPC turn automatically
+    async processNPCTurn(interaction, battleData) {
+        const npcPlayer = battleData.player2;
+        const availableFruits = npcPlayer.selectedFruits;
+        
+        // NPC AI selects a fruit
+        const selectedFruitIndex = Math.floor(Math.random() * availableFruits.length);
+        const selectedFruit = availableFruits[selectedFruitIndex];
+        const ability = balancedDevilFruitAbilities[selectedFruit.fruit_name] || {
+            name: 'Boss Attack',
+            damage: 120,
+            cooldown: 0,
+            effect: null,
+            accuracy: 85
+        };
+
+        await this.processAttack(interaction, battleData, npcPlayer, ability, selectedFruit);
+    }
+
+    // Process ongoing effects
+    processOngoingEffects(battleData) {
+        [battleData.player1, battleData.player2].forEach(player => {
+            player.effects = player.effects.filter(effect => {
+                if (effect.name.includes('burn') || effect.name.includes('poison')) {
+                    const dotDamage = effect.name.includes('burn') ? 20 : 15;
+                    player.hp = Math.max(0, player.hp - dotDamage);
+                    
+                    battleData.battleLog.push({
+                        type: 'effect',
+                        player: player.username,
+                        effect: effect.name,
+                        damage: dotDamage,
+                        message: `🔥 ${player.username} takes ${dotDamage} ${effect.name} damage!`,
+                        timestamp: Date.now()
+                    });
+                }
+                
+                effect.duration--;
+                return effect.duration > 0;
+            });
+        });
+    }
+
+    // End battle with winner
+    async endBattle(interaction, battleData, winner, loser) {
+        battleData.status = 'ended';
+        
+        const winnerEmbed = new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle('🏆 BATTLE COMPLETE!')
+            .setDescription(`**${winner.username}** emerges victorious!`)
+            .addFields([
+                {
+                    name: '🎉 Victory!',
+                    value: `**${winner.username}** defeats **${loser.username}**!\n\n` +
+                           `**Final HP**: ${winner.hp}/${winner.maxHealth}\n` +
+                           `**Turns**: ${battleData.currentTurn}\n` +
+                           `**Battle Type**: ${battleData.isVsNPC ? 'PvE' : 'PvP'}`,
+                    inline: false
+                },
+                {
+                    name: '📜 Battle Summary',
+                    value: this.getBattleSummary(battleData),
+                    inline: false
+                }
+            ])
+            .setFooter({ text: 'Great battle! Your legend grows...' })
+            .setTimestamp();
+
+        // Award berries for PvE victory
+        if (battleData.isVsNPC && winner.userId === battleData.player1.userId) {
+            const berryReward = this.calculateBerryReward(battleData.npcBoss.difficulty);
+            try {
+                await DatabaseManager.updateUserBerries(winner.userId, berryReward, 'PvE Victory');
+                
+                winnerEmbed.addFields([{
+                    name: '💰 Rewards',
+                    value: `+${berryReward.toLocaleString()} berries`,
+                    inline: true
+                }]);
+            } catch (error) {
+                console.error('Error awarding berries:', error);
+            }
+        }
+
+        await this.pvpSystem.safeUpdate(interaction, {
+            embeds: [winnerEmbed],
+            components: []
+        });
+
+        // Clean up
+        this.pvpSystem.activeBattles.delete(battleData.id);
+    }
+
+    // End battle by timeout
+    async endBattleByTimeout(interaction, battleData) {
+        const { player1, player2 } = battleData;
+        const winner = player1.hp > player2.hp ? player1 : player2;
+        const loser = winner === player1 ? player2 : player1;
+        
+        await this.endBattle(interaction, battleData, winner, loser);
+    }
+
+    // Calculate berry reward
+    calculateBerryReward(difficulty) {
+        const rewards = {
+            'Easy': 500,
+            'Medium': 1000,
+            'Hard': 2000,
+            'Very Hard': 4000,
+            'Legendary': 7000,
+            'Mythical': 10000,
+            'Divine': 15000
+        };
+        
+        return rewards[difficulty] || 500;
+    }
+
+    // Get effects string
+    getEffectsString(effects) {
+        if (!effects || effects.length === 0) return 'None';
+        return effects.map(e => `${e.name} (${e.duration})`).join(', ');
+    }
+
+    // Get recent battle log
+    getRecentBattleLog(battleLog) {
+        const recent = battleLog.slice(-5);
+        return recent.map(entry => entry.message).join('\n') || 'Battle starting...';
+    }
+
+    // Get battle summary
+    getBattleSummary(battleData) {
+        const totalAttacks = battleData.battleLog.filter(l => l.type === 'attack').length;
+        const totalDamage = battleData.battleLog
+            .filter(l => l.type === 'attack' && l.hit)
+            .reduce((sum, l) => sum + l.damage, 0);
+        
+        return `**Total Attacks**: ${totalAttacks}\n` +
+               `**Total Damage**: ${totalDamage.toLocaleString()}\n` +
+               `**Battle Duration**: ${battleData.currentTurn} turns`;
+    }
+}
+
+module.exports = BattleInterfaceHelper;
