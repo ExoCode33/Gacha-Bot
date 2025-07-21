@@ -31,7 +31,7 @@ const DatabaseManager = require('../database/manager');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('enhanced-pvp')
+        .setName('pvp')
         .setDescription('Enhanced PvP system with turn-based combat')
         .addSubcommand(subcommand =>
             subcommand
