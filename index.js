@@ -4,8 +4,8 @@ require('dotenv').config();
 
 console.log('🔍 Starting minimal test bot...');
 console.log('📝 Environment check:');
-console.log('- BOT_TOKEN exists:', !!process.env.BOT_TOKEN);
-console.log('- BOT_TOKEN length:', process.env.BOT_TOKEN ? process.env.BOT_TOKEN.length : 0);
+console.log('- DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
+console.log('- DISCORD_TOKEN length:', process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.length : 0);
 
 // Test basic Discord.js import
 try {
@@ -17,8 +17,9 @@ try {
 }
 
 // Test environment variables
-if (!process.env.BOT_TOKEN) {
-    console.error('❌ BOT_TOKEN not found in environment variables');
+if (!process.env.DISCORD_TOKEN) {
+    console.error('❌ DISCORD_TOKEN not found in environment variables');
+    console.log('Available env vars:', Object.keys(process.env).filter(key => key.includes('TOKEN')));
     process.exit(1);
 }
 
@@ -106,7 +107,7 @@ process.on('SIGINT', () => {
 
 // Login
 console.log('🔐 Attempting to login...');
-client.login(process.env.BOT_TOKEN)
+client.login(process.env.DISCORD_TOKEN)
     .then(() => {
         console.log('✅ Login successful');
     })
