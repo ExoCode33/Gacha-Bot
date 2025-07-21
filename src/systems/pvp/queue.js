@@ -287,3 +287,323 @@ class QueueSystem {
             ])
             .setFooter({ text: 'Boss battle complete! Try matchmaking again for PvP battles.' })
             .setTimestamp();
+
+        await interaction.editReply({
+            embeds: [embed],
+            components: []
+        });
+    }
+
+    simulateBossBattle(fighter) {
+        const playerPower = fighter.balancedCP;
+        const bossPower = Math.floor(playerPower * 1.1);
+        
+        // Simple RNG battle
+        const playerRoll = Math.random() * playerPower;
+        const bossRoll = Math.random() * bossPower;
+        
+        if (playerRoll > bossRoll) {
+            return '🏆 **Victory!** You defeated the mysterious boss!\n💰 **Reward**: 2,000 berries added to your account!';
+        } else {
+            return '💀 **Defeat!** The boss was too powerful this time.\n🎯 **Try Again**: Join the queue for another chance!';
+        }
+    }
+
+    async startMatchedBattle(interaction, player1Data, player2Data) {
+        const { userId: userId1, fighter: fighter1 } = player1Data;
+        const { userId: userId2, fighter: fighter2 } = player2Data;
+
+        console.log(`⚔️ Starting matched battle: ${fighter1.username} vs ${fighter2.username}`);
+
+        // Remove both players from queue
+        this.removeFromQueue(userId1);
+        this.removeFromQueue(userId2);
+
+        // Set cooldowns for both players
+        this.setCooldown(userId1);
+        this.setCooldown(userId2);
+
+        try {
+            // Create match found embed
+            const matchEmbed = new EmbedBuilder()
+                .setColor(0x00FF00)
+                .setTitle('🎯 MATCH FOUND!')
+                .setDescription(`**${fighter1.username}** vs **${fighter2.username}**\n\nStarting enhanced turn-based battle...`)
+                .addFields([
+                    {
+                        name: '🏴‍☠️ Player 1',
+                        value: [
+                            `**${fighter1.username}**`,
+                            `Level: ${fighter1.level}`,
+                            `CP: ${fighter1.balancedCP.toLocaleString()}`,
+                            `HP: ${fighter1.maxHealth}`
+                        ].join('\n'),
+                        inline: true
+                    },
+                    {
+                        name: '🏴‍☠️ Player 2', 
+                        value: [
+                            `**${fighter2.username}**`,
+                            `Level: ${fighter2.level}`,
+                            `CP: ${fighter2.balancedCP.toLocaleString()}`,
+                            `HP: ${fighter2.maxHealth}`
+                        ].join('\n'),
+                        inline: true
+                    },
+                    {
+                        name: '⚔️ Battle Info',
+                        value: [
+                            `**Type**: Enhanced Turn-Based PvP`,
+                            `**Balanced**: ✅ Fair matchmaking`,
+                            `**Real-Time**: ✅ Live combat`,
+                            `**Max Turns**: 15`,
+                            `**Rewards**: Honor and glory!`
+                        ].join('\n'),
+                        inline: false
+                    }
+                ])
+                .setFooter({ text: 'Battle starting in 3 seconds...' })
+                .setTimestamp();
+
+            await interaction.editReply({
+                embeds: [matchEmbed],
+                components: []
+            });
+
+            // Brief delay for dramatic effect
+            setTimeout(async () => {
+                try {
+                    // Simulate the PvP battle
+                    await this.simulatePvPBattle(interaction, fighter1, fighter2);
+                } catch (error) {
+                    console.error('Error starting PvP battle:', error);
+                }
+            }, 3000);
+
+        } catch (error) {
+            console.error('Error in matched battle:', error);
+            await interaction.editReply({
+                content: '❌ Failed to start the matched battle. Please try again.',
+                embeds: [],
+                components: []
+            });
+        }
+    }
+
+    async simulatePvPBattle(interaction, fighter1, fighter2) {
+        // Simple turn-based battle simulation
+        let p1HP = fighter1.maxHealth;
+        let p2HP = fighter2.maxHealth;
+        let turn = 1;
+        const maxTurns = 10;
+        const battleLog = [];
+
+        battleLog.push(`⚔️ **${fighter1.username}** vs **${fighter2.username}**`);
+        battleLog.push(`Starting HP: ${p1HP} vs ${p2HP}`);
+
+        while (turn <= maxTurns && p1HP > 0 && p2HP > 0) {
+            // Fighter 1 attacks
+            if (p1HP > 0) {
+                const damage = this.calculatePvPDamage(fighter1, fighter2, turn);
+                p2HP = Math.max(0, p2HP - damage);
+                battleLog.push(`⚡ ${fighter1.username} deals ${damage} damage! (${fighter2.username}: ${p2HP} HP)`);
+            }
+
+            // Fighter 2 attacks
+            if (p2HP > 0) {
+                const damage = this.calculatePvPDamage(fighter2, fighter1, turn);
+                p1HP = Math.max(0, p1HP - damage);
+                battleLog.push(`⚡ ${fighter2.username} deals ${damage} damage! (${fighter1.username}: ${p1HP} HP)`);
+            }
+
+            turn++;
+
+            if (p1HP <= 0 || p2HP <= 0) break;
+        }
+
+        const winner = p1HP > p2HP ? fighter1 : fighter2;
+        const loser = winner === fighter1 ? fighter2 : fighter1;
+        const winnerHP = winner === fighter1 ? p1HP : p2HP;
+
+        const embed = new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle('⚔️ PvP Battle Complete!')
+            .setDescription(`🏆 **${winner.username}** wins the battle!`)
+            .addFields([
+                {
+                    name: '📊 Final Results',
+                    value: [
+                        `**Winner**: ${winner.username} (${winnerHP} HP remaining)`,
+                        `**Loser**: ${loser.username} (0 HP)`,
+                        `**Total Turns**: ${turn - 1}`,
+                        `**Battle Type**: Balanced PvP`
+                    ].join('\n'),
+                    inline: true
+                },
+                {
+                    name: '⚔️ Battle Summary',
+                    value: battleLog.slice(-6).join('\n'),
+                    inline: false
+                }
+            ])
+            .setFooter({ text: 'Great battle! Try again with /pvp queue' })
+            .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    calculatePvPDamage(attacker, defender, turn) {
+        const baseDamage = 80;
+        const cpRatio = Math.min(attacker.balancedCP / defender.balancedCP, 1.5);
+        const turnMultiplier = turn === 1 ? 0.6 : turn === 2 ? 0.8 : 1.0;
+        
+        // Add some randomness
+        const randomFactor = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2
+        
+        const damage = Math.floor(baseDamage * cpRatio * turnMultiplier * randomFactor);
+        return Math.max(15, damage);
+    }
+
+    // Leave the queue
+    async leaveQueue(interaction, userId) {
+        if (!this.queue.has(userId)) {
+            return await interaction.reply({
+                content: '❌ You are not in the matchmaking queue.',
+                ephemeral: true
+            });
+        }
+
+        const queueData = this.queue.get(userId);
+        this.removeFromQueue(userId);
+
+        const embed = new EmbedBuilder()
+            .setColor(0xFF8000)
+            .setTitle('🚪 Left Matchmaking Queue')
+            .setDescription(`**${queueData.username}** has left the matchmaking queue.`)
+            .addFields([
+                {
+                    name: '📊 Queue Status',
+                    value: [
+                        `**Players in Queue**: ${this.queue.size}/${this.maxQueueSize}`,
+                        `**Your Status**: Not in queue`,
+                        `**Time in Queue**: ${Math.floor((Date.now() - queueData.joinTime) / 1000)}s`
+                    ].join('\n'),
+                    inline: true
+                }
+            ])
+            .setFooter({ text: 'You can rejoin anytime with /pvp queue' });
+
+        await interaction.update({
+            embeds: [embed],
+            components: []
+        });
+    }
+
+    // Handle leave queue button
+    async handleLeaveQueueButton(interaction, userId) {
+        const buttonUserId = interaction.user.id;
+        
+        if (buttonUserId !== userId) {
+            return await interaction.reply({
+                content: '❌ You can only interact with your own queue!',
+                ephemeral: true
+            });
+        }
+
+        await this.leaveQueue(interaction, userId);
+    }
+
+    // Remove player from queue and cleanup
+    removeFromQueue(userId) {
+        if (this.queue.has(userId)) {
+            this.queue.delete(userId);
+            
+            // Clear any active timer
+            if (this.queueTimers.has(userId)) {
+                clearInterval(this.queueTimers.get(userId));
+                this.queueTimers.delete(userId);
+            }
+            
+            console.log(`🚪 ${userId} removed from matchmaking queue. Queue size: ${this.queue.size}`);
+        }
+    }
+
+    // Check if player is on cooldown
+    isOnCooldown(userId) {
+        if (!this.cooldowns.has(userId)) return false;
+        
+        const lastBattle = this.cooldowns.get(userId);
+        return (Date.now() - lastBattle) < this.battleCooldown;
+    }
+
+    // Get remaining cooldown time
+    getRemainingCooldown(userId) {
+        if (!this.cooldowns.has(userId)) return 0;
+        
+        const lastBattle = this.cooldowns.get(userId);
+        const elapsed = Date.now() - lastBattle;
+        return Math.max(0, this.battleCooldown - elapsed);
+    }
+
+    // Set cooldown for player
+    setCooldown(userId) {
+        this.cooldowns.set(userId, Date.now());
+    }
+
+    // Check if user is in queue
+    isInQueue(userId) {
+        return this.queue.has(userId);
+    }
+
+    // Get queue statistics
+    getQueueStats() {
+        const players = Array.from(this.queue.values());
+        const cpValues = players.map(p => p.balancedCP);
+        
+        return {
+            size: this.queue.size,
+            maxSize: this.maxQueueSize,
+            averageCP: cpValues.length > 0 ? Math.floor(cpValues.reduce((a, b) => a + b, 0) / cpValues.length) : 0,
+            minCP: cpValues.length > 0 ? Math.min(...cpValues) : 0,
+            maxCP: cpValues.length > 0 ? Math.max(...cpValues) : 0,
+            averageWaitTime: players.length > 0 ? Math.floor(players.reduce((sum, p) => sum + (Date.now() - p.joinTime), 0) / players.length / 1000) : 0
+        };
+    }
+
+    getStats() {
+        return this.getQueueStats();
+    }
+
+    // Cleanup old queue entries and cooldowns
+    cleanup() {
+        const now = Date.now();
+        const maxWaitTime = 10 * 60 * 1000; // 10 minutes max
+        
+        let cleanedCount = 0;
+        for (const [userId, queueData] of this.queue) {
+            if (now - queueData.joinTime > maxWaitTime) {
+                this.removeFromQueue(userId);
+                cleanedCount++;
+            }
+        }
+        
+        if (cleanedCount > 0) {
+            console.log(`🧹 Cleaned up ${cleanedCount} old queue entries`);
+        }
+        
+        // Clean old cooldowns
+        let cooldownsCleaned = 0;
+        for (const [userId, lastBattle] of this.cooldowns) {
+            if (now - lastBattle > this.battleCooldown * 2) {
+                this.cooldowns.delete(userId);
+                cooldownsCleaned++;
+            }
+        }
+        
+        if (cooldownsCleaned > 0) {
+            console.log(`🧹 Cleaned up ${cooldownsCleaned} old cooldowns`);
+        }
+    }
+}
+
+module.exports = QueueSystem;
