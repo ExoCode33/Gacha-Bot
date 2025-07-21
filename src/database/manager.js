@@ -303,59 +303,157 @@ class DatabaseManager {
     }
 
     /**
-     * Get user's characters (alias for getUserDevilFruits for compatibility)
+     * Get user's characters (works with existing 'characters' table)
      */
     static async getUserCharacters(userId, options = {}) {
-        return await this.getUserDevilFruits(userId, options);
+        try {
+            let query = `SELECT * FROM characters WHERE user_id = $1`;
+            const params = [userId];
+            let paramCount = 1;
+
+            if (options.rarity) {
+                paramCount++;
+                query += ` AND rarity = ${paramCount}`;
+                params.push(options.rarity);
+            }
+
+            if (options.element) {
+                paramCount++;
+                query += ` AND element = ${paramCount}`;
+                params.push(options.element);
+            }
+
+            if (options.is_favorite !== undefined) {
+                paramCount++;
+                query += ` AND is_favorite = ${paramCount}`;
+                params.push(options.is_favorite);
+            }
+
+            if (options.orderBy) {
+                query += ` ORDER BY ${options.orderBy}`;
+                if (options.order === 'DESC') query += ' DESC';
+            }
+
+            if (options.limit) {
+                paramCount++;
+                query += ` LIMIT ${paramCount}`;
+                params.push(options.limit);
+            }
+
+            return await this.query(query, params);
+        } catch (error) {
+            console.error('Error getting user characters:', error);
+            return [];
+        }
     }
 
     /**
-     * Get character by ID (alias for getDevilFruit for compatibility)
+     * Get character by ID (works with existing 'characters' table)
      */
     static async getCharacter(characterId) {
-        return await this.getDevilFruit(characterId);
+        try {
+            const result = await this.query(
+                `SELECT * FROM characters WHERE id = $1`,
+                [characterId]
+            );
+            return result[0] || null;
+        } catch (error) {
+            console.error('Error getting character:', error);
+            return null;
+        }
     }
 
     /**
-     * Update character (alias for updateDevilFruit for compatibility)
+     * Update character (works with existing 'characters' table)
      */
     static async updateCharacter(characterId, updateData) {
-        return await this.updateDevilFruit(characterId, updateData);
+        try {
+            const fields = Object.keys(updateData);
+            const values = Object.values(updateData);
+            const setClause = fields.map((field, index) => `${field} = ${index + 1}`).join(', ');
+
+            await this.query(
+                `UPDATE characters SET ${setClause} WHERE id = ${fields.length + 1}`,
+                [...values, characterId]
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Error updating character:', error);
+            return false;
+        }
     }
 
     /**
-     * Set active character (alias for setActiveDevilFruit for compatibility)
+     * Set active character (works with existing 'characters' table)
      */
     static async setActiveCharacter(userId, characterId) {
-        return await this.setActiveDevilFruit(userId, characterId);
+        try {
+            // Remove active status from all user's characters
+            await this.query(
+                `UPDATE characters SET is_active = FALSE WHERE user_id = $1`,
+                [userId]
+            );
+
+            // Set new active character
+            await this.query(
+                `UPDATE characters SET is_active = TRUE WHERE id = $1 AND user_id = $2`,
+                [characterId, userId]
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Error setting active character:', error);
+            return false;
+        }
     }
 
     /**
-     * Get user's active character (alias for getActiveDevilFruit for compatibility)
+     * Get user's active character (works with existing 'characters' table)
      */
     static async getActiveCharacter(userId) {
-        return await this.getActiveDevilFruit(userId);
+        try {
+            const result = await this.query(
+                `SELECT * FROM characters WHERE user_id = $1 AND is_active = TRUE`,
+                [userId]
+            );
+            return result[0] || null;
+        } catch (error) {
+            console.error('Error getting active character:', error);
+            return null;
+        }
     }
 
     /**
-     * Add coins to user (alias for addBerries for compatibility)
-     */
-    static async addCoins(userId, amount) {
-        return await this.addBerries(userId, amount);
-    }
-
-    /**
-     * Remove coins from user (alias for removeBerries for compatibility)
-     */
-    static async removeCoins(userId, amount) {
-        return await this.removeBerries(userId, amount);
-    }
-
-    /**
-     * Add character to user (alias for addDevilFruit for compatibility)
+     * Add character to user (works with existing 'characters' table)
      */
     static async addCharacter(userId, characterData) {
-        return await this.addDevilFruit(userId, characterData);
+        try {
+            const result = await this.query(
+                `INSERT INTO characters (user_id, name, rarity, element, level, experience, hp, mp, attack, defense, speed, power_level, avatar_url) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+                [
+                    userId,
+                    characterData.name,
+                    characterData.rarity,
+                    characterData.element,
+                    characterData.level || 1,
+                    characterData.experience || 0,
+                    characterData.hp,
+                    characterData.mp,
+                    characterData.attack,
+                    characterData.defense,
+                    characterData.speed,
+                    characterData.power_level || 0,
+                    characterData.avatar_url || null
+                ]
+            );
+
+            return result[0]?.id;
+        } catch (error) {
+            console.error('Error adding character:', error);
+            return null;
+        }
     }
 
     /**
@@ -380,35 +478,49 @@ class DatabaseManager {
     }
 
     /**
-     * Add berries to user
+     * Add coins to user (works with existing 'coins' column)
      */
-    static async addBerries(userId, amount) {
+    static async addCoins(userId, amount) {
         try {
             await this.query(
-                `UPDATE users SET berries = berries + $1 WHERE id = $2`,
+                `UPDATE users SET coins = coins + $1 WHERE id = $2`,
                 [amount, userId]
             );
             return true;
         } catch (error) {
-            console.error('Error adding berries:', error);
+            console.error('Error adding coins:', error);
             return false;
         }
     }
 
     /**
-     * Remove berries from user
+     * Remove coins from user (works with existing 'coins' column)
      */
-    static async removeBerries(userId, amount) {
+    static async removeCoins(userId, amount) {
         try {
             const result = await this.query(
-                `UPDATE users SET berries = GREATEST(0, berries - $1) WHERE id = $2 AND berries >= $1 RETURNING berries`,
+                `UPDATE users SET coins = GREATEST(0, coins - $1) WHERE id = $2 AND coins >= $1 RETURNING coins`,
                 [amount, userId]
             );
             return result.length > 0;
         } catch (error) {
-            console.error('Error removing berries:', error);
+            console.error('Error removing coins:', error);
             return false;
         }
+    }
+
+    /**
+     * Add berries to user (alias for addCoins for One Piece theme)
+     */
+    static async addBerries(userId, amount) {
+        return await this.addCoins(userId, amount);
+    }
+
+    /**
+     * Remove berries from user (alias for removeCoins for One Piece theme)
+     */
+    static async removeBerries(userId, amount) {
+        return await this.removeCoins(userId, amount);
     }
 
     // ===================
