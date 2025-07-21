@@ -94,6 +94,8 @@ class PvPQueueSystem {
             this.activeMatches.add(newPlayerId);
             this.activeMatches.add(opponent.userId);
             
+            console.log(`Match found: ${newPlayer.username} vs ${opponent.username}`);
+            
             return {
                 player1: newPlayer,
                 player2: opponent
