@@ -251,3 +251,225 @@ class PvPBalanceSystem {
             }
 
             // Second attacker's turn (if still alive)
+            if (secondAttacker.hp > 0 && firstAttacker.hp > 0) {
+                const result = this.executeAttack(secondAttacker, firstAttacker, turn);
+                fightLog.push({
+                    type: 'attack',
+                    attacker: secondAttacker.username,
+                    defender: firstAttacker.username,
+                    ability: result.abilityName,
+                    damage: result.damage,
+                    hit: result.hit,
+                    remainingHP: firstAttacker.hp,
+                    turn
+                });
+            }
+
+            // Process effects
+            this.processEffects(fighter1);
+            this.processEffects(fighter2);
+
+            turn++;
+        }
+
+        // Determine winner
+        let winner = null;
+        if (fighter1.hp <= 0) winner = fighter2;
+        else if (fighter2.hp <= 0) winner = fighter1;
+        else winner = fighter1.hp > fighter2.hp ? fighter1 : fighter2;
+
+        fightLog.push({
+            type: 'result',
+            winner: winner.username,
+            fighter1HP: fighter1.hp,
+            fighter2HP: fighter2.hp,
+            turn: turn - 1
+        });
+
+        return {
+            winner,
+            loser: winner === fighter1 ? fighter2 : fighter1,
+            fightLog,
+            totalTurns: turn - 1
+        };
+    }
+
+    // Execute an attack
+    executeAttack(attacker, defender, turn) {
+        const ability = attacker.ability;
+        
+        // Use PvPDamageCalculator if available
+        let damageResult;
+        if (PvPDamageCalculator.calculateDamage) {
+            damageResult = PvPDamageCalculator.calculateDamage(
+                ability,
+                attacker.balancedCP,
+                defender.balancedCP,
+                turn,
+                defender.effects.map(e => e.type)
+            );
+        } else {
+            // Fallback damage calculation
+            const accuracy = ability.accuracy || 85;
+            const hit = Math.random() * 100 <= accuracy;
+            let damage = 0;
+            
+            if (hit) {
+                const cpRatio = Math.min(attacker.balancedCP / defender.balancedCP, 1.5);
+                const turnMultiplier = turn === 1 ? 0.5 : turn === 2 ? 0.7 : 1.0;
+                damage = Math.floor((ability.damage || 100) * cpRatio * turnMultiplier);
+                damage = Math.max(5, damage);
+            }
+            
+            damageResult = {
+                damage,
+                hit,
+                effect: ability.effect,
+                critical: false
+            };
+        }
+
+        if (damageResult.hit) {
+            defender.hp = Math.max(0, defender.hp - damageResult.damage);
+            
+            // Apply effects
+            if (damageResult.effect) {
+                this.applyEffect(defender, damageResult.effect);
+            }
+        }
+
+        return {
+            damage: damageResult.damage,
+            hit: damageResult.hit,
+            critical: damageResult.critical,
+            abilityName: ability.name
+        };
+    }
+
+    // Apply effect to target
+    applyEffect(target, effectName) {
+        // Add effect based on name
+        const effectData = { type: effectName, duration: 2 };
+        
+        // Don't stack the same effect
+        if (!target.effects.some(e => e.type === effectName)) {
+            target.effects.push(effectData);
+        }
+    }
+
+    // Process ongoing effects
+    processEffects(fighter) {
+        fighter.effects = fighter.effects.filter(effect => {
+            // Apply damage effects
+            if (effect.type === 'burn_4_turns' || effect.type === 'poison_deadly') {
+                const damage = effect.type === 'burn_4_turns' ? 20 : 25;
+                fighter.hp = Math.max(0, fighter.hp - damage);
+            }
+            
+            // Reduce duration
+            effect.duration--;
+            return effect.duration > 0;
+        });
+    }
+
+    // Create fight embed for Discord
+    createFightEmbed(fightResult) {
+        const { winner, loser, fightLog } = fightResult;
+        
+        let description = '';
+        let recentLog = fightLog.slice(-8); // Show last 8 events
+        
+        recentLog.forEach(log => {
+            switch(log.type) {
+                case 'start':
+                    description += `${log.message}\n\n`;
+                    break;
+                case 'dice':
+                    description += `${log.message}\n\n`;
+                    break;
+                case 'turn_start':
+                    description += `**${log.message}**\n`;
+                    break;
+                case 'attack':
+                    if (log.hit) {
+                        description += `⚡ ${log.attacker} uses **${log.ability}**!\n`;
+                        description += `💥 Deals ${log.damage} damage to ${log.defender}!\n`;
+                        description += `❤️ ${log.defender}: ${log.remainingHP} HP remaining\n\n`;
+                    } else {
+                        description += `⚡ ${log.attacker} uses **${log.ability}** but misses!\n\n`;
+                    }
+                    break;
+                case 'result':
+                    description += `🏆 **${log.winner} wins!**\n`;
+                    description += `Final HP: ${log.fighter1HP} vs ${log.fighter2HP}`;
+                    break;
+            }
+        });
+
+        const embed = {
+            color: winner ? 0x00FF00 : 0xFF0000,
+            title: '⚔️ Balanced Devil Fruit PvP Battle',
+            description,
+            fields: [
+                {
+                    name: '📊 Fighter Stats',
+                    value: `**${winner.username}** vs **${loser.username}**\n` +
+                           `${winner.balancedCP.toLocaleString()} CP vs ${loser.balancedCP.toLocaleString()} CP\n` +
+                           `${winner.maxHealth} HP vs ${loser.maxHealth} HP`,
+                    inline: false
+                }
+            ],
+            footer: { text: 'Powered by Advanced Balance System' },
+            timestamp: new Date()
+        };
+
+        return embed;
+    }
+
+    // Validate fight balance
+    validateFightBalance(fighter1, fighter2) {
+        const cpRatio = Math.max(fighter1.balancedCP / fighter2.balancedCP, fighter2.balancedCP / fighter1.balancedCP);
+        const healthRatio = Math.max(fighter1.maxHealth / fighter2.maxHealth, fighter2.maxHealth / fighter1.maxHealth);
+        const levelDiff = Math.abs(fighter1.level - fighter2.level);
+        
+        const issues = [];
+        
+        if (cpRatio > 2.5) {
+            issues.push(`CP difference too high: ${cpRatio.toFixed(1)}x`);
+        }
+        
+        if (healthRatio > 2.0) {
+            issues.push(`Health difference too high: ${healthRatio.toFixed(1)}x`);
+        }
+        
+        if (levelDiff > 25) {
+            issues.push(`Level difference too high: ${levelDiff} levels`);
+        }
+        
+        return {
+            isBalanced: issues.length === 0,
+            issues,
+            cpRatio,
+            healthRatio,
+            levelDiff,
+            recommendation: issues.length === 0 ? 'Fight is balanced' : 'Consider finding a more balanced opponent'
+        };
+    }
+
+    // Get balance report
+    getBalanceReport() {
+        const levelDiff = this.balancedLevelScaling[50] / this.balancedLevelScaling[0];
+        const rarityDiff = this.balancedRarityScaling.divine.max / this.balancedRarityScaling.common.min;
+        
+        return {
+            maxLevelAdvantage: `${levelDiff}x (reduced from 6x)`,
+            maxRarityAdvantage: `${rarityDiff}x (reduced from 12x)`,
+            turn1DamageReduction: '50%',
+            maxFightDuration: '10 turns max',
+            cpImpactReduction: '70% (only 30% of CP difference applies)',
+            recommendedBalance: 'Balanced for fair PvP'
+        };
+    }
+}
+
+module.exports = new PvPBalanceSystem();
