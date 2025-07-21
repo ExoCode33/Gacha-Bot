@@ -1,516 +1,943 @@
-// src/database/manager.js - Database Manager v2.3 - Fixed CP Integer Handling
-const { Pool } = require('pg');
+// src/database/manager.js - Complete Database Manager Class
+const mysql = require('mysql2/promise');
+const config = require('../config/config.json');
 
 class DatabaseManager {
-    constructor() {
-        this.pool = new Pool({
-            connectionString: process.env.DATABASE_URL,
-            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-            max: 20,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 2000,
-        });
-        
-        this.pool.on('error', (err) => {
-            console.error('❌ Unexpected PostgreSQL error:', err);
-        });
-    }
+    static connection = null;
 
-    async query(text, params) {
-        const start = Date.now();
-        let client;
-        
+    /**
+     * Initialize database connection
+     */
+    static async initialize() {
         try {
-            client = await this.pool.connect();
-            const result = await client.query(text, params);
-            const duration = Date.now() - start;
+            this.connection = await mysql.createConnection({
+                host: config.database.host,
+                user: config.database.user,
+                password: config.database.password,
+                database: config.database.database,
+                charset: 'utf8mb4'
+            });
+
+            console.log('✅ Database connected successfully');
             
-            if (duration > 1000) {
-                console.warn(`⚠️ Slow query detected (${duration}ms)`);
-            }
+            // Create tables if they don't exist
+            await this.createTables();
             
-            return result;
         } catch (error) {
-            console.error('❌ Database query error:', error);
-            throw error;
-        } finally {
-            if (client) {
-                client.release();
-            }
+            console.error('❌ Database connection failed:', error);
+            process.exit(1);
         }
     }
 
-    async initializeDatabase() {
+    /**
+     * Execute a database query
+     */
+    static async query(sql, params = []) {
         try {
-            console.log('🗄️ Initializing database...');
-            
+            if (!this.connection) {
+                await this.initialize();
+            }
+
+            const [results] = await this.connection.execute(sql, params);
+            return results;
+        } catch (error) {
+            console.error('Database query error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Create all necessary tables
+     */
+    static async createTables() {
+        try {
             // Users table
             await this.query(`
                 CREATE TABLE IF NOT EXISTS users (
-                    user_id TEXT PRIMARY KEY,
+                    id VARCHAR(255) PRIMARY KEY,
                     username VARCHAR(255) NOT NULL,
-                    guild_id TEXT,
-                    level INTEGER DEFAULT 0,
-                    base_cp INTEGER DEFAULT 100,
-                    total_cp INTEGER DEFAULT 0,
-                    berries BIGINT DEFAULT 0,
-                    total_earned BIGINT DEFAULT 0,
-                    total_spent BIGINT DEFAULT 0,
-                    last_income TIMESTAMP DEFAULT NOW(),
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    updated_at TIMESTAMP DEFAULT NOW()
+                    discriminator VARCHAR(10),
+                    avatar VARCHAR(255),
+                    coins BIGINT DEFAULT 1000,
+                    gems INT DEFAULT 0,
+                    experience BIGINT DEFAULT 0,
+                    level INT DEFAULT 1,
+                    daily_streak INT DEFAULT 0,
+                    last_daily TIMESTAMP NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_level (level),
+                    INDEX idx_coins (coins)
                 )
             `);
-            
-            // Devil Fruits collection table - Updated with fruitType
+
+            // Characters table
             await this.query(`
-                CREATE TABLE IF NOT EXISTS user_devil_fruits (
-                    id SERIAL PRIMARY KEY,
-                    user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
-                    fruit_id VARCHAR(50) NOT NULL,
-                    fruit_name VARCHAR(255) NOT NULL,
-                    fruit_type VARCHAR(50) NOT NULL,
-                    fruit_rarity VARCHAR(50) NOT NULL,
-                    fruit_element VARCHAR(50) NOT NULL DEFAULT 'Unknown',
-                    fruit_fruit_type VARCHAR(50) NOT NULL DEFAULT 'Unknown',
-                    fruit_power TEXT NOT NULL,
-                    fruit_description TEXT,
-                    base_cp INTEGER NOT NULL,
-                    duplicate_count INTEGER DEFAULT 1,
-                    total_cp INTEGER NOT NULL,
-                    obtained_at TIMESTAMP DEFAULT NOW()
+                CREATE TABLE IF NOT EXISTS characters (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id VARCHAR(255) NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    rarity ENUM('common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic') NOT NULL,
+                    element VARCHAR(50),
+                    level INT DEFAULT 1,
+                    experience BIGINT DEFAULT 0,
+                    hp INT NOT NULL,
+                    mp INT NOT NULL,
+                    attack INT NOT NULL,
+                    defense INT NOT NULL,
+                    speed INT NOT NULL,
+                    power_level INT DEFAULT 0,
+                    avatar_url TEXT,
+                    is_favorite BOOLEAN DEFAULT FALSE,
+                    is_active BOOLEAN DEFAULT FALSE,
+                    obtained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_rarity (rarity),
+                    INDEX idx_power_level (power_level),
+                    INDEX idx_element (element)
                 )
             `);
-            
-            // Add new column if it doesn't exist (for migration)
+
+            // Guild settings table
             await this.query(`
-                ALTER TABLE user_devil_fruits 
-                ADD COLUMN IF NOT EXISTS fruit_fruit_type VARCHAR(50) DEFAULT 'Unknown'
-            `);
-            
-            // User level tracking
-            await this.query(`
-                CREATE TABLE IF NOT EXISTS user_levels (
-                    user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
-                    current_level INTEGER DEFAULT 0,
-                    role_name VARCHAR(50),
-                    base_cp INTEGER DEFAULT 100,
-                    updated_at TIMESTAMP DEFAULT NOW()
+                CREATE TABLE IF NOT EXISTS guild_settings (
+                    guild_id VARCHAR(255) PRIMARY KEY,
+                    gacha_channel VARCHAR(255),
+                    pvp_channel VARCHAR(255),
+                    admin_channel VARCHAR(255),
+                    welcome_channel VARCHAR(255),
+                    daily_reward BOOLEAN DEFAULT TRUE,
+                    gacha_cooldown INT DEFAULT 300,
+                    pvp_enabled BOOLEAN DEFAULT TRUE,
+                    prefix VARCHAR(10) DEFAULT '!',
+                    language VARCHAR(10) DEFAULT 'en',
+                    timezone VARCHAR(50) DEFAULT 'UTC',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
             `);
-            
-            // Income tracking
+
+            // PvP queue table
             await this.query(`
-                CREATE TABLE IF NOT EXISTS income_history (
-                    id SERIAL PRIMARY KEY,
-                    user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
-                    amount BIGINT NOT NULL,
-                    cp_at_time INTEGER NOT NULL,
-                    income_type VARCHAR(50) DEFAULT 'automatic',
-                    created_at TIMESTAMP DEFAULT NOW()
+                CREATE TABLE IF NOT EXISTS pvp_queue (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id VARCHAR(255) NOT NULL,
+                    guild_id VARCHAR(255) NOT NULL,
+                    character_data TEXT NOT NULL,
+                    queue_type VARCHAR(50) DEFAULT 'ranked',
+                    is_npc BOOLEAN DEFAULT FALSE,
+                    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    matched_at TIMESTAMP NULL,
+                    power_level INT DEFAULT 0,
+                    status ENUM('waiting', 'matched', 'battling', 'completed') DEFAULT 'waiting',
+                    INDEX idx_guild_status (guild_id, status),
+                    INDEX idx_user_guild (user_id, guild_id),
+                    INDEX idx_power_level (power_level),
+                    INDEX idx_joined_at (joined_at)
                 )
             `);
-            
-            // Create indexes for performance
-            await this.query(`CREATE INDEX IF NOT EXISTS idx_users_level ON users(level)`);
-            await this.query(`CREATE INDEX IF NOT EXISTS idx_users_total_cp ON users(total_cp)`);
-            await this.query(`CREATE INDEX IF NOT EXISTS idx_devil_fruits_user ON user_devil_fruits(user_id)`);
-            await this.query(`CREATE INDEX IF NOT EXISTS idx_devil_fruits_fruit_id ON user_devil_fruits(fruit_id)`);
-            await this.query(`CREATE INDEX IF NOT EXISTS idx_devil_fruits_element ON user_devil_fruits(fruit_element)`);
-            await this.query(`CREATE INDEX IF NOT EXISTS idx_devil_fruits_fruit_type ON user_devil_fruits(fruit_fruit_type)`);
-            await this.query(`CREATE INDEX IF NOT EXISTS idx_income_history_user ON income_history(user_id)`);
-            
-            console.log('✅ Database tables created successfully');
-            
+
+            // Battle history table
+            await this.query(`
+                CREATE TABLE IF NOT EXISTS battle_history (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    guild_id VARCHAR(255) NOT NULL,
+                    player1_id VARCHAR(255) NOT NULL,
+                    player2_id VARCHAR(255),
+                    player1_character TEXT NOT NULL,
+                    player2_character TEXT,
+                    winner_id VARCHAR(255),
+                    battle_type ENUM('pvp', 'pve', 'npc') DEFAULT 'pvp',
+                    battle_data TEXT,
+                    rewards TEXT,
+                    duration INT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_guild_id (guild_id),
+                    INDEX idx_player1 (player1_id),
+                    INDEX idx_player2 (player2_id),
+                    INDEX idx_winner (winner_id),
+                    INDEX idx_battle_type (battle_type)
+                )
+            `);
+
+            // Inventory table
+            await this.query(`
+                CREATE TABLE IF NOT EXISTS inventory (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id VARCHAR(255) NOT NULL,
+                    item_type ENUM('potion', 'equipment', 'material', 'token', 'booster') NOT NULL,
+                    item_name VARCHAR(255) NOT NULL,
+                    item_data TEXT,
+                    quantity INT DEFAULT 1,
+                    obtained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    INDEX idx_user_item (user_id, item_type),
+                    INDEX idx_item_name (item_name)
+                )
+            `);
+
+            // Achievements table
+            await this.query(`
+                CREATE TABLE IF NOT EXISTS achievements (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id VARCHAR(255) NOT NULL,
+                    achievement_id VARCHAR(100) NOT NULL,
+                    progress INT DEFAULT 0,
+                    completed BOOLEAN DEFAULT FALSE,
+                    completed_at TIMESTAMP NULL,
+                    rewards_claimed BOOLEAN DEFAULT FALSE,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE KEY unique_user_achievement (user_id, achievement_id),
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_completed (completed)
+                )
+            `);
+
+            console.log('✅ All database tables created/verified successfully');
         } catch (error) {
-            console.error('❌ Database initialization failed:', error);
-            throw error;
+            console.error('❌ Error creating tables:', error);
         }
     }
 
-    // User management
-    async ensureUser(userId, username, guildId = null) {
-        try {
-            const result = await this.query(
-                `INSERT INTO users (user_id, username, guild_id, level, base_cp, total_cp, berries, created_at, updated_at)
-                 VALUES ($1, $2, $3, 0, 100, 100, 0, NOW(), NOW())
-                 ON CONFLICT (user_id) 
-                 DO UPDATE SET username = $2, guild_id = $3, updated_at = NOW()
-                 RETURNING *`,
-                [userId, username, guildId]
-            );
-            return result.rows[0];
-        } catch (error) {
-            console.error('Error ensuring user:', error);
-            throw error;
-        }
-    }
+    // ===================
+    // USER METHODS
+    // ===================
 
-    async getUser(userId) {
+    /**
+     * Get or create user
+     */
+    static async getUser(userId, userData = {}) {
         try {
-            const result = await this.query(
-                'SELECT * FROM users WHERE user_id = $1',
+            let user = await this.query(
+                `SELECT * FROM users WHERE id = ?`,
                 [userId]
             );
-            return result.rows[0];
+
+            if (user.length === 0) {
+                // Create new user
+                await this.query(
+                    `INSERT INTO users (id, username, discriminator, avatar) VALUES (?, ?, ?, ?)`,
+                    [userId, userData.username || 'Unknown', userData.discriminator || '0000', userData.avatar || null]
+                );
+
+                user = await this.query(`SELECT * FROM users WHERE id = ?`, [userId]);
+            }
+
+            return user[0];
         } catch (error) {
             console.error('Error getting user:', error);
             return null;
         }
     }
 
-    async getUserLevel(userId) {
+    /**
+     * Update user data
+     */
+    static async updateUser(userId, updateData) {
         try {
-            const user = await this.getUser(userId);
-            return user ? user.level : 0;
+            const fields = Object.keys(updateData);
+            const values = Object.values(updateData);
+            const setClause = fields.map(field => `${field} = ?`).join(', ');
+
+            await this.query(
+                `UPDATE users SET ${setClause} WHERE id = ?`,
+                [...values, userId]
+            );
+
+            return true;
         } catch (error) {
-            console.error('Error getting user level:', error);
+            console.error('Error updating user:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Add coins to user
+     */
+    static async addCoins(userId, amount) {
+        try {
+            await this.query(
+                `UPDATE users SET coins = coins + ? WHERE id = ?`,
+                [amount, userId]
+            );
+            return true;
+        } catch (error) {
+            console.error('Error adding coins:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Remove coins from user
+     */
+    static async removeCoins(userId, amount) {
+        try {
+            const result = await this.query(
+                `UPDATE users SET coins = GREATEST(0, coins - ?) WHERE id = ? AND coins >= ?`,
+                [amount, userId, amount]
+            );
+            return result.affectedRows > 0;
+        } catch (error) {
+            console.error('Error removing coins:', error);
+            return false;
+        }
+    }
+
+    // ===================
+    // CHARACTER METHODS
+    // ===================
+
+    /**
+     * Add character to user
+     */
+    static async addCharacter(userId, characterData) {
+        try {
+            const result = await this.query(
+                `INSERT INTO characters (user_id, name, rarity, element, level, experience, hp, mp, attack, defense, speed, power_level, avatar_url) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    userId,
+                    characterData.name,
+                    characterData.rarity,
+                    characterData.element,
+                    characterData.level || 1,
+                    characterData.experience || 0,
+                    characterData.hp,
+                    characterData.mp,
+                    characterData.attack,
+                    characterData.defense,
+                    characterData.speed,
+                    characterData.power_level || 0,
+                    characterData.avatar_url || null
+                ]
+            );
+
+            return result.insertId;
+        } catch (error) {
+            console.error('Error adding character:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get user's characters
+     */
+    static async getUserCharacters(userId, options = {}) {
+        try {
+            let query = `SELECT * FROM characters WHERE user_id = ?`;
+            const params = [userId];
+
+            if (options.rarity) {
+                query += ` AND rarity = ?`;
+                params.push(options.rarity);
+            }
+
+            if (options.element) {
+                query += ` AND element = ?`;
+                params.push(options.element);
+            }
+
+            if (options.is_favorite !== undefined) {
+                query += ` AND is_favorite = ?`;
+                params.push(options.is_favorite);
+            }
+
+            if (options.orderBy) {
+                query += ` ORDER BY ${options.orderBy}`;
+                if (options.order === 'DESC') query += ' DESC';
+            }
+
+            if (options.limit) {
+                query += ` LIMIT ${options.limit}`;
+            }
+
+            return await this.query(query, params);
+        } catch (error) {
+            console.error('Error getting user characters:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get character by ID
+     */
+    static async getCharacter(characterId) {
+        try {
+            const result = await this.query(
+                `SELECT * FROM characters WHERE id = ?`,
+                [characterId]
+            );
+            return result[0] || null;
+        } catch (error) {
+            console.error('Error getting character:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Update character
+     */
+    static async updateCharacter(characterId, updateData) {
+        try {
+            const fields = Object.keys(updateData);
+            const values = Object.values(updateData);
+            const setClause = fields.map(field => `${field} = ?`).join(', ');
+
+            await this.query(
+                `UPDATE characters SET ${setClause} WHERE id = ?`,
+                [...values, characterId]
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Error updating character:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Set active character
+     */
+    static async setActiveCharacter(userId, characterId) {
+        try {
+            // Remove active status from all user's characters
+            await this.query(
+                `UPDATE characters SET is_active = FALSE WHERE user_id = ?`,
+                [userId]
+            );
+
+            // Set new active character
+            await this.query(
+                `UPDATE characters SET is_active = TRUE WHERE id = ? AND user_id = ?`,
+                [characterId, userId]
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Error setting active character:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get user's active character
+     */
+    static async getActiveCharacter(userId) {
+        try {
+            const result = await this.query(
+                `SELECT * FROM characters WHERE user_id = ? AND is_active = TRUE`,
+                [userId]
+            );
+            return result[0] || null;
+        } catch (error) {
+            console.error('Error getting active character:', error);
+            return null;
+        }
+    }
+
+    // ===================
+    // GUILD SETTINGS METHODS
+    // ===================
+
+    /**
+     * Get guild settings
+     */
+    static async getGuildSettings(guildId) {
+        try {
+            let settings = await this.query(
+                `SELECT * FROM guild_settings WHERE guild_id = ?`,
+                [guildId]
+            );
+
+            if (settings.length === 0) {
+                // Create default settings
+                await this.query(
+                    `INSERT INTO guild_settings (guild_id) VALUES (?)`,
+                    [guildId]
+                );
+                settings = await this.query(`SELECT * FROM guild_settings WHERE guild_id = ?`, [guildId]);
+            }
+
+            return settings[0];
+        } catch (error) {
+            console.error('Error getting guild settings:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Update guild settings
+     */
+    static async updateGuildSettings(guildId, settings) {
+        try {
+            const fields = Object.keys(settings);
+            const values = Object.values(settings);
+            const setClause = fields.map(field => `${field} = ?`).join(', ');
+
+            await this.query(
+                `UPDATE guild_settings SET ${setClause} WHERE guild_id = ?`,
+                [...values, guildId]
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Error updating guild settings:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get specific guild setting
+     */
+    static async getGuildSetting(guildId, settingName) {
+        try {
+            const result = await this.query(
+                `SELECT ${settingName} FROM guild_settings WHERE guild_id = ?`,
+                [guildId]
+            );
+            return result[0] ? result[0][settingName] : null;
+        } catch (error) {
+            console.error('Error getting guild setting:', error);
+            return null;
+        }
+    }
+
+    // ===================
+    // PVP QUEUE METHODS
+    // ===================
+
+    /**
+     * Add a player or NPC to the PvP queue
+     */
+    static async addToQueue(queueEntry) {
+        try {
+            // Check if user is already in queue
+            const existingEntry = await this.query(
+                `SELECT id FROM pvp_queue WHERE user_id = ? AND guild_id = ? AND status = 'waiting'`,
+                [queueEntry.user_id, queueEntry.guild_id]
+            );
+
+            if (existingEntry.length > 0 && !queueEntry.is_npc) {
+                return {
+                    success: false,
+                    error: 'Already in queue'
+                };
+            }
+
+            // Insert into queue
+            const result = await this.query(
+                `INSERT INTO pvp_queue (user_id, guild_id, character_data, queue_type, is_npc, joined_at, power_level, status) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting')`,
+                [
+                    queueEntry.user_id,
+                    queueEntry.guild_id,
+                    queueEntry.character_data,
+                    queueEntry.queue_type || 'ranked',
+                    queueEntry.is_npc || false,
+                    queueEntry.joined_at || new Date(),
+                    queueEntry.power_level,
+                ]
+            );
+
+            // Get queue position
+            const position = await this.getQueuePosition(queueEntry.user_id, queueEntry.guild_id);
+
+            return {
+                success: true,
+                queueId: result.insertId,
+                position: position
+            };
+
+        } catch (error) {
+            console.error('Error adding to queue:', error);
+            return {
+                success: false,
+                error: 'Database error'
+            };
+        }
+    }
+
+    /**
+     * Get queue position for a user
+     */
+    static async getQueuePosition(userId, guildId) {
+        try {
+            const result = await this.query(
+                `SELECT COUNT(*) as position FROM pvp_queue 
+                 WHERE guild_id = ? AND status = 'waiting' 
+                 AND joined_at <= (SELECT joined_at FROM pvp_queue WHERE user_id = ? AND guild_id = ? AND status = 'waiting')`,
+                [guildId, userId, guildId]
+            );
+
+            return result[0]?.position || 0;
+        } catch (error) {
+            console.error('Error getting queue position:', error);
             return 0;
         }
     }
 
-    async updateUserLevel(userId, level, roleName, baseCp) {
+    /**
+     * Get current queue for a guild
+     */
+    static async getQueue(guildId, queueType = 'ranked') {
         try {
-            // Update user level and base CP
-            await this.query(
-                `UPDATE users 
-                 SET level = $2, base_cp = $3, updated_at = NOW()
-                 WHERE user_id = $1`,
-                [userId, level, baseCp]
+            const result = await this.query(
+                `SELECT * FROM pvp_queue 
+                 WHERE guild_id = ? AND queue_type = ? AND status = 'waiting' 
+                 ORDER BY joined_at ASC`,
+                [guildId, queueType]
             );
-            
-            // Update user_levels table
-            await this.query(
-                `INSERT INTO user_levels (user_id, current_level, role_name, base_cp, updated_at)
-                 VALUES ($1, $2, $3, $4, NOW())
-                 ON CONFLICT (user_id)
-                 DO UPDATE SET current_level = $2, role_name = $3, base_cp = $4, updated_at = NOW()`,
-                [userId, level, roleName, baseCp]
-            );
-            
-            // Recalculate total CP
-            await this.recalculateUserCP(userId);
-            
+
+            return result.map(entry => ({
+                ...entry,
+                character_data: JSON.parse(entry.character_data),
+                joined_at: new Date(entry.joined_at)
+            }));
         } catch (error) {
-            console.error('Error updating user level:', error);
-            throw error;
+            console.error('Error getting queue:', error);
+            return [];
         }
     }
 
-    async recalculateUserCP(userId) {
+    /**
+     * Find a match for a player in queue
+     */
+    static async findMatch(userId, guildId) {
         try {
-            // Get user's base CP
-            const user = await this.getUser(userId);
-            if (!user) return;
-            
-            const baseCp = user.base_cp;
-            
-            // Get all user's devil fruits with duplicates
-            const fruits = await this.query(
-                `SELECT fruit_id, base_cp, duplicate_count 
-                 FROM user_devil_fruits 
-                 WHERE user_id = $1`,
-                [userId]
+            // Get the user's queue entry
+            const userEntry = await this.query(
+                `SELECT * FROM pvp_queue WHERE user_id = ? AND guild_id = ? AND status = 'waiting'`,
+                [userId, guildId]
             );
-            
-            // Start with base CP
-            let totalCp = baseCp;
-            
-            // Calculate CP for each fruit type
-            const fruitGroups = {};
-            fruits.rows.forEach(fruit => {
-                if (!fruitGroups[fruit.fruit_id]) {
-                    fruitGroups[fruit.fruit_id] = {
-                        baseCp: fruit.base_cp,
-                        count: 0
-                    };
-                }
-                fruitGroups[fruit.fruit_id].count++;
-            });
-            
-            // Calculate total CP with fruit multipliers and duplicate bonuses
-            Object.values(fruitGroups).forEach(group => {
-                // Convert stored integer back to decimal for calculation
-                const multiplier = group.baseCp / 100;
-                const duplicateBonus = 1 + ((group.count - 1) * 0.01); // 1% per duplicate
-                const fruitCp = (baseCp * multiplier) * duplicateBonus;
-                totalCp += fruitCp;
-            });
-            
-            // Update user's total CP (ensure it's an integer)
-            const finalTotalCp = Math.floor(totalCp);
-            await this.query(
-                `UPDATE users SET total_cp = $2, updated_at = NOW() WHERE user_id = $1`,
-                [userId, finalTotalCp]
+
+            if (userEntry.length === 0) {
+                return null;
+            }
+
+            const user = userEntry[0];
+            const userPower = user.power_level;
+            const powerRange = userPower * 0.3; // 30% power range
+
+            // Find suitable opponent (including NPCs)
+            const opponents = await this.query(
+                `SELECT * FROM pvp_queue 
+                 WHERE guild_id = ? AND user_id != ? AND status = 'waiting'
+                 AND power_level BETWEEN ? AND ?
+                 ORDER BY ABS(power_level - ?) ASC, joined_at ASC
+                 LIMIT 1`,
+                [guildId, userId, userPower - powerRange, userPower + powerRange, userPower]
             );
-            
-            return finalTotalCp;
-            
+
+            if (opponents.length > 0) {
+                const opponent = opponents[0];
+                
+                // Update both entries to 'matched'
+                await this.query(
+                    `UPDATE pvp_queue SET status = 'matched', matched_at = NOW() WHERE id IN (?, ?)`,
+                    [user.id, opponent.id]
+                );
+
+                return {
+                    player1: {
+                        ...user,
+                        character_data: JSON.parse(user.character_data)
+                    },
+                    player2: {
+                        ...opponent,
+                        character_data: JSON.parse(opponent.character_data)
+                    }
+                };
+            }
+
+            return null;
         } catch (error) {
-            console.error('Error recalculating user CP:', error);
-            throw error;
+            console.error('Error finding match:', error);
+            return null;
         }
     }
 
-    // Devil Fruit management - Fixed CP integer handling
-    async addDevilFruit(userId, fruitData) {
+    /**
+     * Remove user from queue
+     */
+    static async removeFromQueue(userId, guildId) {
         try {
-            console.log(`💾 Adding fruit: ${fruitData.name} for user ${userId}`);
-            console.log(`💾 Fruit data:`, fruitData);
-            
-            // Check if user already has this fruit
+            const result = await this.query(
+                `DELETE FROM pvp_queue WHERE user_id = ? AND guild_id = ? AND status = 'waiting'`,
+                [userId, guildId]
+            );
+
+            return result.affectedRows > 0;
+        } catch (error) {
+            console.error('Error removing from queue:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Clear old queue entries (cleanup)
+     */
+    static async clearOldQueueEntries(hoursOld = 24) {
+        try {
+            await this.query(
+                `DELETE FROM pvp_queue WHERE joined_at < DATE_SUB(NOW(), INTERVAL ? HOUR)`,
+                [hoursOld]
+            );
+        } catch (error) {
+            console.error('Error clearing old queue entries:', error);
+        }
+    }
+
+    /**
+     * Get queue statistics
+     */
+    static async getQueueStats(guildId) {
+        try {
+            const stats = await this.query(
+                `SELECT 
+                    COUNT(*) as total_waiting,
+                    COUNT(CASE WHEN is_npc = 1 THEN 1 END) as npc_count,
+                    COUNT(CASE WHEN is_npc = 0 THEN 1 END) as player_count,
+                    AVG(power_level) as avg_power,
+                    MIN(power_level) as min_power,
+                    MAX(power_level) as max_power
+                 FROM pvp_queue 
+                 WHERE guild_id = ? AND status = 'waiting'`,
+                [guildId]
+            );
+
+            return stats[0] || {
+                total_waiting: 0,
+                npc_count: 0,
+                player_count: 0,
+                avg_power: 0,
+                min_power: 0,
+                max_power: 0
+            };
+        } catch (error) {
+            console.error('Error getting queue stats:', error);
+            return {
+                total_waiting: 0,
+                npc_count: 0,
+                player_count: 0,
+                avg_power: 0,
+                min_power: 0,
+                max_power: 0
+            };
+        }
+    }
+
+    // ===================
+    // BATTLE METHODS
+    // ===================
+
+    /**
+     * Save battle result
+     */
+    static async saveBattleResult(battleData) {
+        try {
+            const result = await this.query(
+                `INSERT INTO battle_history (guild_id, player1_id, player2_id, player1_character, player2_character, winner_id, battle_type, battle_data, rewards, duration) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    battleData.guild_id,
+                    battleData.player1_id,
+                    battleData.player2_id || null,
+                    JSON.stringify(battleData.player1_character),
+                    battleData.player2_character ? JSON.stringify(battleData.player2_character) : null,
+                    battleData.winner_id || null,
+                    battleData.battle_type || 'pvp',
+                    JSON.stringify(battleData.battle_data || {}),
+                    JSON.stringify(battleData.rewards || {}),
+                    battleData.duration || 0
+                ]
+            );
+
+            return result.insertId;
+        } catch (error) {
+            console.error('Error saving battle result:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get user's battle history
+     */
+    static async getBattleHistory(userId, limit = 10) {
+        try {
+            const result = await this.query(
+                `SELECT * FROM battle_history 
+                 WHERE player1_id = ? OR player2_id = ? 
+                 ORDER BY created_at DESC 
+                 LIMIT ?`,
+                [userId, userId, limit]
+            );
+
+            return result.map(battle => ({
+                ...battle,
+                player1_character: JSON.parse(battle.player1_character),
+                player2_character: battle.player2_character ? JSON.parse(battle.player2_character) : null,
+                battle_data: JSON.parse(battle.battle_data || '{}'),
+                rewards: JSON.parse(battle.rewards || '{}')
+            }));
+        } catch (error) {
+            console.error('Error getting battle history:', error);
+            return [];
+        }
+    }
+
+    // ===================
+    // INVENTORY METHODS
+    // ===================
+
+    /**
+     * Add item to inventory
+     */
+    static async addInventoryItem(userId, itemType, itemName, itemData = {}, quantity = 1) {
+        try {
+            // Check if item already exists
             const existing = await this.query(
-                `SELECT * FROM user_devil_fruits 
-                 WHERE user_id = $1 AND fruit_id = $2`,
-                [userId, fruitData.id]
+                `SELECT * FROM inventory WHERE user_id = ? AND item_type = ? AND item_name = ?`,
+                [userId, itemType, itemName]
             );
-            
-            let duplicateCount = 1;
-            let isNewFruit = true;
-            
-            if (existing.rows.length > 0) {
-                // It's a duplicate
-                duplicateCount = existing.rows.length + 1;
-                isNewFruit = false;
+
+            if (existing.length > 0) {
+                // Update quantity
+                await this.query(
+                    `UPDATE inventory SET quantity = quantity + ? WHERE id = ?`,
+                    [quantity, existing[0].id]
+                );
+                return existing[0].id;
+            } else {
+                // Insert new item
+                const result = await this.query(
+                    `INSERT INTO inventory (user_id, item_type, item_name, item_data, quantity) VALUES (?, ?, ?, ?, ?)`,
+                    [userId, itemType, itemName, JSON.stringify(itemData), quantity]
+                );
+                return result.insertId;
             }
-            
-            // Get user's base CP for calculation
-            const user = await this.getUser(userId);
-            const baseCp = user.base_cp;
-            
-            // Ensure multiplier is a valid number
-            const multiplier = parseFloat(fruitData.multiplier) || 1.0;
-            console.log(`💾 Multiplier: ${multiplier}`);
-            
-            // Store multiplier as integer (multiply by 100) - ENSURE IT'S AN INTEGER
-            const multiplierAsInt = Math.floor(multiplier * 100);
-            console.log(`💾 Multiplier as int: ${multiplierAsInt}`);
-            
-            // Calculate total CP - ENSURE IT'S AN INTEGER
-            const totalCp = Math.floor(baseCp * multiplier);
-            console.log(`💾 Total CP: ${totalCp}`);
-            
-            // Prepare all values and ensure they're the correct type
-            const insertValues = [
-                userId, // $1
-                fruitData.id || 'unknown_fruit', // $2
-                fruitData.name || 'Unknown Fruit', // $3
-                fruitData.type || 'Paramecia', // $4
-                fruitData.rarity || 'common', // $5
-                fruitData.element || fruitData.fruitType || 'Unknown', // $6
-                fruitData.fruitType || 'Unknown', // $7
-                fruitData.power || 'Unknown power', // $8
-                fruitData.description || fruitData.power || 'Unknown power', // $9
-                multiplierAsInt, // $10 - INTEGER
-                duplicateCount, // $11 - INTEGER
-                totalCp // $12 - INTEGER
-            ];
-            
-            console.log(`💾 Insert values:`, insertValues);
-            
-            // Add the fruit with all properly typed values
-            const result = await this.query(
-                `INSERT INTO user_devil_fruits (
-                    user_id, fruit_id, fruit_name, fruit_type, fruit_rarity, 
-                    fruit_element, fruit_fruit_type, fruit_power, fruit_description, base_cp, 
-                    duplicate_count, total_cp, obtained_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
-                 RETURNING *`,
-                insertValues
-            );
-            
-            console.log(`💾 Insert result:`, result.rows[0]);
-            
-            // Recalculate user's total CP
-            const newTotalCp = await this.recalculateUserCP(userId);
-            
-            return {
-                fruit: result.rows[0],
-                isNewFruit,
-                duplicateCount,
-                totalCp: newTotalCp
-            };
-            
         } catch (error) {
-            console.error('Error adding devil fruit:', error);
-            console.error('Fruit data that caused error:', fruitData);
-            throw error;
+            console.error('Error adding inventory item:', error);
+            return null;
         }
     }
 
-    async getUserDevilFruits(userId) {
+    /**
+     * Get user inventory
+     */
+    static async getInventory(userId, itemType = null) {
         try {
-            const result = await this.query(
-                `SELECT *, 
-                 (SELECT COUNT(*) FROM user_devil_fruits udf2 
-                  WHERE udf2.user_id = $1 AND udf2.fruit_id = user_devil_fruits.fruit_id) as duplicate_count
-                 FROM user_devil_fruits 
-                 WHERE user_id = $1 
-                 ORDER BY obtained_at DESC`,
-                [userId]
-            );
-            return result.rows;
+            let query = `SELECT * FROM inventory WHERE user_id = ?`;
+            const params = [userId];
+
+            if (itemType) {
+                query += ` AND item_type = ?`;
+                params.push(itemType);
+            }
+
+            query += ` ORDER BY item_type, item_name`;
+
+            const result = await this.query(query, params);
+            
+            return result.map(item => ({
+                ...item,
+                item_data: JSON.parse(item.item_data || '{}')
+            }));
         } catch (error) {
-            console.error('Error getting user devil fruits:', error);
+            console.error('Error getting inventory:', error);
             return [];
         }
     }
 
-    async getUserFruitsByElement(userId, element) {
+    /**
+     * Remove item from inventory
+     */
+    static async removeInventoryItem(userId, itemType, itemName, quantity = 1) {
         try {
-            const result = await this.query(
-                `SELECT * FROM user_devil_fruits 
-                 WHERE user_id = $1 AND (fruit_element = $2 OR fruit_fruit_type = $2)`,
-                [userId, element]
+            const item = await this.query(
+                `SELECT * FROM inventory WHERE user_id = ? AND item_type = ? AND item_name = ?`,
+                [userId, itemType, itemName]
             );
-            return result.rows;
-        } catch (error) {
-            console.error('Error getting fruits by element:', error);
-            return [];
-        }
-    }
 
-    // Economy management
-    async updateUserBerries(userId, amount, reason = 'Unknown') {
-        try {
-            const result = await this.query(
-                `UPDATE users 
-                 SET berries = berries + $2, 
-                     total_earned = CASE WHEN $2 > 0 THEN total_earned + $2 ELSE total_earned END,
-                     total_spent = CASE WHEN $2 < 0 THEN total_spent + ABS($2) ELSE total_spent END,
-                     updated_at = NOW()
-                 WHERE user_id = $1
-                 RETURNING berries`,
-                [userId, amount]
-            );
-            
-            if (result.rows.length === 0) {
-                throw new Error('User not found');
+            if (item.length === 0 || item[0].quantity < quantity) {
+                return false;
             }
-            
-            return result.rows[0].berries;
+
+            if (item[0].quantity === quantity) {
+                // Remove item completely
+                await this.query(
+                    `DELETE FROM inventory WHERE id = ?`,
+                    [item[0].id]
+                );
+            } else {
+                // Reduce quantity
+                await this.query(
+                    `UPDATE inventory SET quantity = quantity - ? WHERE id = ?`,
+                    [quantity, item[0].id]
+                );
+            }
+
+            return true;
         } catch (error) {
-            console.error('Error updating berries:', error);
-            throw error;
+            console.error('Error removing inventory item:', error);
+            return false;
         }
     }
 
-    async getUserBerries(userId) {
-        try {
-            const result = await this.query(
-                'SELECT berries FROM users WHERE user_id = $1',
-                [userId]
-            );
-            return result.rows[0] ? result.rows[0].berries : 0;
-        } catch (error) {
-            console.error('Error getting berries:', error);
-            return 0;
-        }
-    }
+    // ===================
+    // UTILITY METHODS
+    // ===================
 
-    // Income tracking
-    async recordIncome(userId, amount, cpAtTime, incomeType = 'automatic') {
+    /**
+     * Get leaderboard
+     */
+    static async getLeaderboard(type = 'level', limit = 10, guildId = null) {
         try {
-            // Ensure cpAtTime is an integer
-            const cpAtTimeInt = Math.floor(cpAtTime);
-            
-            await this.query(
-                `INSERT INTO income_history (user_id, amount, cp_at_time, income_type, created_at)
-                 VALUES ($1, $2, $3, $4, NOW())`,
-                [userId, amount, cpAtTimeInt, incomeType]
-            );
-            
-            // Update last income time
-            await this.query(
-                `UPDATE users SET last_income = NOW() WHERE user_id = $1`,
-                [userId]
-            );
-            
-        } catch (error) {
-            console.error('Error recording income:', error);
-            throw error;
-        }
-    }
+            let query = '';
+            let params = [];
 
-    // Statistics
-    async getServerStats() {
-        try {
-            const userCount = await this.query('SELECT COUNT(*) as count FROM users');
-            const fruitCount = await this.query('SELECT COUNT(*) as count FROM user_devil_fruits');
-            const totalBerries = await this.query('SELECT SUM(berries) as total FROM users');
-            
-            return {
-                totalUsers: parseInt(userCount.rows[0].count),
-                totalFruits: parseInt(fruitCount.rows[0].count),
-                totalBerries: parseInt(totalBerries.rows[0].total || 0)
-            };
-        } catch (error) {
-            console.error('Error getting server stats:', error);
-            return { totalUsers: 0, totalFruits: 0, totalBerries: 0 };
-        }
-    }
-
-    async getLeaderboard(type = 'cp', limit = 10) {
-        try {
-            let query;
-            
             switch (type) {
-                case 'cp':
-                    query = `
-                        SELECT user_id, username, total_cp, level
-                        FROM users 
-                        ORDER BY total_cp DESC 
-                        LIMIT $1
-                    `;
-                    break;
-                case 'berries':
-                    query = `
-                        SELECT user_id, username, berries, total_earned
-                        FROM users 
-                        ORDER BY berries DESC 
-                        LIMIT $1
-                    `;
-                    break;
-                case 'fruits':
-                    query = `
-                        SELECT u.user_id, u.username, COUNT(DISTINCT df.fruit_id) as unique_fruits
-                        FROM users u
-                        LEFT JOIN user_devil_fruits df ON u.user_id = df.user_id
-                        GROUP BY u.user_id, u.username
-                        ORDER BY unique_fruits DESC 
-                        LIMIT $1
-                    `;
-                    break;
                 case 'level':
-                    query = `
-                        SELECT user_id, username, level, base_cp
-                        FROM users 
-                        ORDER BY level DESC, base_cp DESC 
-                        LIMIT $1
-                    `;
+                    query = `SELECT id, username, level, experience FROM users ORDER BY level DESC, experience DESC LIMIT ?`;
+                    params = [limit];
+                    break;
+                case 'coins':
+                    query = `SELECT id, username, coins FROM users ORDER BY coins DESC LIMIT ?`;
+                    params = [limit];
+                    break;
+                case 'characters':
+                    query = `SELECT u.id, u.username, COUNT(c.id) as character_count 
+                             FROM users u 
+                             LEFT JOIN characters c ON u.id = c.user_id 
+                             GROUP BY u.id, u.username 
+                             ORDER BY character_count DESC 
+                             LIMIT ?`;
+                    params = [limit];
                     break;
                 default:
-                    throw new Error('Invalid leaderboard type');
+                    return [];
             }
-            
-            const result = await this.query(query, [limit]);
-            return result.rows;
-            
+
+            return await this.query(query, params);
         } catch (error) {
             console.error('Error getting leaderboard:', error);
             return [];
         }
     }
 
-    async close() {
+    /**
+     * Close database connection
+     */
+    static async close() {
         try {
-            await this.pool.end();
-            console.log('🔒 Database connection pool closed');
+            if (this.connection) {
+                await this.connection.end();
+                console.log('✅ Database connection closed');
+            }
         } catch (error) {
-            console.error('❌ Error closing database pool:', error);
+            console.error('❌ Error closing database connection:', error);
         }
     }
 }
 
-// Export as singleton
-module.exports = new DatabaseManager();
+module.exports = DatabaseManager;
