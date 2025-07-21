@@ -1,9 +1,9 @@
-// src/systems/pvp/enhanced-turn-based-pvp.js - FIXED - Complete file without syntax errors
+// src/systems/pvp/enhanced-turn-based-pvp.js - FIXED - Correct require paths
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require('discord.js');
-const DatabaseManager = require('../database/manager');
+const DatabaseManager = require('../../database/manager'); // FIXED: Correct path
 const PvPBalanceSystem = require('./pvp-balance');
 const NPCBossSystem = require('./npc-bosses');
-const { getRarityEmoji, getRarityColor } = require('../data/devil-fruits');
+const { getRarityEmoji, getRarityColor } = require('../../data/devil-fruits'); // FIXED: Correct path
 
 // Import helpers
 const FruitSelectionHelper = require('./pvp-helpers/fruit-selection-helper');
@@ -15,7 +15,7 @@ let balancedDevilFruitAbilities = {};
 let statusEffects = {};
 
 try {
-    const abilitiesData = require('../data/balanced-devil-fruit-abilities');
+    const abilitiesData = require('../../data/balanced-devil-fruit-abilities'); // FIXED: Correct path
     balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
     statusEffects = abilitiesData.statusEffects || {};
     console.log('✅ Devil Fruit abilities loaded successfully');
@@ -154,7 +154,7 @@ class EnhancedTurnBasedPvP {
     // Get fruit rarity (fallback method)
     getFruitRarity(fruitName) {
         try {
-            const { getFruitByName } = require('../data/devil-fruits');
+            const { getFruitByName } = require('../../data/devil-fruits'); // FIXED: Correct path
             const fruit = getFruitByName(fruitName);
             return fruit?.rarity || 'common';
         } catch (error) {
@@ -486,7 +486,7 @@ setInterval(() => {
     enhancedTurnBasedPvP.cleanup();
 }, 5 * 60 * 1000);
 
-console.log('✅ Enhanced Turn-Based PvP Core System LOADED - Fixed syntax errors!');
+console.log('✅ Enhanced Turn-Based PvP Core System LOADED - Fixed require paths!');
 
 // Export both the main system and the interaction handler
 module.exports = enhancedTurnBasedPvP;
