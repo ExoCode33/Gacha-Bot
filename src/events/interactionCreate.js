@@ -1,4 +1,4 @@
-// src/events/interactionCreate.js - UPDATED for Fixed PvP System
+// src/events/interactionCreate.js - Fixed Interaction Handler for PvP
 const { Events } = require('discord.js');
 
 module.exports = {
@@ -51,6 +51,19 @@ module.exports = {
             } catch (error) {
                 console.error('Error in PvP interaction handling:', error);
                 // Continue to other handlers if PvP fails
+                
+                // Try to respond to the interaction if it hasn't been handled
+                if (!interaction.replied && !interaction.deferred) {
+                    try {
+                        await interaction.reply({
+                            content: '❌ An error occurred with the PvP interaction. Please try again.',
+                            ephemeral: true
+                        });
+                    } catch (replyError) {
+                        console.error('Failed to reply to failed PvP interaction:', replyError);
+                    }
+                }
+                return;
             }
 
             // PRIORITY 2: Handle pull command buttons
@@ -78,10 +91,12 @@ module.exports = {
                     }
                 } catch (error) {
                     console.error('Error handling pull buttons:', error);
-                    await interaction.reply({
-                        content: '❌ An error occurred with the pull interaction.',
-                        ephemeral: true
-                    });
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({
+                            content: '❌ An error occurred with the pull interaction.',
+                            ephemeral: true
+                        });
+                    }
                 }
                 return;
             }
@@ -92,10 +107,12 @@ module.exports = {
                     await handleCollectionButtons(interaction);
                 } catch (error) {
                     console.error('Error handling collection buttons:', error);
-                    await interaction.reply({
-                        content: '❌ An error occurred with the collection interaction.',
-                        ephemeral: true
-                    });
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({
+                            content: '❌ An error occurred with the collection interaction.',
+                            ephemeral: true
+                        });
+                    }
                 }
                 return;
             }
@@ -106,22 +123,48 @@ module.exports = {
                     await handleAbilitiesButtons(interaction);
                 } catch (error) {
                     console.error('Error handling abilities buttons:', error);
-                    await interaction.reply({
-                        content: '❌ An error occurred with the abilities interaction.',
-                        ephemeral: true
-                    });
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({
+                            content: '❌ An error occurred with the abilities interaction.',
+                            ephemeral: true
+                        });
+                    }
                 }
                 return;
             }
 
             // If no handler matched, log it for debugging
             console.log(`Unhandled interaction: ${interaction.customId}`);
+            
+            // Respond to prevent "The application did not respond" error
+            if (!interaction.replied && !interaction.deferred) {
+                try {
+                    await interaction.reply({
+                        content: '❌ This interaction is not currently supported.',
+                        ephemeral: true
+                    });
+                } catch (error) {
+                    console.error('Failed to reply to unhandled interaction:', error);
+                }
+            }
             return;
         }
 
         // Handle other interaction types
         if (interaction.isStringSelectMenu()) {
             console.log(`Unhandled select menu: ${interaction.customId}`);
+            
+            // Respond to prevent timeout
+            if (!interaction.replied && !interaction.deferred) {
+                try {
+                    await interaction.reply({
+                        content: '❌ This select menu is not currently supported.',
+                        ephemeral: true
+                    });
+                } catch (error) {
+                    console.error('Failed to reply to unhandled select menu:', error);
+                }
+            }
             return;
         }
     }
