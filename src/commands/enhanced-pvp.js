@@ -1,7 +1,7 @@
 // src/commands/enhanced-pvp.js - FIXED VERSION
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
-// Import PvP systems with correct paths
+// Import PvP systems with proper error handling
 let EnhancedTurnBasedPvP = null;
 let PvPQueueSystem = null;
 
@@ -60,7 +60,19 @@ module.exports = {
         if (!EnhancedTurnBasedPvP) {
             const embed = new EmbedBuilder()
                 .setTitle('🚧 Enhanced PvP System Unavailable')
-                .setDescription('The enhanced turn-based PvP system is currently under maintenance. Please try again later.')
+                .setDescription('The enhanced turn-based PvP system failed to load. Please check the console for errors.')
+                .addFields([
+                    {
+                        name: '🔧 Troubleshooting',
+                        value: [
+                            '• Check if `src/systems/pvp/enhanced-turn-based-pvp.js` exists',
+                            '• Verify all required dependencies are installed',
+                            '• Check console logs for specific error messages',
+                            '• Ensure database connection is working'
+                        ].join('\n'),
+                        inline: false
+                    }
+                ])
                 .setColor('#FF6B6B')
                 .setTimestamp();
 
@@ -153,6 +165,45 @@ async function handleChallenge(interaction, userId, userName) {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
+    // Check if both players have enough fruits
+    try {
+        await DatabaseManager.ensureUser(userId, userName);
+        await DatabaseManager.ensureUser(opponent.id, opponent.username);
+        
+        const challengerFruits = await DatabaseManager.getUserDevilFruits(userId);
+        const opponentFruits = await DatabaseManager.getUserDevilFruits(opponent.id);
+        
+        if (challengerFruits.length < 5) {
+            const embed = new EmbedBuilder()
+                .setTitle('❌ Insufficient Devil Fruits')
+                .setDescription(`You need at least 5 Devil Fruits to battle! You have ${challengerFruits.length}.`)
+                .addFields([
+                    {
+                        name: '💡 How to get more fruits',
+                        value: 'Use `/pull` to get more Devil Fruits from the gacha system!',
+                        inline: false
+                    }
+                ])
+                .setColor('#FF6B6B');
+            return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+        
+        if (opponentFruits.length < 5) {
+            const embed = new EmbedBuilder()
+                .setTitle('❌ Opponent Insufficient Devil Fruits')
+                .setDescription(`${opponent.username} needs at least 5 Devil Fruits to battle! They have ${opponentFruits.length}.`)
+                .setColor('#FF6B6B');
+            return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+    } catch (error) {
+        console.error('Error checking user fruits:', error);
+        const embed = new EmbedBuilder()
+            .setTitle('❌ Database Error')
+            .setDescription('Could not verify Devil Fruit collections. Please try again.')
+            .setColor('#FF6B6B');
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
     // Initiate the enhanced turn-based battle
     await EnhancedTurnBasedPvP.initiateBattle(interaction, opponent);
 }
@@ -172,6 +223,34 @@ async function handleQueue(interaction, userId, userName) {
         const embed = new EmbedBuilder()
             .setTitle('⚔️ Already in Battle')
             .setDescription('You are already in an active battle!')
+            .setColor('#FF6B6B');
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    // Check if user has enough fruits
+    try {
+        await DatabaseManager.ensureUser(userId, userName);
+        const userFruits = await DatabaseManager.getUserDevilFruits(userId);
+        
+        if (userFruits.length < 5) {
+            const embed = new EmbedBuilder()
+                .setTitle('❌ Insufficient Devil Fruits')
+                .setDescription(`You need at least 5 Devil Fruits to join the PvP queue! You have ${userFruits.length}.`)
+                .addFields([
+                    {
+                        name: '💡 How to get more fruits',
+                        value: 'Use `/pull` to get more Devil Fruits from the gacha system!',
+                        inline: false
+                    }
+                ])
+                .setColor('#FF6B6B');
+            return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+    } catch (error) {
+        console.error('Error checking user fruits for queue:', error);
+        const embed = new EmbedBuilder()
+            .setTitle('❌ Database Error')
+            .setDescription('Could not verify your Devil Fruit collection. Please try again.')
             .setColor('#FF6B6B');
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
@@ -221,7 +300,8 @@ async function handleQueue(interaction, userId, userName) {
                 .setDescription(`You've joined the PvP queue! Current position: **${result.position}**`)
                 .addFields([
                     { name: '👥 Players in Queue', value: result.queueSize.toString(), inline: true },
-                    { name: '⏱️ Estimated Wait', value: `${Math.max(1, result.position * 30)} seconds`, inline: true }
+                    { name: '⏱️ Estimated Wait', value: `${Math.max(1, result.position * 30)} seconds`, inline: true },
+                    { name: '🎮 Queue System', value: 'Enhanced Turn-Based PvP', inline: true }
                 ])
                 .setColor('#F39C12');
             
@@ -352,6 +432,23 @@ async function handleStats(interaction, userId) {
                        `Use \`/pull\` to get more Devil Fruits!`,
                 inline: false
             }]);
+        } else {
+            // Show fruit rarity breakdown
+            const rarityBreakdown = {};
+            userFruits.forEach(fruit => {
+                const rarity = fruit.fruit_rarity;
+                rarityBreakdown[rarity] = (rarityBreakdown[rarity] || 0) + 1;
+            });
+            
+            const rarityText = Object.entries(rarityBreakdown)
+                .map(([rarity, count]) => `${rarity}: ${count}`)
+                .join(', ');
+                
+            embed.addFields([{
+                name: '🍈 Fruit Collection Breakdown',
+                value: rarityText,
+                inline: false
+            }]);
         }
 
         await interaction.reply({ embeds: [embed] });
@@ -380,7 +477,8 @@ async function handleSystemInfo(interaction) {
                     '🍈 **Fruit Selection**: Choose 5 fruits per battle',
                     '📊 **Balanced CP**: Fair matchmaking system',
                     '🔥 **Real Abilities**: Use actual Devil Fruit powers',
-                    '⏱️ **Live Updates**: Real-time battle progression'
+                    '⏱️ **Live Updates**: Real-time battle progression',
+                    '🎮 **Enhanced UI**: Modern selection interface'
                 ].join('\n'),
                 inline: false
             },
@@ -412,6 +510,18 @@ async function handleSystemInfo(interaction) {
                     '**Required Fruits**: 5 Devil Fruits minimum',
                     '**Battle Time**: 5-15 minutes typical',
                     '**Selection Time**: 5 minutes maximum'
+                ].join('\n'),
+                inline: false
+            },
+            {
+                name: '🔧 System Commands',
+                value: [
+                    '`/pvp challenge @user` - Challenge specific user',
+                    '`/pvp queue` - Join matchmaking queue',
+                    '`/pvp leave-queue` - Leave queue',
+                    '`/pvp queue-status` - Check queue status',
+                    '`/pvp stats` - View your PvP statistics',
+                    '`/pvp system-info` - View this information'
                 ].join('\n'),
                 inline: false
             }
