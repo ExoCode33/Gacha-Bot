@@ -415,6 +415,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     });
                     break;
 
+                case 'pull':
                 case 'gacha':
                     await interaction.reply({
                         content: '🎰 **Gacha System**\nGacha feature coming soon!',
@@ -422,20 +423,87 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     });
                     break;
 
+                case 'leaderboard':
+                    const leaderboardType = interaction.options.getString('type') || 'all';
+                    await interaction.reply({
+                        content: `🏆 **${leaderboardType.toUpperCase()} Leaderboard**\n` +
+                               `📊 **Top Players:**\n` +
+                               `1. Player1 - 1000 points\n` +
+                               `2. Player2 - 850 points\n` +
+                               `3. Player3 - 720 points\n\n` +
+                               `🔜 Full leaderboard system coming soon!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                    break;
+
+                case 'profile':
+                    const targetUser = interaction.options.getUser('user') || interaction.user;
+                    await interaction.reply({
+                        content: `👤 **${targetUser.username}'s Profile**\n` +
+                               `🆔 User ID: ${targetUser.id}\n` +
+                               `📅 Joined Discord: ${targetUser.createdAt.toDateString()}\n` +
+                               `🏆 Level: 1\n` +
+                               `⭐ Rank: Beginner\n\n` +
+                               `🔜 Full profile system coming soon!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                    break;
+
+                case 'shop':
+                    await interaction.reply({
+                        content: '🛒 **Shop System**\n' +
+                               '💰 **Available Items:**\n' +
+                               '• Devil Fruit Upgrade - 1000 coins\n' +
+                               '• Energy Boost - 500 coins\n' +
+                               '• XP Multiplier - 750 coins\n\n' +
+                               '🔜 Full shop system coming soon!',
+                        flags: MessageFlags.Ephemeral
+                    });
+                    break;
+
+                case 'work':
+                    await interaction.reply({
+                        content: '💼 **Work System**\n' +
+                               '⏰ You worked hard and earned 50 coins!\n' +
+                               '🕐 Next work available in 1 hour.\n\n' +
+                               '🔜 Full work system coming soon!',
+                        flags: MessageFlags.Ephemeral
+                    });
+                    break;
+
+                case 'claim':
+                    await interaction.reply({
+                        content: '🎁 **Claim System**\n' +
+                               '✅ Daily reward claimed: 100 coins!\n' +
+                               '⏰ Next claim available in 24 hours.\n\n' +
+                               '🔜 More claimable rewards coming soon!',
+                        flags: MessageFlags.Ephemeral
+                    });
+                    break;
+
                 case 'help':
                     await interaction.reply({
                         content: '📖 **Gacha Bot Commands**\n' +
-                               '`/pvp challenge @user` - Challenge a specific user to PvP battle\n' +
-                               '`/pvp queue` - Join/leave the PvP matchmaking queue\n' +
+                               '**🎮 PvP Commands:**\n' +
+                               '`/pvp challenge @user` - Challenge a specific user\n' +
+                               '`/pvp queue` - Join matchmaking queue\n' +
                                '`/pvp quick` - Quick match search\n' +
                                '`/pvp queue-status` - Check queue status\n' +
-                               '`/queue` - Check current PvP queue status\n' +
-                               '`/balance` - Check your balance and devil fruit\n' +
+                               '`/queue` - Check PvP queue status\n\n' +
+                               '**💰 Economy Commands:**\n' +
+                               '`/balance` - Check your balance\n' +
                                '`/income` - Check income sources\n' +
-                               '`/inventory` - View your inventory\n' +
+                               '`/work` - Work to earn coins\n' +
                                '`/daily` - Claim daily rewards\n' +
-                               '`/gacha` - Use gacha system\n' +
-                               '`/help` - Show this help menu',
+                               '`/claim` - Claim various rewards\n\n' +
+                               '**🎰 Gacha Commands:**\n' +
+                               '`/gacha` or `/pull` - Use gacha system\n' +
+                               '`/inventory` - View your items\n\n' +
+                               '**📊 Info Commands:**\n' +
+                               '`/profile [@user]` - View profile\n' +
+                               '`/leaderboard [type]` - View leaderboards\n' +
+                               '`/shop` - View shop\n' +
+                               '`/help` - Show this menu',
                         flags: MessageFlags.Ephemeral
                     });
                     break;
