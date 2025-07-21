@@ -1,4 +1,4 @@
-// src/events/interactionCreate.js - UPDATED for Clean PvP System
+// src/events/interactionCreate.js - UPDATED for Fixed PvP System
 const { Events } = require('discord.js');
 
 module.exports = {
@@ -36,9 +36,17 @@ module.exports = {
         if (interaction.isButton() || interaction.isStringSelectMenu()) {
             // PRIORITY 1: Handle PvP System interactions
             try {
-                const PvPSystem = require('../systems/pvp');
-                if (await PvPSystem.handleInteraction(interaction)) {
-                    return; // PvP interaction was handled
+                // Import PvP system safely
+                let PvPSystem;
+                try {
+                    PvPSystem = require('../systems/pvp');
+                } catch (error) {
+                    console.error('PvP System not available for interaction handling:', error.message);
+                    PvPSystem = null;
+                }
+
+                if (PvPSystem && await PvPSystem.handleInteraction(interaction)) {
+                    return; // PvP interaction was handled successfully
                 }
             } catch (error) {
                 console.error('Error in PvP interaction handling:', error);
@@ -106,7 +114,7 @@ module.exports = {
                 return;
             }
 
-            // If no handler matched, log it
+            // If no handler matched, log it for debugging
             console.log(`Unhandled interaction: ${interaction.customId}`);
             return;
         }
