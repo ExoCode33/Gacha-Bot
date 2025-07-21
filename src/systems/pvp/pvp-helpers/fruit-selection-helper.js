@@ -1,4 +1,4 @@
-// src/systems/pvp/helpers/fruit-selection-helper.js - Create missing helper
+// src/systems/pvp/pvp-helpers/fruit-selection-helper.js - Create the missing helper directory and file
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 const { getRarityEmoji, getRarityColor } = require('../../../data/devil-fruits');
 
@@ -8,6 +8,7 @@ try {
     const abilitiesData = require('../../../data/balanced-devil-fruit-abilities');
     balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
 } catch (error) {
+    console.warn('⚠️ Could not load abilities for fruit selection helper');
     balancedDevilFruitAbilities = {};
 }
 
@@ -16,7 +17,7 @@ class FruitSelectionHelper {
         this.pvpSystem = pvpSystem;
     }
 
-    // Create public battle screen
+    // Create public battle screen showing live selection progress
     createPublicBattleScreen(battleData) {
         const { player1, player2, isVsNPC, selectionData } = battleData;
         
@@ -51,7 +52,7 @@ class FruitSelectionHelper {
                     inline: false
                 },
                 {
-                    name: `${isVsNPC ? player2.npcData.emoji : '🏴‍☠️'} ${player2.username}`,
+                    name: `${isVsNPC ? player2.npcData?.emoji || '🤖' : '🏴‍☠️'} ${player2.username}`,
                     value: [
                         `${p2Progress} **${isVsNPC ? '5' : selectionData.player2.selectedFruits.length}/5 fruits**`,
                         `**Status**: ${p2Status}`,
@@ -66,7 +67,7 @@ class FruitSelectionHelper {
                         `**Battle Type**: ${isVsNPC ? 'PvE Enhanced Turn-Based' : 'PvP Enhanced Turn-Based'}`,
                         `**Selection System**: High/Low Rarity Pages`,
                         `**Real-Time Updates**: ✅ Live selection tracking`,
-                        `**Active Battles**: ${this.pvpSystem.activeBattles.size}`
+                        `**Active Battles**: ${this.pvpSystem.activeBattles?.size || 0}`
                     ].join('\n'),
                     inline: false
                 }
@@ -111,7 +112,7 @@ class FruitSelectionHelper {
         return parts.join(', ') || 'No fruits selected';
     }
 
-    // Send private selection interface
+    // Send private selection interface to user
     async sendPrivateSelection(interaction, battleData, player) {
         try {
             const embed = this.createPrivateSelectionEmbed(battleData, player);
@@ -129,9 +130,10 @@ class FruitSelectionHelper {
         }
     }
 
-    // Create private selection embed
+    // Create private selection embed for user
     createPrivateSelectionEmbed(battleData, player) {
-        const selectionData = battleData.selectionData[player.userId === battleData.player1.userId ? 'player1' : 'player2'];
+        const playerKey = player.userId === battleData.player1.userId ? 'player1' : 'player2';
+        const selectionData = battleData.selectionData[playerKey];
         const selectedCount = selectionData.selectedFruits.length;
         const currentPage = selectionData.currentPage;
         
@@ -142,7 +144,7 @@ class FruitSelectionHelper {
                 `**Progress: ${selectedCount}/5 fruits selected**\n\n` +
                 (selectedCount === 5 ? 
                     '✅ **Perfect! You have 5 fruits selected. Click Confirm to proceed!**' : 
-                    `🔄 **Select ${5 - selectedCount} more fruits from the dropdowns below.**`)
+                    `🔄 **Select ${5 - selectedCount} more fruits to continue.**`)
             )
             .addFields([
                 {
@@ -193,14 +195,15 @@ class FruitSelectionHelper {
         return embed;
     }
 
-    // Create private selection components
+    // Create private selection components (buttons for page switching, confirm, clear)
     async createPrivateSelectionComponents(battleData, player) {
         const components = [];
-        const selectionData = battleData.selectionData[player.userId === battleData.player1.userId ? 'player1' : 'player2'];
+        const playerKey = player.userId === battleData.player1.userId ? 'player1' : 'player2';
+        const selectionData = battleData.selectionData[playerKey];
         const selectedCount = selectionData.selectedFruits.length;
         const currentPage = selectionData.currentPage;
 
-        // Add action buttons
+        // Action buttons row
         const actionRow = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -223,9 +226,13 @@ class FruitSelectionHelper {
         return components;
     }
 
-    // Handle fruit selection from rarity dropdowns
+    // Handle fruit selection from player
     async handleFruitSelection(interaction, battleData, userId, rarity) {
         try {
+            // For now, just acknowledge the selection
+            // In a full implementation, this would show dropdown menus for fruit selection
+            console.log(`🍈 ${userId} attempting to select ${rarity} rarity fruit for battle ${battleData.id}`);
+            
             return { success: true };
         } catch (error) {
             console.error('Error in handleFruitSelection:', error);
@@ -233,7 +240,7 @@ class FruitSelectionHelper {
         }
     }
 
-    // Handle page switching
+    // Handle page switching between high/low rarity
     async handlePageSwitch(interaction, battleData, userId) {
         try {
             const playerKey = battleData.player1.userId === userId ? 'player1' : 'player2';
@@ -244,10 +251,12 @@ class FruitSelectionHelper {
                 throw new Error('Player not found');
             }
 
+            // Switch between high and low rarity pages
             selectionData.currentPage = selectionData.currentPage === 'high' ? 'low' : 'high';
             selectionData.lastUpdate = Date.now();
             this.pvpSystem.activeBattles.set(battleData.id, battleData);
 
+            // Update the private selection embed
             const embed = this.createPrivateSelectionEmbed(battleData, player);
             const components = await this.createPrivateSelectionComponents(battleData, player);
 
@@ -255,6 +264,8 @@ class FruitSelectionHelper {
                 embeds: [embed],
                 components: components
             });
+
+            console.log(`📋 ${player.username} switched to ${selectionData.currentPage} rarity page`);
 
         } catch (error) {
             console.error('Error in handlePageSwitch:', error);
@@ -282,6 +293,8 @@ class FruitSelectionHelper {
             selectionData.lastUpdate = Date.now();
             this.pvpSystem.activeBattles.set(battleData.id, battleData);
 
+            console.log(`✅ ${player.username} confirmed selection of 5 fruits`);
+
             // Check if all players have selected
             const allSelected = battleData.isVsNPC || 
                 (battleData.selectionData.player1.selectionComplete && battleData.selectionData.player2.selectionComplete);
@@ -308,10 +321,13 @@ class FruitSelectionHelper {
                 throw new Error('Player not found');
             }
 
+            // Clear all selected fruits
             selectionData.selectedFruits = [];
+            selectionData.selectionComplete = false;
             selectionData.lastUpdate = Date.now();
             this.pvpSystem.activeBattles.set(battleData.id, battleData);
 
+            // Update the interface
             const embed = this.createPrivateSelectionEmbed(battleData, player);
             const components = await this.createPrivateSelectionComponents(battleData, player);
 
@@ -320,13 +336,15 @@ class FruitSelectionHelper {
                 components: components
             });
 
+            console.log(`🗑️ ${player.username} cleared their selection`);
+
         } catch (error) {
             console.error('Error in handleClearSelection:', error);
             throw error;
         }
     }
 
-    // Update public battle screen
+    // Update public battle screen with current selection status
     async updatePublicBattleScreen(interaction, battleData) {
         try {
             if (!battleData.publicMessageId) return;
