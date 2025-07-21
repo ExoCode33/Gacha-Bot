@@ -1,4 +1,4 @@
-// src/systems/pvp/pvp-helpers/interaction-handler.js - Interaction Handler Module
+// src/systems/pvp/helpers/interaction-handler.js - Create missing helper
 const { EmbedBuilder, MessageFlags } = require('discord.js');
 const { getRarityEmoji } = require('../../../data/devil-fruits');
 
