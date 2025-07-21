@@ -1,14 +1,14 @@
-// src/systems/pvp/enhanced-turn-based-pvp.js - Core Enhanced Turn-Based PvP System
+// src/systems/pvp/enhanced-turn-based-pvp.js - Fixed imports
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const DatabaseManager = require('../../database/manager');
 const PvPBalanceSystem = require('./balance-system');
 const NPCBossSystem = require('./npc-bosses');
 const { getRarityEmoji, getRarityColor } = require('../../data/devil-fruits');
 
-// Import helpers
-const FruitSelectionHelper = require('./helpers/fruit-selection-helper');
-const BattleInterfaceHelper = require('./helpers/battle-interface-helper');
-const PvPInteractionHandler = require('./helpers/interaction-handler');
+// Import helpers with correct paths
+const FruitSelectionHelper = require('./pvp-helpers/fruit-selection-helper');
+const BattleInterfaceHelper = require('./pvp-helpers/battle-interface-helper');
+const PvPInteractionHandler = require('./pvp-helpers/interaction-handler');
 
 // Import abilities safely
 let balancedDevilFruitAbilities = {};
@@ -16,7 +16,7 @@ let statusEffects = {};
 
 try {
     const abilitiesData = require('../../data/balanced-devil-fruit-abilities');
-    balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
+    balancedDevilFruitAbabilities = abilitiesData.balancedDevilFruitAbilities || {};
     statusEffects = abilitiesData.statusEffects || {};
     console.log('✅ Devil Fruit abilities loaded for PvP system');
 } catch (error) {
@@ -425,6 +425,85 @@ class EnhancedTurnBasedPvP {
         if (cleanedCount > 0) {
             console.log(`🧹 Cleanup: Removed ${cleanedCount} old battles. Active: ${this.activeBattles.size}`);
         }
+    }
+
+    // Handle interactions (delegate to interaction handler)
+    async handleInteraction(interaction) {
+        return await this.interactionHandler.handleInteraction(interaction);
+    }
+
+    // Initialize system
+    async initialize(client) {
+        this.client = client;
+        console.log('⚔️ Enhanced Turn-Based PvP System initialized');
+        return true;
+    }
+
+    // Check if system is initialized
+    get isInitialized() {
+        return true;
+    }
+
+    // Get system status
+    getSystemStatus() {
+        return {
+            initialized: true,
+            activeBattles: this.activeBattles.size,
+            components: {
+                fruitSelection: !!this.fruitSelectionHelper,
+                battleInterface: !!this.battleInterfaceHelper,
+                interactionHandler: !!this.interactionHandler
+            }
+        };
+    }
+
+    // Shutdown system
+    async shutdown() {
+        console.log('🛑 Shutting down Enhanced Turn-Based PvP System...');
+        this.activeBattles.clear();
+        console.log('✅ Enhanced Turn-Based PvP System shutdown complete');
+    }
+
+    // Cleanup method for periodic maintenance
+    cleanup() {
+        this.cleanupOldBattles();
+    }
+
+    // Create system info embed
+    createSystemInfoEmbed() {
+        const status = this.getSystemStatus();
+        
+        return new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle('⚔️ Enhanced PvP System Status')
+            .setDescription('Real-time turn-based Devil Fruit battles with fruit selection')
+            .addFields([
+                {
+                    name: '🎮 System Status',
+                    value: [
+                        `**Status**: ${status.initialized ? '✅ Active' : '❌ Inactive'}`,
+                        `**Active Battles**: ${status.activeBattles}`,
+                        `**Fruit Selection**: ${status.components.fruitSelection ? '✅' : '❌'}`,
+                        `**Battle Interface**: ${status.components.battleInterface ? '✅' : '❌'}`,
+                        `**Interaction Handler**: ${status.components.interactionHandler ? '✅' : '❌'}`
+                    ].join('\n'),
+                    inline: true
+                },
+                {
+                    name: '🔥 Features',
+                    value: [
+                        `🎯 **Enhanced Matchmaking Queue**`,
+                        `⚔️ **Real-time Turn-Based Combat**`,
+                        `🍈 **High/Low Rarity Fruit Selection**`,
+                        `🤖 **Balanced NPC Boss Battles**`,
+                        `📱 **Live Interface Updates**`,
+                        `🏆 **Berry Rewards for PvE**`
+                    ].join('\n'),
+                    inline: true
+                }
+            ])
+            .setFooter({ text: 'Enhanced PvP System v3.0' })
+            .setTimestamp();
     }
 
     // Expose helpers for external access
