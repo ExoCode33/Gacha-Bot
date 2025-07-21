@@ -1,11 +1,11 @@
-// src/systems/pvp/enhanced-turn-based-pvp.js - Fixed imports
+// src/systems/pvp/enhanced-turn-based-pvp.js - FIXED imports and paths
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const DatabaseManager = require('../../database/manager');
 const PvPBalanceSystem = require('./balance-system');
 const NPCBossSystem = require('./npc-bosses');
 const { getRarityEmoji, getRarityColor } = require('../../data/devil-fruits');
 
-// Import helpers with correct paths
+// Import helpers with correct paths - FIXED
 const FruitSelectionHelper = require('./pvp-helpers/fruit-selection-helper');
 const BattleInterfaceHelper = require('./pvp-helpers/battle-interface-helper');
 const PvPInteractionHandler = require('./pvp-helpers/interaction-handler');
@@ -16,7 +16,7 @@ let statusEffects = {};
 
 try {
     const abilitiesData = require('../../data/balanced-devil-fruit-abilities');
-    balancedDevilFruitAbabilities = abilitiesData.balancedDevilFruitAbilities || {};
+    balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
     statusEffects = abilitiesData.statusEffects || {};
     console.log('✅ Devil Fruit abilities loaded for PvP system');
 } catch (error) {
