@@ -238,13 +238,19 @@ async function handleQueue(interaction, userId, userName) {
                 .setDescription(`Battle starting between **${result.player1.username}** and **${result.player2.username}**!`)
                 .setColor('#4ECDC4');
             
-            // Try to start the battle
+            // Send the match found message first
+            await interaction.reply({ embeds: [embed] });
+            
+            // Then start the battle in a follow-up message
             try {
-                const battleId = await BattleManager.startBattle(result.player1.userId, result.player2.userId, interaction);
+                const battleId = await BattleManager.startBattleFromQueue(result.player1.userId, result.player2.userId, interaction);
                 console.log(`Battle started: ${battleId}`);
             } catch (error) {
                 console.error('Error starting battle:', error);
-                embed.setDescription('Match found but battle could not start. Please try again.');
+                await interaction.followUp({
+                    content: '❌ Battle could not start. Please try again.',
+                    ephemeral: true
+                });
             }
         } else {
             embed
