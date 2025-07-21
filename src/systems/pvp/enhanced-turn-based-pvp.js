@@ -1,494 +1,557 @@
-// src/systems/pvp/enhanced-turn-based-pvp.js - FIXED - Correct require paths
+// src/systems/pvp/enhanced-turn-based-pvp.js - FIXED VERSION
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const DatabaseManager = require('../../database/manager'); // FIXED: Correct path
-const PvPBalanceSystem = require('./pvp-balance');
-const NPCBossSystem = require('./npc-bosses');
+const PvPBalanceSystem = require('./balance-system'); // FIXED: Correct file name
 const { getRarityEmoji, getRarityColor } = require('../../data/devil-fruits'); // FIXED: Correct path
-
-// Import helpers
-const FruitSelectionHelper = require('./pvp-helpers/fruit-selection-helper');
-const BattleInterfaceHelper = require('./pvp-helpers/battle-interface-helper');
-const PvPInteractionHandler = require('./pvp-helpers/interaction-handler');
 
 // Import abilities safely
 let balancedDevilFruitAbilities = {};
-let statusEffects = {};
-
 try {
-    const abilitiesData = require('../../data/balanced-devil-fruit-abilities'); // FIXED: Correct path
-    balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
-    statusEffects = abilitiesData.statusEffects || {};
-    console.log('✅ Devil Fruit abilities loaded successfully');
+    balancedDevilFruitAbilities = require('../../data/balanced-devil-fruit-abilities'); // FIXED: Correct path
 } catch (error) {
-    console.warn('⚠️ Could not load devil fruit abilities, using fallback system');
-    // Create fallback abilities
-    balancedDevilFruitAbilities = {
-        "Gomu Gomu no Mi": { name: "Gomu Gomu Pistol", damage: 100, cooldown: 1, effect: null, accuracy: 85 }
-    };
-    statusEffects = {
-        "burn_3_turns": { type: "dot", damage: 15, duration: 3, description: "Burning damage over time" }
-    };
+    console.log('Balanced abilities not found, using fallback');
+    balancedDevilFruitAbilities = {};
 }
 
 class EnhancedTurnBasedPvP {
     constructor() {
         this.activeBattles = new Map();
-        this.playerSelections = new Map();
-        this.battleQueue = new Set();
-        this.battleCooldowns = new Map();
+        this.battleTimeouts = new Map();
+        this.BATTLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+        this.TURN_TIMEOUT = 60 * 1000; // 1 minute per turn
         
-        // Initialize helpers
-        this.fruitSelectionHelper = new FruitSelectionHelper(this);
-        this.battleInterfaceHelper = new BattleInterfaceHelper(this);
-        this.interactionHandler = new PvPInteractionHandler(this);
-        
-        console.log('⚔️ Enhanced Turn-Based PvP System initialized with 2-page selection');
+        // Start cleanup interval
+        this.startCleanupInterval();
     }
 
-    // Initialize system
-    async initialize(client) {
-        this.client = client;
-        console.log('⚔️ Enhanced Turn-Based PvP System ready');
-    }
-
-    // Shutdown system
-    async shutdown() {
-        this.activeBattles.clear();
-        this.playerSelections.clear();
-        this.battleQueue.clear();
-        this.battleCooldowns.clear();
-        console.log('⚔️ Enhanced Turn-Based PvP System shutdown complete');
-    }
-
-    // Generate battle ID
-    generateBattleId() {
-        const timestamp = Date.now();
-        const randomId = Math.random().toString(36).substr(2, 5);
-        return `${timestamp}_${randomId}`;
-    }
-
-    // Start a battle
-    async startBattle(interaction, player1Fighter, player2Fighter = null) {
-        const battleId = this.generateBattleId();
-        
-        try {
-            let isVsNPC = false;
-            let npcBoss = null;
-            
-            if (!player2Fighter) {
-                npcBoss = NPCBossSystem.getBalancedBossForPlayer(player1Fighter.balancedCP);
-                player2Fighter = await this.createNPCFighter(npcBoss);
-                isVsNPC = true;
+    startCleanupInterval() {
+        setInterval(() => {
+            try {
+                this.cleanupExpiredBattles();
+            } catch (error) {
+                console.error('Error in PvP cleanup:', error);
             }
+        }, 60000); // Check every minute
+    }
 
-            const battleData = {
-                id: battleId,
-                player1: player1Fighter,
-                player2: player2Fighter,
-                isVsNPC,
-                npcBoss,
-                currentTurn: 1,
-                currentPlayer: Math.random() < 0.5 ? 'player1' : 'player2',
-                battleLog: [],
-                turnTimeout: null,
-                created: Date.now(),
-                status: 'fruit_selection',
-                publicMessageId: null,
-                channelId: interaction.channel?.id,
-                guildId: interaction.guild?.id,
-                selectionData: {
-                    player1: {
-                        selectedFruits: [],
-                        currentPage: 1,
-                        selectionComplete: false,
-                        lastUpdate: Date.now()
-                    },
-                    player2: {
-                        selectedFruits: [],
-                        currentPage: 1,
-                        selectionComplete: isVsNPC,
-                        lastUpdate: Date.now()
-                    }
-                }
-            };
-
-            this.activeBattles.set(battleId, battleData);
-            console.log(`⚔️ Battle ${battleId} created successfully`);
-            
-            await this.startFruitSelection(interaction, battleData);
-            
-            return battleId;
-
-        } catch (error) {
-            console.error('Error starting enhanced battle:', error);
-            if (this.activeBattles.has(battleId)) {
-                this.activeBattles.delete(battleId);
+    cleanupExpiredBattles() {
+        const now = Date.now();
+        for (const [battleId, battle] of this.activeBattles.entries()) {
+            if (battle.lastActivity && (now - battle.lastActivity) > this.BATTLE_TIMEOUT) {
+                this.endBattle(battleId, 'timeout');
             }
-            throw error;
         }
     }
 
-    // Create NPC fighter
-    async createNPCFighter(npcBoss) {
-        const selectedFruits = NPCBossSystem.selectFruitsForNPC(npcBoss);
-        
-        return {
-            userId: `npc_${npcBoss.name.toLowerCase().replace(/\s/g, '_')}`,
-            username: npcBoss.name,
-            title: npcBoss.title,
-            level: npcBoss.level,
-            balancedCP: npcBoss.totalCP,
-            maxHealth: Math.floor(npcBoss.totalCP * 0.8),
-            hp: Math.floor(npcBoss.totalCP * 0.8),
-            fruits: selectedFruits.map(fruitName => ({
-                fruit_name: fruitName,
-                fruit_rarity: this.getFruitRarity(fruitName)
-            })),
-            selectedFruits: selectedFruits,
-            effects: [],
-            isNPC: true,
-            npcData: npcBoss
-        };
-    }
-
-    // Get fruit rarity (fallback method)
-    getFruitRarity(fruitName) {
+    async initiateBattle(interaction, targetUser) {
         try {
-            const { getFruitByName } = require('../../data/devil-fruits'); // FIXED: Correct path
-            const fruit = getFruitByName(fruitName);
-            return fruit?.rarity || 'common';
-        } catch (error) {
-            if (fruitName.includes('Mythical') || fruitName.includes('Phoenix') || fruitName.includes('Nika')) {
-                return 'mythical';
-            } else if (fruitName.includes('Legendary') || fruitName.includes('Gura') || fruitName.includes('Yami')) {
-                return 'legendary';
-            } else if (fruitName.includes('Logia') || fruitName.includes('Magu') || fruitName.includes('Pika')) {
-                return 'epic';
-            }
-            return 'common';
-        }
-    }
+            const challenger = interaction.user;
+            const target = targetUser;
 
-    // Start fruit selection phase
-    async startFruitSelection(interaction, battleData) {
-        try {
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.deferReply();
-            }
-
-            const { player1, player2, isVsNPC } = battleData;
-            
-            const publicEmbed = this.fruitSelectionHelper.createPublicBattleScreen(battleData);
-            
-            await interaction.editReply({
-                embeds: [publicEmbed]
-            });
-            
-            const publicMessage = await interaction.fetchReply();
-            battleData.publicMessageId = publicMessage.id;
-            this.activeBattles.set(battleData.id, battleData);
-
-            if (isVsNPC) {
-                this.completeNPCSelection(battleData);
-            }
-            
-            await this.fruitSelectionHelper.sendPrivateSelection(interaction, battleData, player1);
-            await this.fruitSelectionHelper.updatePublicBattleScreen(interaction, battleData);
-
-        } catch (error) {
-            console.error('Error starting fruit selection:', error);
-            throw error;
-        }
-    }
-
-    // Complete NPC selection automatically
-    completeNPCSelection(battleData) {
-        const npcPlayer = battleData.player2;
-        const selectedFruits = npcPlayer.selectedFruits.map(fruitName => ({
-            fruit_name: fruitName,
-            fruit_rarity: this.getFruitRarity(fruitName)
-        }));
-        
-        battleData.selectionData.player2.selectedFruits = selectedFruits;
-        battleData.selectionData.player2.selectionComplete = true;
-        battleData.selectionData.player2.lastUpdate = Date.now();
-        
-        npcPlayer.selectedFruits = selectedFruits;
-        this.activeBattles.set(battleData.id, battleData);
-    }
-
-    // Handle fruit selection from rarity dropdowns
-    async handleFruitSelection(interaction, battleId, userId, rarity) {
-        try {
-            const battleData = this.activeBattles.get(battleId);
-            if (!battleData) {
-                return await this.safeReply(interaction, '❌ Battle not found!', true);
-            }
-
-            const result = await this.fruitSelectionHelper.handleFruitSelection(
-                interaction, battleData, userId, rarity
-            );
-
-            if (result.success) {
-                await this.fruitSelectionHelper.updatePublicBattleScreen(interaction, battleData);
-            }
-
-        } catch (error) {
-            console.error('Error handling fruit selection:', error);
-            await this.safeReply(interaction, '❌ Error during fruit selection', true);
-        }
-    }
-
-    // Handle page switching
-    async handlePageSwitch(interaction, battleId, userId) {
-        try {
-            const battleData = this.activeBattles.get(battleId);
-            if (!battleData) {
-                return await this.safeReply(interaction, '❌ Battle not found!', true);
-            }
-
-            await this.fruitSelectionHelper.handlePageSwitch(interaction, battleData, userId);
-            await this.fruitSelectionHelper.updatePublicBattleScreen(interaction, battleData);
-
-        } catch (error) {
-            console.error('Error handling page switch:', error);
-            await this.safeReply(interaction, '❌ Error switching pages', true);
-        }
-    }
-
-    // Handle confirm selection
-    async handleConfirmSelection(interaction, battleId, userId) {
-        try {
-            const battleData = this.activeBattles.get(battleId);
-            if (!battleData) {
-                return await this.safeReply(interaction, '❌ Battle not found!', true);
-            }
-
-            const result = await this.fruitSelectionHelper.handleConfirmSelection(
-                interaction, battleData, userId
-            );
-
-            if (result.success && result.allSelected) {
-                if (battleData.isVsNPC) {
-                    await this.revealBossAndStartBattle(interaction, battleData);
-                } else {
-                    await this.startTurnBasedBattle(interaction, battleData);
-                }
-            } else if (result.success) {
-                await this.safeUpdate(interaction, {
-                    content: '✅ Fruits selected! Waiting for opponent...',
-                    embeds: [],
-                    components: []
+            // Validation checks
+            if (challenger.id === target.id) {
+                return await interaction.reply({ 
+                    content: '❌ You cannot challenge yourself to a battle!', 
+                    flags: MessageFlags.Ephemeral 
                 });
             }
 
-            if (result.success) {
-                await this.fruitSelectionHelper.updatePublicBattleScreen(interaction, battleData);
+            // Check if users are already in battles
+            const existingBattle = this.findUserBattle(challenger.id) || this.findUserBattle(target.id);
+            if (existingBattle) {
+                return await interaction.reply({ 
+                    content: '❌ One of the users is already in a battle!', 
+                    flags: MessageFlags.Ephemeral 
+                });
             }
 
-        } catch (error) {
-            console.error('Error confirming selection:', error);
-            await this.safeReply(interaction, '❌ Error confirming selection', true);
-        }
-    }
+            // Get user data from database
+            const challengerData = await DatabaseManager.getUser(challenger.id);
+            const targetData = await DatabaseManager.getUser(target.id);
 
-    // Handle clear selection
-    async handleClearSelection(interaction, battleId, userId) {
-        try {
-            const battleData = this.activeBattles.get(battleId);
-            if (!battleData) {
-                return await this.safeReply(interaction, '❌ Battle not found!', true);
+            if (!challengerData || !targetData) {
+                return await interaction.reply({ 
+                    content: '❌ Both players must be registered in the game!', 
+                    flags: MessageFlags.Ephemeral 
+                });
             }
 
-            await this.fruitSelectionHelper.handleClearSelection(interaction, battleData, userId);
-            await this.fruitSelectionHelper.updatePublicBattleScreen(interaction, battleData);
+            // Check if users have devil fruits
+            if (!challengerData.devil_fruit || !targetData.devil_fruit) {
+                return await interaction.reply({ 
+                    content: '❌ Both players must have devil fruits to battle!', 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
 
-        } catch (error) {
-            console.error('Error clearing selection:', error);
-            await this.safeReply(interaction, '❌ Error clearing selection', true);
-        }
-    }
-
-    // Reveal boss and start battle
-    async revealBossAndStartBattle(interaction, battleData) {
-        try {
-            const { npcBoss, player1 } = battleData;
-            
-            const bossEmbed = new EmbedBuilder()
-                .setColor(getRarityColor('mythical'))
-                .setTitle(`${npcBoss.emoji} BOSS REVEALED!`)
-                .setDescription(`**${npcBoss.title}**\n*${npcBoss.description}*`)
-                .addFields([
-                    {
-                        name: '🏴‍☠️ Your Battle Lineup',
-                        value: player1.selectedFruits.map((fruit, i) => 
-                            `${i + 1}. ${getRarityEmoji(fruit.fruit_rarity)} ${fruit.fruit_name}`
-                        ).join('\n'),
-                        inline: true
+            // Create battle invitation
+            const battleId = `${challenger.id}_${target.id}_${Date.now()}`;
+            const embed = new EmbedBuilder()
+                .setTitle('⚔️ PvP Battle Challenge!')
+                .setDescription(`${challenger.username} has challenged ${target.username} to a battle!`)
+                .addFields(
+                    { 
+                        name: `${challenger.username}'s Devil Fruit`, 
+                        value: `${challengerData.devil_fruit} ${getRarityEmoji(challengerData.devil_fruit_rarity)}`, 
+                        inline: true 
                     },
-                    {
-                        name: `${npcBoss.emoji} Boss Stats`,
-                        value: [
-                            `**Name**: ${npcBoss.name}`,
-                            `**Level**: ${npcBoss.level}`,
-                            `**CP**: ${npcBoss.totalCP.toLocaleString()}`,
-                            `**Difficulty**: ${npcBoss.difficulty}`,
-                            `**HP**: ${battleData.player2.maxHealth}`
-                        ].join('\n'),
-                        inline: true
+                    { 
+                        name: `${target.username}'s Devil Fruit`, 
+                        value: `${targetData.devil_fruit} ${getRarityEmoji(targetData.devil_fruit_rarity)}`, 
+                        inline: true 
                     }
-                ])
-                .setFooter({ text: 'Click "Start Battle" to begin turn-based combat!' })
+                )
+                .setColor(getRarityColor(challengerData.devil_fruit_rarity))
                 .setTimestamp();
 
-            const startButton = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`start_battle_${battleData.id}`)
-                        .setLabel('⚔️ Start Turn-Based Battle!')
-                        .setStyle(ButtonStyle.Success)
-                );
+            const acceptButton = new ButtonBuilder()
+                .setCustomId(`accept_battle_${battleId}`)
+                .setLabel('Accept Battle')
+                .setStyle(ButtonStyle.Success)
+                .setEmoji('⚔️');
 
-            await this.safeUpdate(interaction, {
-                embeds: [bossEmbed],
-                components: [startButton]
+            const declineButton = new ButtonBuilder()
+                .setCustomId(`decline_battle_${battleId}`)
+                .setLabel('Decline')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji('❌');
+
+            const row = new ActionRowBuilder().addComponents(acceptButton, declineButton);
+
+            // Store battle invitation
+            this.activeBattles.set(battleId, {
+                type: 'invitation',
+                challenger: challengerData,
+                target: targetData,
+                channelId: interaction.channel.id,
+                createdAt: Date.now(),
+                lastActivity: Date.now()
             });
 
+            // Set timeout for invitation
+            this.battleTimeouts.set(battleId, setTimeout(() => {
+                this.endBattle(battleId, 'invitation_timeout');
+            }, 60000)); // 1 minute to accept
+
+            await interaction.reply({ embeds: [embed], components: [row] });
+
         } catch (error) {
-            console.error('Error revealing boss:', error);
+            console.error('Error initiating battle:', error);
+            await interaction.reply({ 
+                content: '❌ An error occurred while initiating the battle.', 
+                flags: MessageFlags.Ephemeral 
+            });
         }
     }
 
-    // Start the actual turn-based battle
-    async startTurnBasedBattle(interaction, battleData) {
+    async handleBattleResponse(interaction) {
         try {
-            console.log(`⚔️ Starting turn-based battle interface for ${battleData.id}`);
-            
-            battleData.status = 'battle';
-            
-            // Initialize battle properly
-            battleData.player1.hp = battleData.player1.maxHealth;
-            battleData.player2.hp = battleData.player2.maxHealth;
-            battleData.player1.effects = [];
-            battleData.player2.effects = [];
-            battleData.currentTurn = 1;
-            
-            battleData.battleLog = [];
-            battleData.battleLog.push({
-                type: 'battle_start',
-                message: `⚔️ **BATTLE BEGINS!** ⚔️`,
-                timestamp: Date.now(),
-                turn: 0
-            });
+            const [action, , battleId] = interaction.customId.split('_');
+            const battle = this.activeBattles.get(battleId);
 
-            // Determine first player
-            const firstPlayer = Math.random() < 0.5 ? 'player1' : 'player2';
-            battleData.currentPlayer = firstPlayer;
-            
-            const firstPlayerName = battleData[firstPlayer].username;
-            battleData.battleLog.push({
-                type: 'first_turn',
-                message: `🎲 ${firstPlayerName} wins the dice roll and goes first!`,
-                timestamp: Date.now(),
-                turn: 0
-            });
-            
-            this.activeBattles.set(battleData.id, battleData);
+            if (!battle || battle.type !== 'invitation') {
+                return await interaction.reply({ 
+                    content: '❌ This battle invitation has expired.', 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
 
-            // Show the battle interface
-            await this.battleInterfaceHelper.showBattleInterface(interaction, battleData);
+            // Only the target can respond
+            if (interaction.user.id !== battle.target.user_id) {
+                return await interaction.reply({ 
+                    content: '❌ Only the challenged player can respond to this invitation.', 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
+
+            if (action === 'decline') {
+                await this.endBattle(battleId, 'declined');
+                return await interaction.update({ 
+                    content: `❌ ${battle.target.username} declined the battle challenge.`, 
+                    embeds: [], 
+                    components: [] 
+                });
+            }
+
+            if (action === 'accept') {
+                await this.startBattle(interaction, battleId);
+            }
 
         } catch (error) {
-            console.error('Error starting turn-based battle:', error);
+            console.error('Error handling battle response:', error);
+            await interaction.reply({ 
+                content: '❌ An error occurred while processing the battle response.', 
+                flags: MessageFlags.Ephemeral 
+            });
         }
     }
 
-    // Safe interaction reply helper
-    async safeReply(interaction, content, ephemeral = false) {
+    async startBattle(interaction, battleId) {
         try {
+            const battle = this.activeBattles.get(battleId);
+            
+            // Initialize battle state
+            const fighter1 = {
+                ...battle.challenger,
+                hp: 100,
+                maxHp: 100,
+                energy: 100,
+                maxEnergy: 100
+            };
+
+            const fighter2 = {
+                ...battle.target,
+                hp: 100,
+                maxHp: 100,
+                energy: 100,
+                maxEnergy: 100
+            };
+
+            // Determine turn order (random)
+            const turnOrder = Math.random() < 0.5 ? [fighter1, fighter2] : [fighter2, fighter1];
+
+            // Update battle state
+            this.activeBattles.set(battleId, {
+                type: 'active',
+                fighter1,
+                fighter2,
+                currentTurn: 0,
+                turnOrder,
+                currentPlayer: turnOrder[0],
+                battleLog: [],
+                channelId: battle.channelId,
+                createdAt: Date.now(),
+                lastActivity: Date.now()
+            });
+
+            // Clear invitation timeout
+            if (this.battleTimeouts.has(battleId)) {
+                clearTimeout(this.battleTimeouts.get(battleId));
+                this.battleTimeouts.delete(battleId);
+            }
+
+            await this.displayBattleState(interaction, battleId, 'Battle Started!');
+
+        } catch (error) {
+            console.error('Error starting battle:', error);
+            await interaction.update({ 
+                content: '❌ An error occurred while starting the battle.', 
+                embeds: [], 
+                components: [] 
+            });
+        }
+    }
+
+    async displayBattleState(interaction, battleId, message = '') {
+        try {
+            const battle = this.activeBattles.get(battleId);
+            if (!battle || battle.type !== 'active') return;
+
+            const { fighter1, fighter2, currentPlayer, currentTurn, battleLog } = battle;
+
+            // Create battle embed
+            const embed = new EmbedBuilder()
+                .setTitle('⚔️ PvP Battle in Progress')
+                .setDescription(message || `Turn ${currentTurn + 1} - ${currentPlayer.username}'s turn`)
+                .addFields(
+                    {
+                        name: `${fighter1.username} ${fighter1.user_id === currentPlayer.user_id ? '👈' : ''}`,
+                        value: `❤️ HP: ${fighter1.hp}/${fighter1.maxHp}\n⚡ Energy: ${fighter1.energy}/${fighter1.maxEnergy}\n🍃 ${fighter1.devil_fruit}`,
+                        inline: true
+                    },
+                    {
+                        name: 'VS',
+                        value: '⚔️',
+                        inline: true
+                    },
+                    {
+                        name: `${fighter2.username} ${fighter2.user_id === currentPlayer.user_id ? '👈' : ''}`,
+                        value: `❤️ HP: ${fighter2.hp}/${fighter2.maxHp}\n⚡ Energy: ${fighter2.energy}/${fighter2.maxEnergy}\n🍃 ${fighter2.devil_fruit}`,
+                        inline: true
+                    }
+                )
+                .setColor(0x00ff00)
+                .setTimestamp();
+
+            // Add recent battle log
+            if (battleLog.length > 0) {
+                const recentLog = battleLog.slice(-3).map(entry => entry.message).join('\n');
+                embed.addFields({ name: 'Recent Actions', value: recentLog || 'Battle just started!', inline: false });
+            }
+
+            // Create action buttons (only for current player)
+            const components = [];
+            if (currentPlayer) {
+                const attackButton = new ButtonBuilder()
+                    .setCustomId(`battle_attack_${battleId}`)
+                    .setLabel('Attack')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('⚔️');
+
+                const defendButton = new ButtonBuilder()
+                    .setCustomId(`battle_defend_${battleId}`)
+                    .setLabel('Defend')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('🛡️');
+
+                const specialButton = new ButtonBuilder()
+                    .setCustomId(`battle_special_${battleId}`)
+                    .setLabel('Special Ability')
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji('💫');
+
+                const forfeitButton = new ButtonBuilder()
+                    .setCustomId(`battle_forfeit_${battleId}`)
+                    .setLabel('Forfeit')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('🏳️');
+
+                const row = new ActionRowBuilder().addComponents(attackButton, defendButton, specialButton, forfeitButton);
+                components.push(row);
+            }
+
+            // Update or reply based on interaction type
             if (interaction.replied || interaction.deferred) {
-                return await interaction.followUp({
-                    content,
-                    flags: ephemeral ? MessageFlags.Ephemeral : undefined
-                });
+                await interaction.editReply({ embeds: [embed], components });
             } else {
-                return await interaction.reply({
-                    content,
-                    flags: ephemeral ? MessageFlags.Ephemeral : undefined
-                });
+                await interaction.update({ embeds: [embed], components });
             }
+
+            // Set turn timeout
+            this.setTurnTimeout(battleId);
+
         } catch (error) {
-            console.error('Error in safe reply:', error);
+            console.error('Error displaying battle state:', error);
         }
     }
 
-    // Safe interaction update helper
-    async safeUpdate(interaction, payload) {
+    async handleBattleAction(interaction) {
         try {
-            if (interaction.deferred || interaction.replied) {
-                return await interaction.editReply(payload);
-            } else {
-                return await interaction.update(payload);
+            const [, action, battleId] = interaction.customId.split('_');
+            const battle = this.activeBattles.get(battleId);
+
+            if (!battle || battle.type !== 'active') {
+                return await interaction.reply({ 
+                    content: '❌ This battle is no longer active.', 
+                    flags: MessageFlags.Ephemeral 
+                });
             }
+
+            // Check if it's the player's turn
+            if (interaction.user.id !== battle.currentPlayer.user_id) {
+                return await interaction.reply({ 
+                    content: '❌ It\'s not your turn!', 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
+
+            // Process the action
+            await this.processBattleAction(interaction, battleId, action);
+
         } catch (error) {
-            console.error('Error in safe update:', error);
-            try {
-                return await interaction.followUp(payload);
-            } catch (followUpError) {
-                console.error('Error in fallback followUp:', followUpError);
-            }
+            console.error('Error handling battle action:', error);
+            await interaction.reply({ 
+                content: '❌ An error occurred while processing your action.', 
+                flags: MessageFlags.Ephemeral 
+            });
         }
     }
 
-    // Get active battle for user
-    getUserActiveBattle(userId) {
-        for (const [battleId, battleData] of this.activeBattles) {
-            if (battleData.player1.userId === userId || battleData.player2.userId === userId) {
-                return battleData;
+    async processBattleAction(interaction, battleId, action) {
+        try {
+            const battle = this.activeBattles.get(battleId);
+            const { fighter1, fighter2, currentPlayer, turnOrder } = battle;
+
+            const attacker = currentPlayer;
+            const defender = attacker.user_id === fighter1.user_id ? fighter2 : fighter1;
+
+            let actionResult = '';
+            let damage = 0;
+            let energyCost = 0;
+
+            switch (action) {
+                case 'attack':
+                    damage = Math.floor(Math.random() * 25) + 15; // 15-40 damage
+                    energyCost = 20;
+                    actionResult = `${attacker.username} attacks ${defender.username} for ${damage} damage!`;
+                    break;
+
+                case 'defend':
+                    // Defending reduces incoming damage next turn and restores energy
+                    attacker.energy = Math.min(attacker.maxEnergy, attacker.energy + 30);
+                    attacker.defending = true;
+                    actionResult = `${attacker.username} takes a defensive stance and recovers 30 energy!`;
+                    break;
+
+                case 'special':
+                    if (attacker.energy < 50) {
+                        return await interaction.reply({ 
+                            content: '❌ Not enough energy for special ability! (50 required)', 
+                            flags: MessageFlags.Ephemeral 
+                        });
+                    }
+                    damage = Math.floor(Math.random() * 35) + 25; // 25-60 damage
+                    energyCost = 50;
+                    actionResult = `${attacker.username} uses their Devil Fruit power on ${defender.username} for ${damage} damage!`;
+                    break;
+
+                case 'forfeit':
+                    await this.endBattle(battleId, 'forfeit', defender);
+                    return await interaction.update({ 
+                        content: `🏳️ ${attacker.username} forfeited the battle! ${defender.username} wins!`, 
+                        embeds: [], 
+                        components: [] 
+                    });
+            }
+
+            // Apply energy cost
+            if (energyCost > 0) {
+                if (attacker.energy < energyCost) {
+                    return await interaction.reply({ 
+                        content: `❌ Not enough energy! (${energyCost} required)`, 
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
+                attacker.energy -= energyCost;
+            }
+
+            // Apply damage (reduced if defender was defending)
+            if (damage > 0) {
+                if (defender.defending) {
+                    damage = Math.floor(damage * 0.5);
+                    actionResult += ` (Reduced by defense!)`;
+                    defender.defending = false;
+                }
+                defender.hp = Math.max(0, defender.hp - damage);
+            }
+
+            // Add to battle log
+            battle.battleLog.push({
+                turn: battle.currentTurn,
+                player: attacker.username,
+                action,
+                message: actionResult,
+                timestamp: Date.now()
+            });
+
+            // Check for battle end
+            if (defender.hp <= 0) {
+                await this.endBattle(battleId, 'victory', attacker);
+                const embed = new EmbedBuilder()
+                    .setTitle('🏆 Battle Finished!')
+                    .setDescription(`${attacker.username} wins the battle!`)
+                    .addFields(
+                        { name: 'Winner', value: attacker.username, inline: true },
+                        { name: 'Final Action', value: actionResult, inline: false }
+                    )
+                    .setColor(0xffd700)
+                    .setTimestamp();
+
+                return await interaction.update({ embeds: [embed], components: [] });
+            }
+
+            // Switch turns
+            const currentIndex = turnOrder.findIndex(f => f.user_id === currentPlayer.user_id);
+            const nextIndex = (currentIndex + 1) % 2;
+            battle.currentPlayer = turnOrder[nextIndex];
+            battle.currentTurn++;
+            battle.lastActivity = Date.now();
+
+            // Energy regeneration
+            turnOrder.forEach(fighter => {
+                fighter.energy = Math.min(fighter.maxEnergy, fighter.energy + 10);
+            });
+
+            // Update battle display
+            await this.displayBattleState(interaction, battleId, actionResult);
+
+        } catch (error) {
+            console.error('Error processing battle action:', error);
+            throw error;
+        }
+    }
+
+    setTurnTimeout(battleId) {
+        // Clear existing timeout
+        if (this.battleTimeouts.has(battleId)) {
+            clearTimeout(this.battleTimeouts.get(battleId));
+        }
+
+        // Set new timeout
+        const timeout = setTimeout(() => {
+            const battle = this.activeBattles.get(battleId);
+            if (battle && battle.type === 'active') {
+                // Auto-forfeit for inactive player
+                const { currentPlayer, fighter1, fighter2 } = battle;
+                const winner = currentPlayer.user_id === fighter1.user_id ? fighter2 : fighter1;
+                this.endBattle(battleId, 'timeout', winner);
+            }
+        }, this.TURN_TIMEOUT);
+
+        this.battleTimeouts.set(battleId, timeout);
+    }
+
+    async endBattle(battleId, reason, winner = null) {
+        try {
+            const battle = this.activeBattles.get(battleId);
+            if (!battle) return;
+
+            // Clear timeout
+            if (this.battleTimeouts.has(battleId)) {
+                clearTimeout(this.battleTimeouts.get(battleId));
+                this.battleTimeouts.delete(battleId);
+            }
+
+            // Update stats if battle was completed
+            if (winner && battle.type === 'active') {
+                const loser = battle.fighter1.user_id === winner.user_id ? battle.fighter2 : battle.fighter1;
+                
+                // Update winner stats
+                await DatabaseManager.updateUserStats(winner.user_id, {
+                    pvp_wins: (winner.pvp_wins || 0) + 1,
+                    total_battles: (winner.total_battles || 0) + 1
+                });
+
+                // Update loser stats
+                await DatabaseManager.updateUserStats(loser.user_id, {
+                    pvp_losses: (loser.pvp_losses || 0) + 1,
+                    total_battles: (loser.total_battles || 0) + 1
+                });
+            }
+
+            // Remove battle from active battles
+            this.activeBattles.delete(battleId);
+
+        } catch (error) {
+            console.error('Error ending battle:', error);
+        }
+    }
+
+    findUserBattle(userId) {
+        for (const [battleId, battle] of this.activeBattles.entries()) {
+            if (battle.challenger?.user_id === userId || 
+                battle.target?.user_id === userId ||
+                battle.fighter1?.user_id === userId || 
+                battle.fighter2?.user_id === userId) {
+                return battleId;
             }
         }
         return null;
     }
 
-    // Clean up old battles
-    cleanup() {
-        const now = Date.now();
-        const maxAge = 30 * 60 * 1000; // 30 minutes
-        let cleanedCount = 0;
-        
-        for (const [battleId, battleData] of this.activeBattles) {
-            if (now - battleData.created > maxAge) {
-                this.activeBattles.delete(battleId);
-                cleanedCount++;
-            }
-        }
-        
-        if (cleanedCount > 0) {
-            console.log(`🧹 Cleanup: Removed ${cleanedCount} old battles. Active: ${this.activeBattles.size}`);
-        }
-    }
-
-    // Expose helpers for external access
-    get helpers() {
+    getBattleStats() {
         return {
-            fruitSelection: this.fruitSelectionHelper,
-            battleInterface: this.battleInterfaceHelper,
-            interaction: this.interactionHandler
+            activeBattles: this.activeBattles.size,
+            battles: Array.from(this.activeBattles.entries()).map(([id, battle]) => ({
+                id,
+                type: battle.type,
+                players: battle.type === 'invitation' 
+                    ? [battle.challenger.username, battle.target.username]
+                    : [battle.fighter1.username, battle.fighter2.username],
+                turn: battle.currentTurn || 0
+            }))
         };
     }
 }
 
-// Create and export the system
-const enhancedTurnBasedPvP = new EnhancedTurnBasedPvP();
-
-// Set up cleanup interval
-setInterval(() => {
-    enhancedTurnBasedPvP.cleanup();
-}, 5 * 60 * 1000);
-
-console.log('✅ Enhanced Turn-Based PvP Core System LOADED - Fixed require paths!');
-
-// Export both the main system and the interaction handler
-module.exports = enhancedTurnBasedPvP;
-module.exports.PvPInteractionHandler = enhancedTurnBasedPvP.interactionHandler;
-module.exports.activeBattles = enhancedTurnBasedPvP.activeBattles;
+module.exports = EnhancedTurnBasedPvP;
