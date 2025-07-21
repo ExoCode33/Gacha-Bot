@@ -1,4 +1,4 @@
-// src/systems/pvp/helpers/battle-interface-helper.js - Create missing helper
+// src/systems/pvp/pvp-helpers/battle-interface-helper.js - Create missing helper
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { getRarityEmoji } = require('../../../data/devil-fruits');
 const DatabaseManager = require('../../../database/manager');
@@ -12,6 +12,7 @@ try {
     balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
     statusEffects = abilitiesData.statusEffects || {};
 } catch (error) {
+    console.warn('⚠️ Could not load abilities for battle interface helper');
     balancedDevilFruitAbilities = {};
     statusEffects = {};
 }
@@ -52,7 +53,7 @@ class BattleInterfaceHelper {
                     inline: false
                 },
                 {
-                    name: `${player2.isNPC ? player2.npcData.emoji : '🏴‍☠️'} ${player2.username}`,
+                    name: `${player2.isNPC ? player2.npcData?.emoji || '🤖' : '🏴‍☠️'} ${player2.username}`,
                     value: [
                         `${p2HPBar}`,
                         `**HP**: ${player2.hp}/${player2.maxHealth} (${p2HPPercent.toFixed(1)}%)`,
@@ -109,7 +110,7 @@ class BattleInterfaceHelper {
         return fillEmoji.repeat(filledLength) + '⚫'.repeat(emptyLength);
     }
 
-    // Get battle description
+    // Get battle description based on turn
     getBattleDescription(battleData) {
         const { currentTurn } = battleData;
         
@@ -124,12 +125,12 @@ class BattleInterfaceHelper {
         }
     }
 
-    // Create skill selection components
+    // Create skill selection components for current player
     async createSkillSelectionComponents(battleData, playerData) {
         const components = [];
         
         // Create skill selection buttons (up to 5 fruits)
-        const skillButtons = playerData.selectedFruits.slice(0, 5).map((fruit, index) => {
+        const skillButtons = (playerData.selectedFruits || []).slice(0, 5).map((fruit, index) => {
             const ability = balancedDevilFruitAbilities[fruit.fruit_name] || {
                 name: 'Unknown Skill',
                 damage: 100,
@@ -195,7 +196,7 @@ class BattleInterfaceHelper {
         await this.processAttack(interaction, battleData, currentPlayerData, ability, selectedFruit);
     }
 
-    // Process an attack
+    // Process an attack between players
     async processAttack(interaction, battleData, attacker, ability, fruit) {
         const defender = battleData.currentPlayer === 'player1' ? battleData.player2 : battleData.player1;
         
@@ -273,12 +274,12 @@ class BattleInterfaceHelper {
     // Process NPC turn automatically
     async processNPCTurn(interaction, battleData) {
         const npcPlayer = battleData.player2;
-        const availableFruits = npcPlayer.selectedFruits;
+        const availableFruits = npcPlayer.selectedFruits || [];
         
         // NPC AI selects a fruit
         const selectedFruitIndex = Math.floor(Math.random() * availableFruits.length);
         const selectedFruit = availableFruits[selectedFruitIndex];
-        const ability = balancedDevilFruitAbilities[selectedFruit.fruit_name] || {
+        const ability = balancedDevilFruitAbilities[selectedFruit?.fruit_name] || {
             name: 'Boss Attack',
             damage: 120,
             cooldown: 0,
@@ -289,7 +290,7 @@ class BattleInterfaceHelper {
         await this.processAttack(interaction, battleData, npcPlayer, ability, selectedFruit);
     }
 
-    // Process ongoing effects
+    // Process ongoing effects (DoT, debuffs, etc.)
     processOngoingEffects(battleData) {
         [battleData.player1, battleData.player2].forEach(player => {
             player.effects = player.effects.filter(effect => {
@@ -341,7 +342,7 @@ class BattleInterfaceHelper {
 
         // Award berries for PvE victory
         if (battleData.isVsNPC && winner.userId === battleData.player1.userId) {
-            const berryReward = this.calculateBerryReward(battleData.npcBoss.difficulty);
+            const berryReward = this.calculateBerryReward(battleData.npcBoss?.difficulty || 'Easy');
             try {
                 await DatabaseManager.updateUserBerries(winner.userId, berryReward, 'PvE Victory');
                 
@@ -373,7 +374,7 @@ class BattleInterfaceHelper {
         await this.endBattle(interaction, battleData, winner, loser);
     }
 
-    // Calculate berry reward
+    // Calculate berry reward based on difficulty
     calculateBerryReward(difficulty) {
         const rewards = {
             'Easy': 500,
@@ -388,13 +389,13 @@ class BattleInterfaceHelper {
         return rewards[difficulty] || 500;
     }
 
-    // Get effects string
+    // Get effects string for display
     getEffectsString(effects) {
         if (!effects || effects.length === 0) return 'None';
         return effects.map(e => `${e.name} (${e.duration})`).join(', ');
     }
 
-    // Get recent battle log
+    // Get recent battle log entries
     getRecentBattleLog(battleLog) {
         const recent = battleLog.slice(-5);
         return recent.map(entry => entry.message).join('\n') || 'Battle starting...';
