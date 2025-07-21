@@ -1,23 +1,16 @@
-// src/commands/enhanced-pvp.js - FIXED PATHS
+// src/commands/enhanced-pvp.js - FIXED VERSION
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 // Import PvP systems with correct paths
-let PvPBalanceSystem = null;
-let BattleManager = null;
+let EnhancedTurnBasedPvP = null;
 let PvPQueueSystem = null;
 
 try {
-    PvPBalanceSystem = require('../systems/pvp/balance-system');
-    console.log('✅ PvP Balance System loaded successfully');
+    const EnhancedTurnBasedPvPClass = require('../systems/pvp/enhanced-turn-based-pvp');
+    EnhancedTurnBasedPvP = new EnhancedTurnBasedPvPClass();
+    console.log('✅ Enhanced Turn-Based PvP System loaded successfully');
 } catch (error) {
-    console.log('❌ PvP Balance System failed to load:', error.message);
-}
-
-try {
-    BattleManager = require('../systems/pvp/battle-manager');
-    console.log('✅ Battle Manager loaded successfully');
-} catch (error) {
-    console.log('❌ Battle Manager failed to load:', error.message);
+    console.log('❌ Enhanced Turn-Based PvP System failed to load:', error.message);
 }
 
 try {
@@ -32,11 +25,11 @@ const DatabaseManager = require('../database/manager');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('pvp')
-        .setDescription('Enhanced PvP system with turn-based combat')
+        .setDescription('Enhanced PvP system with turn-based combat and fruit selection')
         .addSubcommand(subcommand =>
             subcommand
                 .setName('challenge')
-                .setDescription('Challenge another player to PvP')
+                .setDescription('Challenge another player to enhanced turn-based PvP')
                 .addUserOption(option =>
                     option.setName('opponent')
                         .setDescription('The player you want to challenge')
@@ -47,27 +40,27 @@ module.exports = {
                 .setDescription('Join the PvP matchmaking queue'))
         .addSubcommand(subcommand =>
             subcommand
-                .setName('stats')
-                .setDescription('View your PvP statistics'))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('leaderboard')
-                .setDescription('View the PvP leaderboard'))
-        .addSubcommand(subcommand =>
-            subcommand
                 .setName('leave-queue')
                 .setDescription('Leave the PvP matchmaking queue'))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('queue-status')
-                .setDescription('Check the current PvP queue status')),
+                .setDescription('Check the current PvP queue status'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('stats')
+                .setDescription('View PvP battle statistics'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('system-info')
+                .setDescription('View enhanced PvP system information')),
 
     async execute(interaction) {
-        // Check if PvP systems are available
-        if (!PvPBalanceSystem || !BattleManager || !PvPQueueSystem) {
+        // Check if Enhanced PvP system is available
+        if (!EnhancedTurnBasedPvP) {
             const embed = new EmbedBuilder()
-                .setTitle('🚧 PvP System Unavailable')
-                .setDescription('The enhanced PvP system is currently under maintenance. Please try again later.')
+                .setTitle('🚧 Enhanced PvP System Unavailable')
+                .setDescription('The enhanced turn-based PvP system is currently under maintenance. Please try again later.')
                 .setColor('#FF6B6B')
                 .setTimestamp();
 
@@ -86,60 +79,44 @@ module.exports = {
                 case 'queue':
                     await handleQueue(interaction, userId, userName);
                     break;
-                case 'stats':
-                    await handleStats(interaction, userId);
-                    break;
-                case 'leaderboard':
-                    await handleLeaderboard(interaction);
-                    break;
                 case 'leave-queue':
                     await handleLeaveQueue(interaction, userId);
                     break;
                 case 'queue-status':
                     await handleQueueStatus(interaction);
                     break;
+                case 'stats':
+                    await handleStats(interaction, userId);
+                    break;
+                case 'system-info':
+                    await handleSystemInfo(interaction);
+                    break;
                 default:
                     await interaction.reply({ content: 'Unknown subcommand!', ephemeral: true });
             }
         } catch (error) {
             console.error('Enhanced PvP command error:', error);
+            
+            // Handle interaction already replied error
+            if (error.code === 'InteractionAlreadyReplied') {
+                console.log('⚠️ Interaction already replied - this is normal for complex flows');
+                return;
+            }
+            
             const embed = new EmbedBuilder()
                 .setTitle('❌ Error')
                 .setDescription('An error occurred while processing your PvP request. Please try again.')
                 .setColor('#FF6B6B')
                 .setTimestamp();
 
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ embeds: [embed], ephemeral: true });
-            } else {
-                await interaction.reply({ embeds: [embed], ephemeral: true });
-}
-
-async function handleQueueStatus(interaction) {
-    const queueStatus = PvPQueueSystem.getQueueStatus();
-    
-    const embed = new EmbedBuilder()
-        .setTitle('📊 PvP Queue Status')
-        .addFields([
-            { name: '👥 Players in Queue', value: queueStatus.queueSize.toString(), inline: true },
-            { name: '⚔️ Active Battles', value: queueStatus.activeMatches.toString(), inline: true },
-            { name: '⏱️ Average Wait Time', value: `${Math.max(1, queueStatus.queueSize * 30)} seconds`, inline: true }
-        ])
-        .setColor('#F39C12')
-        .setTimestamp();
-
-    if (queueStatus.queuedPlayers.length > 0) {
-        const queueList = queueStatus.queuedPlayers
-            .slice(0, 5) // Show top 5 players
-            .map((player, index) => `${index + 1}. ${player.username}`)
-            .join('\n');
-        
-        embed.addFields([
-            { name: '📋 Queue List (Top 5)', value: queueList || 'No players in queue', inline: false }
-        ]);
-    }
-
-    await interaction.reply({ embeds: [embed] });
+            try {
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({ embeds: [embed], ephemeral: true });
+                } else {
+                    await interaction.followUp({ embeds: [embed], ephemeral: true });
+                }
+            } catch (replyError) {
+                console.error('Failed to send error reply:', replyError);
             }
         }
     }
@@ -165,7 +142,10 @@ async function handleChallenge(interaction, userId, userName) {
     }
 
     // Check if either player is already in a battle
-    if (BattleManager.isInBattle(userId) || BattleManager.isInBattle(opponent.id)) {
+    const existingBattle = EnhancedTurnBasedPvP.findUserBattle(userId) || 
+                          EnhancedTurnBasedPvP.findUserBattle(opponent.id);
+    
+    if (existingBattle) {
         const embed = new EmbedBuilder()
             .setTitle('⚔️ Battle in Progress')
             .setDescription('One of the players is already in a battle!')
@@ -173,60 +153,30 @@ async function handleChallenge(interaction, userId, userName) {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Create challenge embed
-    const embed = new EmbedBuilder()
-        .setTitle('⚔️ PvP Challenge!')
-        .setDescription(`${userName} has challenged ${opponent.username} to an enhanced PvP battle!`)
-        .addFields([
-            { name: '🗡️ Challenger', value: userName, inline: true },
-            { name: '🛡️ Opponent', value: opponent.username, inline: true },
-            { name: '⏰ Time Limit', value: '60 seconds to respond', inline: false }
-        ])
-        .setColor('#4ECDC4')
-        .setTimestamp();
-
-    const row = new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId(`pvp_accept_${userId}_${opponent.id}`)
-                .setLabel('Accept Challenge')
-                .setStyle(ButtonStyle.Success)
-                .setEmoji('⚔️'),
-            new ButtonBuilder()
-                .setCustomId(`pvp_decline_${userId}_${opponent.id}`)
-                .setLabel('Decline Challenge')
-                .setStyle(ButtonStyle.Danger)
-                .setEmoji('❌')
-        );
-
-    await interaction.reply({ embeds: [embed], components: [row] });
-
-    // Set timeout for challenge
-    setTimeout(async () => {
-        try {
-            const message = await interaction.fetchReply();
-            const disabledRow = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('pvp_expired')
-                        .setLabel('Challenge Expired')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true)
-                );
-
-            const expiredEmbed = EmbedBuilder.from(embed)
-                .setTitle('⏰ Challenge Expired')
-                .setColor('#95A5A6');
-
-            await message.edit({ embeds: [expiredEmbed], components: [disabledRow] });
-        } catch (error) {
-            console.error('Error updating expired challenge:', error);
-        }
-    }, 60000);
+    // Initiate the enhanced turn-based battle
+    await EnhancedTurnBasedPvP.initiateBattle(interaction, opponent);
 }
 
 async function handleQueue(interaction, userId, userName) {
-    const result = PvPQueueSystem.joinQueue(userId, userName || interaction.user.username);
+    if (!PvPQueueSystem) {
+        const embed = new EmbedBuilder()
+            .setTitle('❌ Queue System Unavailable')
+            .setDescription('The PvP queue system is not available.')
+            .setColor('#FF6B6B');
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    // Check if user is already in a battle
+    const existingBattle = EnhancedTurnBasedPvP.findUserBattle(userId);
+    if (existingBattle) {
+        const embed = new EmbedBuilder()
+            .setTitle('⚔️ Already in Battle')
+            .setDescription('You are already in an active battle!')
+            .setColor('#FF6B6B');
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    const result = PvPQueueSystem.joinQueue(userId, userName);
     
     const embed = new EmbedBuilder()
         .setTimestamp();
@@ -238,15 +188,28 @@ async function handleQueue(interaction, userId, userName) {
                 .setDescription(`Battle starting between **${result.player1.username}** and **${result.player2.username}**!`)
                 .setColor('#4ECDC4');
             
-            // Send the match found message first
+            // Reply first, then start the battle
             await interaction.reply({ embeds: [embed] });
             
-            // Then start the battle in a follow-up message
+            // Start enhanced turn-based battle
             try {
-                const battleId = await BattleManager.startBattleFromQueue(result.player1.userId, result.player2.userId, interaction);
-                console.log(`Battle started: ${battleId}`);
+                // Create a mock target user object for the matched player
+                const targetUser = {
+                    id: result.player2.userId,
+                    username: result.player2.username
+                };
+                
+                // Use a timeout to avoid interaction conflicts
+                setTimeout(async () => {
+                    try {
+                        await EnhancedTurnBasedPvP.initiateBattle(interaction, targetUser);
+                    } catch (error) {
+                        console.error('Error starting queue battle:', error);
+                    }
+                }, 1000);
+                
             } catch (error) {
-                console.error('Error starting battle:', error);
+                console.error('Error starting battle from queue:', error);
                 await interaction.followUp({
                     content: '❌ Battle could not start. Please try again.',
                     ephemeral: true
@@ -261,84 +224,28 @@ async function handleQueue(interaction, userId, userName) {
                     { name: '⏱️ Estimated Wait', value: `${Math.max(1, result.position * 30)} seconds`, inline: true }
                 ])
                 .setColor('#F39C12');
+            
+            await interaction.reply({ embeds: [embed] });
         }
     } else {
         embed
             .setTitle('❌ Queue Error')
             .setDescription(result.message)
             .setColor('#FF6B6B');
-    }
-
-    await interaction.reply({ embeds: [embed] });
-}
-
-async function handleStats(interaction, userId) {
-    try {
-        const stats = await DatabaseManager.getUserPvPStats(userId);
         
-        const embed = new EmbedBuilder()
-            .setTitle(`⚔️ ${interaction.user.username}'s PvP Stats`)
-            .addFields([
-                { name: '🏆 Wins', value: stats.wins.toString(), inline: true },
-                { name: '💀 Losses', value: stats.losses.toString(), inline: true },
-                { name: '📊 Win Rate', value: `${stats.winRate}%`, inline: true },
-                { name: '🔥 Current Streak', value: stats.currentStreak.toString(), inline: true },
-                { name: '⭐ Best Streak', value: stats.bestStreak.toString(), inline: true },
-                { name: '🏅 Ranking', value: stats.ranking.toString(), inline: true }
-            ])
-            .setColor('#4ECDC4')
-            .setTimestamp();
-
-        await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-        console.error('Error fetching PvP stats:', error);
-        const embed = new EmbedBuilder()
-            .setTitle('❌ Error')
-            .setDescription('Could not fetch your PvP statistics. Please try again.')
-            .setColor('#FF6B6B');
-        await interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-}
-
-async function handleLeaderboard(interaction) {
-    try {
-        const leaderboard = await DatabaseManager.getPvPLeaderboard(10);
-        
-        if (leaderboard.length === 0) {
-            const embed = new EmbedBuilder()
-                .setTitle('🏆 PvP Leaderboard')
-                .setDescription('No PvP data available yet. Start battling to appear on the leaderboard!')
-                .setColor('#F39C12');
-            return interaction.reply({ embeds: [embed] });
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle('🏆 PvP Leaderboard')
-            .setDescription('Top 10 PvP players')
-            .setColor('#FFD700')
-            .setTimestamp();
-
-        leaderboard.forEach((player, index) => {
-            const medal = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}.`;
-            embed.addFields([{
-                name: `${medal} ${player.username}`,
-                value: `Wins: ${player.wins} | Win Rate: ${player.winRate}% | Streak: ${player.currentStreak}`,
-                inline: false
-            }]);
-        });
-
-        await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-        console.error('Error fetching PvP leaderboard:', error);
-        const embed = new EmbedBuilder()
-            .setTitle('❌ Error')
-            .setDescription('Could not fetch the PvP leaderboard. Please try again.')
-            .setColor('#FF6B6B');
         await interaction.reply({ embeds: [embed], ephemeral: true });
     }
 }
 
 async function handleLeaveQueue(interaction, userId) {
+    if (!PvPQueueSystem) {
+        const embed = new EmbedBuilder()
+            .setTitle('❌ Queue System Unavailable')
+            .setDescription('The PvP queue system is not available.')
+            .setColor('#FF6B6B');
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
     const result = PvPQueueSystem.leaveQueue(userId);
     
     const embed = new EmbedBuilder()
@@ -357,4 +264,181 @@ async function handleLeaveQueue(interaction, userId) {
     }
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+async function handleQueueStatus(interaction) {
+    if (!PvPQueueSystem) {
+        const embed = new EmbedBuilder()
+            .setTitle('❌ Queue System Unavailable')
+            .setDescription('The PvP queue system is not available.')
+            .setColor('#FF6B6B');
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    const queueStatus = PvPQueueSystem.getQueueStatus();
+    const battleStats = EnhancedTurnBasedPvP.getBattleStats();
+    
+    const embed = new EmbedBuilder()
+        .setTitle('📊 Enhanced PvP System Status')
+        .addFields([
+            { name: '👥 Players in Queue', value: queueStatus.queueSize.toString(), inline: true },
+            { name: '⚔️ Active Battles', value: battleStats.activeBattles.toString(), inline: true },
+            { name: '⏱️ Average Wait Time', value: `${Math.max(1, queueStatus.queueSize * 30)} seconds`, inline: true }
+        ])
+        .setColor('#F39C12')
+        .setTimestamp();
+
+    if (queueStatus.queuedPlayers.length > 0) {
+        const queueList = queueStatus.queuedPlayers
+            .slice(0, 5) // Show top 5 players
+            .map((player, index) => `${index + 1}. ${player.username}`)
+            .join('\n');
+        
+        embed.addFields([
+            { name: '📋 Queue List (Top 5)', value: queueList || 'No players in queue', inline: false }
+        ]);
+    }
+
+    if (battleStats.activeBattles > 0) {
+        const battleList = battleStats.battles
+            .slice(0, 3) // Show top 3 battles
+            .map(battle => `**${battle.players[0] || 'Unknown'}** vs **${battle.players[1] || 'Unknown'}** (${battle.status})`)
+            .join('\n');
+        
+        embed.addFields([
+            { name: '⚔️ Active Battles (Top 3)', value: battleList || 'No active battles', inline: false }
+        ]);
+    }
+
+    await interaction.reply({ embeds: [embed] });
+}
+
+async function handleStats(interaction, userId) {
+    try {
+        // Get basic user stats
+        const user = await DatabaseManager.getUser(userId);
+        if (!user) {
+            const embed = new EmbedBuilder()
+                .setTitle('❌ User Not Found')
+                .setDescription('You are not registered in the system. Use a command to register first!')
+                .setColor('#FF6B6B');
+            return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+
+        // Get user's devil fruits for battle readiness
+        const userFruits = await DatabaseManager.getUserDevilFruits(userId);
+        
+        const embed = new EmbedBuilder()
+            .setTitle(`⚔️ ${interaction.user.username}'s Enhanced PvP Stats`)
+            .addFields([
+                { name: '🏆 PvP Wins', value: (user.pvp_wins || 0).toString(), inline: true },
+                { name: '💀 PvP Losses', value: (user.pvp_losses || 0).toString(), inline: true },
+                { name: '📊 Win Rate', value: calculateWinRate(user.pvp_wins || 0, user.pvp_losses || 0), inline: true },
+                { name: '⭐ Level', value: (user.level || 0).toString(), inline: true },
+                { name: '💎 Total CP', value: (user.total_cp || 0).toLocaleString(), inline: true },
+                { name: '🍈 Devil Fruits', value: userFruits.length.toString(), inline: true },
+                { name: '⚔️ Battle Ready', value: userFruits.length >= 5 ? '✅ Yes' : '❌ Need more fruits', inline: true },
+                { name: '🎯 Current Status', value: getCurrentBattleStatus(userId), inline: true }
+            ])
+            .setColor('#4ECDC4')
+            .setTimestamp();
+
+        // Add battle readiness info
+        if (userFruits.length < 5) {
+            embed.addFields([{
+                name: '📝 Battle Requirements',
+                value: `You need at least 5 Devil Fruits to participate in enhanced turn-based PvP.\n` +
+                       `Current: ${userFruits.length}/5 fruits\n` +
+                       `Use \`/pull\` to get more Devil Fruits!`,
+                inline: false
+            }]);
+        }
+
+        await interaction.reply({ embeds: [embed] });
+    } catch (error) {
+        console.error('Error fetching PvP stats:', error);
+        const embed = new EmbedBuilder()
+            .setTitle('❌ Error')
+            .setDescription('Could not fetch your PvP statistics. Please try again.')
+            .setColor('#FF6B6B');
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+}
+
+async function handleSystemInfo(interaction) {
+    const battleStats = EnhancedTurnBasedPvP.getBattleStats();
+    const queueStatus = PvPQueueSystem ? PvPQueueSystem.getQueueStatus() : { queueSize: 0, activeMatches: 0 };
+    
+    const embed = new EmbedBuilder()
+        .setTitle('🎮 Enhanced Turn-Based PvP System')
+        .setDescription('Complete information about the enhanced PvP system')
+        .addFields([
+            {
+                name: '⚔️ Battle System Features',
+                value: [
+                    '🎯 **Turn-Based Combat**: Strategic gameplay',
+                    '🍈 **Fruit Selection**: Choose 5 fruits per battle',
+                    '📊 **Balanced CP**: Fair matchmaking system',
+                    '🔥 **Real Abilities**: Use actual Devil Fruit powers',
+                    '⏱️ **Live Updates**: Real-time battle progression'
+                ].join('\n'),
+                inline: false
+            },
+            {
+                name: '📋 How It Works',
+                value: [
+                    '1️⃣ Challenge a player or join queue',
+                    '2️⃣ Both players select 5 battle fruits',
+                    '3️⃣ Turn-based combat begins',
+                    '4️⃣ Use fruit abilities strategically',
+                    '5️⃣ Winner takes victory!'
+                ].join('\n'),
+                inline: false
+            },
+            {
+                name: '📊 Current Statistics',
+                value: [
+                    `**Active Battles**: ${battleStats.activeBattles}`,
+                    `**Queue Size**: ${queueStatus.queueSize}`,
+                    `**System Status**: ✅ Operational`,
+                    `**Battle Types**: Enhanced Turn-Based`
+                ].join('\n'),
+                inline: false
+            },
+            {
+                name: '🎯 Requirements',
+                value: [
+                    '**Minimum Level**: 0 (Any level)',
+                    '**Required Fruits**: 5 Devil Fruits minimum',
+                    '**Battle Time**: 5-15 minutes typical',
+                    '**Selection Time**: 5 minutes maximum'
+                ].join('\n'),
+                inline: false
+            }
+        ])
+        .setColor('#9932CC')
+        .setFooter({ text: 'Enhanced Turn-Based PvP - Strategic Devil Fruit Combat' })
+        .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+}
+
+// Helper functions
+function calculateWinRate(wins, losses) {
+    const total = wins + losses;
+    if (total === 0) return '0%';
+    return `${Math.round((wins / total) * 100)}%`;
+}
+
+function getCurrentBattleStatus(userId) {
+    const existingBattle = EnhancedTurnBasedPvP.findUserBattle(userId);
+    if (existingBattle) {
+        return '⚔️ In Battle';
+    }
+    
+    if (PvPQueueSystem && PvPQueueSystem.queue.has(userId)) {
+        return '🔍 In Queue';
+    }
+    
+    return '💤 Available';
 }
