@@ -1,582 +1,574 @@
-// index.js - COMPLETE VERSION WITH ENHANCED PVP INTEGRATION
-const { Client, GatewayIntentBits, Events, Collection, MessageFlags } = require('discord.js');
-const fs = require('node:fs');
-const path = require('node:path');
-require('dotenv').config();
+// index.js - Main Bot File with Fixed PvP System
+const { Client, GatewayIntentBits, Collection, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 
-// Create a new client instance
-const client = new Client({ 
+// Initialize Discord client
+const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers
-    ] 
+    ]
 });
 
-// Create commands collection
+// Collections for commands and PvP sessions
 client.commands = new Collection();
+client.pvpSessions = new Collection();
+client.pvpQueue = new Collection();
 
-// Load commands from src/commands directory
-const commandsPath = path.join(__dirname, 'src', 'commands');
-console.log('🔍 Looking for commands in:', commandsPath);
+// Database Manager (simplified version)
+class DatabaseManager {
+    static users = new Map();
+    static devilFruits = [
+        { name: 'Gomu Gomu no Mi', type: 'Paramecia', power: 85, description: 'Rubber body abilities' },
+        { name: 'Mera Mera no Mi', type: 'Logia', power: 90, description: 'Fire manipulation' },
+        { name: 'Hie Hie no Mi', type: 'Logia', power: 88, description: 'Ice manipulation' },
+        { name: 'Pika Pika no Mi', type: 'Logia', power: 95, description: 'Light manipulation' },
+        { name: 'Magu Magu no Mi', type: 'Logia', power: 92, description: 'Magma manipulation' },
+        { name: 'Gura Gura no Mi', type: 'Paramecia', power: 98, description: 'Earthquake generation' },
+        { name: 'Yami Yami no Mi', type: 'Logia', power: 96, description: 'Darkness manipulation' },
+        { name: 'Ope Ope no Mi', type: 'Paramecia', power: 87, description: 'Room creation and manipulation' },
+        { name: 'Tori Tori no Mi Model: Phoenix', type: 'Mythical Zoan', power: 91, description: 'Phoenix transformation' },
+        { name: 'Uo Uo no Mi Model: Azure Dragon', type: 'Mythical Zoan', power: 99, description: 'Azure Dragon transformation' }
+    ];
 
-try {
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-    console.log('📁 Found command files:', commandFiles);
+    static async ensureUser(userId, username) {
+        if (!this.users.has(userId)) {
+            this.users.set(userId, {
+                id: userId,
+                username: username,
+                devilFruits: [],
+                wins: 0,
+                losses: 0,
+                rating: 1000
+            });
+        }
+    }
 
-    for (const file of commandFiles) {
-        console.log(`🔄 Processing file: ${file}`);
-        const filePath = path.join(commandsPath, file);
+    static async getUserDevilFruits(userId) {
+        const user = this.users.get(userId);
+        return user ? user.devilFruits : [];
+    }
+
+    static async addDevilFruit(userId, fruit) {
+        const user = this.users.get(userId);
+        if (user && user.devilFruits.length < 10) {
+            user.devilFruits.push(fruit);
+            return true;
+        }
+        return false;
+    }
+
+    static async updatePvPStats(winnerId, loserId) {
+        const winner = this.users.get(winnerId);
+        const loser = this.users.get(loserId);
         
+        if (winner) {
+            winner.wins += 1;
+            winner.rating += 25;
+        }
+        if (loser) {
+            loser.losses += 1;
+            loser.rating = Math.max(100, loser.rating - 15);
+        }
+    }
+
+    static getRandomFruits(count = 5) {
+        const shuffled = [...this.devilFruits].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, count);
+    }
+}
+
+// Enhanced Turn-Based PvP System
+class EnhancedTurnBasedPvP {
+    constructor(player1, player2) {
+        this.player1 = player1;
+        this.player2 = player2;
+        this.currentTurn = 1;
+        this.currentPlayer = 'player1';
+        this.gameState = 'fruit_selection';
+        this.selectedFruits = {
+            player1: null,
+            player2: null
+        };
+        this.playerStats = {
+            player1: { hp: 100, mp: 50, effects: [] },
+            player2: { hp: 100, mp: 50, effects: [] }
+        };
+        this.battleLog = [];
+        this.timeout = null;
+    }
+
+    createFruitSelectionEmbed(player) {
+        return new EmbedBuilder()
+            .setColor(0x3498DB)
+            .setTitle('🍎 Devil Fruit Selection')
+            .setDescription(`**${player.username}**, select your Devil Fruit for battle!`)
+            .addFields([
+                { name: '⚔️ Battle Info', value: 'Choose wisely - your fruit determines your abilities!' },
+                { name: '⏰ Time Limit', value: '60 seconds to select' }
+            ])
+            .setThumbnail(player.displayAvatarURL())
+            .setTimestamp();
+    }
+
+    createFruitSelectionMenu(userFruits) {
+        const options = userFruits.slice(0, 25).map((fruit, index) => ({
+            label: fruit.name,
+            description: `${fruit.type} - Power: ${fruit.power}`,
+            value: `fruit_${index}`,
+            emoji: this.getFruitEmoji(fruit.type)
+        }));
+
+        return new StringSelectMenuBuilder()
+            .setCustomId('select_fruit')
+            .setPlaceholder('Choose your Devil Fruit...')
+            .addOptions(options);
+    }
+
+    getFruitEmoji(type) {
+        const emojis = {
+            'Paramecia': '🟢',
+            'Logia': '🔵',
+            'Zoan': '🟡',
+            'Mythical Zoan': '🟠'
+        };
+        return emojis[type] || '🍎';
+    }
+
+    createBattleEmbed() {
+        const currentPlayerData = this.currentPlayer === 'player1' ? this.player1 : this.player2;
+        const opponentData = this.currentPlayer === 'player1' ? this.player2 : this.player1;
+        const currentStats = this.playerStats[this.currentPlayer];
+        const opponentStats = this.playerStats[this.currentPlayer === 'player1' ? 'player2' : 'player1'];
+
+        return new EmbedBuilder()
+            .setColor(this.currentPlayer === 'player1' ? 0x3498DB : 0xE74C3C)
+            .setTitle(`⚔️ Turn ${this.currentTurn} - ${currentPlayerData.username}'s Turn`)
+            .setDescription(`🔥 **Enhanced Turn-Based Combat**`)
+            .addFields([
+                {
+                    name: `${this.player1.username} ${this.selectedFruits.player1?.name}`,
+                    value: `❤️ HP: ${this.playerStats.player1.hp}/100\n💙 MP: ${this.playerStats.player1.mp}/50`,
+                    inline: true
+                },
+                {
+                    name: 'VS',
+                    value: '⚔️',
+                    inline: true
+                },
+                {
+                    name: `${this.player2.username} ${this.selectedFruits.player2?.name}`,
+                    value: `❤️ HP: ${this.playerStats.player2.hp}/100\n💙 MP: ${this.playerStats.player2.mp}/50`,
+                    inline: true
+                }
+            ])
+            .setFooter({ text: `Turn: ${this.currentTurn} | ${currentPlayerData.username}'s turn` })
+            .setTimestamp();
+    }
+
+    createBattleButtons() {
+        return new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('attack')
+                    .setLabel('⚔️ Attack')
+                    .setStyle(ButtonStyle.Danger),
+                new ButtonBuilder()
+                    .setCustomId('special_attack')
+                    .setLabel('💥 Special Attack')
+                    .setStyle(ButtonStyle.Primary),
+                new ButtonBuilder()
+                    .setCustomId('defend')
+                    .setLabel('🛡️ Defend')
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('ultimate')
+                    .setLabel('🌟 Ultimate')
+                    .setStyle(ButtonStyle.Success)
+            );
+    }
+
+    async processAction(action, interaction) {
+        const currentPlayerKey = this.currentPlayer;
+        const opponentKey = this.currentPlayer === 'player1' ? 'player2' : 'player1';
+        const currentFruit = this.selectedFruits[currentPlayerKey];
+        const currentStats = this.playerStats[currentPlayerKey];
+        const opponentStats = this.playerStats[opponentKey];
+
+        let damage = 0;
+        let actionText = '';
+
+        switch (action) {
+            case 'attack':
+                damage = Math.floor(Math.random() * 25) + 15;
+                actionText = `⚔️ Basic attack deals ${damage} damage!`;
+                opponentStats.hp -= damage;
+                break;
+
+            case 'special_attack':
+                if (currentStats.mp >= 15) {
+                    damage = Math.floor(Math.random() * 35) + 20;
+                    currentStats.mp -= 15;
+                    actionText = `💥 ${currentFruit.name} special attack deals ${damage} damage! (-15 MP)`;
+                    opponentStats.hp -= damage;
+                } else {
+                    actionText = '❌ Not enough MP for special attack!';
+                }
+                break;
+
+            case 'defend':
+                const heal = Math.floor(Math.random() * 15) + 10;
+                currentStats.hp = Math.min(100, currentStats.hp + heal);
+                currentStats.mp = Math.min(50, currentStats.mp + 10);
+                actionText = `🛡️ Defended and recovered ${heal} HP and 10 MP!`;
+                break;
+
+            case 'ultimate':
+                if (currentStats.mp >= 30) {
+                    damage = Math.floor(Math.random() * 50) + 30;
+                    currentStats.mp -= 30;
+                    actionText = `🌟 ${currentFruit.name} ULTIMATE attack deals ${damage} damage! (-30 MP)`;
+                    opponentStats.hp -= damage;
+                } else {
+                    actionText = '❌ Not enough MP for ultimate attack!';
+                }
+                break;
+        }
+
+        // Ensure HP doesn't go below 0
+        opponentStats.hp = Math.max(0, opponentStats.hp);
+
+        this.battleLog.push(actionText);
+
+        // Check for winner
+        if (opponentStats.hp <= 0) {
+            return await this.endBattle(currentPlayerKey, interaction);
+        }
+
+        // Switch turns
+        this.currentPlayer = opponentKey;
+        this.currentTurn++;
+
+        // Update the battle message
+        const embed = this.createBattleEmbed();
+        if (this.battleLog.length > 0) {
+            embed.addFields([{
+                name: '📜 Battle Log',
+                value: this.battleLog.slice(-3).join('\n')
+            }]);
+        }
+
+        await interaction.update({
+            embeds: [embed],
+            components: [this.createBattleButtons()]
+        });
+
+        return false;
+    }
+
+    async endBattle(winnerKey, interaction) {
+        const winner = winnerKey === 'player1' ? this.player1 : this.player2;
+        const loser = winnerKey === 'player1' ? this.player2 : this.player1;
+
+        // Update database stats
+        await DatabaseManager.updatePvPStats(winner.id, loser.id);
+
+        const embed = new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle('🏆 Battle Complete!')
+            .setDescription(`**${winner.username}** is victorious!`)
+            .addFields([
+                { name: '🎉 Winner', value: `${winner.username}`, inline: true },
+                { name: '💀 Defeated', value: `${loser.username}`, inline: true },
+                { name: '⚔️ Turns', value: `${this.currentTurn}`, inline: true },
+                { name: '📜 Final Battle Log', value: this.battleLog.slice(-5).join('\n') || 'No actions recorded' }
+            ])
+            .setThumbnail(winner.displayAvatarURL())
+            .setTimestamp();
+
+        await interaction.update({
+            embeds: [embed],
+            components: []
+        });
+
+        // Clean up session
+        client.pvpSessions.delete(this.player1.id);
+        client.pvpSessions.delete(this.player2.id);
+
+        return true;
+    }
+}
+
+// Load commands
+const commandsPath = path.join(__dirname, 'src', 'commands');
+if (fs.existsSync(commandsPath)) {
+    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+    for (const file of commandFiles) {
+        const filePath = path.join(commandsPath, file);
         try {
-            delete require.cache[require.resolve(filePath)]; // Clear cache
             const command = require(filePath);
-            
-            console.log(`   📋 Command object keys:`, Object.keys(command));
-            
             if ('data' in command && 'execute' in command) {
                 client.commands.set(command.data.name, command);
-                console.log(`   ✅ Loaded command: ${command.data.name}`);
-            } else {
-                console.log(`   ❌ Missing 'data' or 'execute' properties in ${file}`);
-                console.log(`   🔍 Has data:`, 'data' in command);
-                console.log(`   🔍 Has execute:`, 'execute' in command);
+                console.log(`✅ Loaded command: ${command.data.name}`);
             }
         } catch (error) {
-            console.log(`   ❌ Error loading ${file}:`, error.message);
-            console.log(`   📍 Error stack:`, error.stack);
+            console.error(`❌ Error loading command ${file}:`, error);
         }
     }
-} catch (error) {
-    console.error('❌ Error reading commands directory:', error);
 }
 
-// Debug: Show all loaded commands
-console.log('\n🔍 Debug: All loaded commands:');
-client.commands.forEach((command, name) => {
-    console.log(`   ✅ ${name}`);
-});
-console.log(`📊 Total commands loaded: ${client.commands.size}\n`);
-
-// Load events from src/events directory
-const eventsPath = path.join(__dirname, 'src', 'events');
-console.log('🔍 Looking for events in:', eventsPath);
-
-try {
-    const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-    console.log('📁 Found event files:', eventFiles);
-
-    for (const file of eventFiles) {
-        const filePath = path.join(eventsPath, file);
-        try {
-            const event = require(filePath);
-            if (event.once) {
-                client.once(event.name, (...args) => event.execute(...args));
-            } else {
-                client.on(event.name, (...args) => event.execute(...args));
-            }
-            console.log(`✅ Loaded event: ${event.name}`);
-        } catch (error) {
-            console.log(`❌ Error loading event ${file}:`, error.message);
-        }
-    }
-} catch (error) {
-    console.error('❌ Error reading events directory:', error);
-}
-
-// Initialize systems
-console.log('🔧 Initializing systems...');
-
-// Initialize Database
-try {
-    const DatabaseManager = require('./src/database/manager');
-    console.log('✅ Database Manager loaded');
-} catch (error) {
-    console.log('❌ Database Manager failed to load:', error.message);
-}
-
-// Initialize Economy System
-try {
-    const EconomySystem = require('./src/systems/economy');
-    console.log('✅ Economy System loaded');
-} catch (error) {
-    console.log('❌ Economy System failed to load:', error.message);
-}
-
-// Initialize Level System
-try {
-    const LevelSystem = require('./src/systems/levels');
-    console.log('✅ Level System loaded');
-} catch (error) {
-    console.log('❌ Level System failed to load:', error.message);
-}
-
-// Initialize Auto Income (optional)
-try {
-    const AutoIncomeSystem = require('./src/systems/auto-income');
-    if (AutoIncomeSystem && AutoIncomeSystem.startAutoIncome) {
-        AutoIncomeSystem.startAutoIncome();
-        console.log('✅ Auto Income System started');
-    }
-} catch (error) {
-    console.log('⚠️ Auto Income System not available:', error.message);
-}
-
-// Initialize Enhanced PvP System (optional)
-let EnhancedTurnBasedPvP = null;
-try {
-    const EnhancedTurnBasedPvPClass = require('./src/systems/pvp/enhanced-turn-based-pvp');
-    EnhancedTurnBasedPvP = new EnhancedTurnBasedPvPClass();
-    console.log('✅ Enhanced Turn-Based PvP System loaded');
-} catch (error) {
-    console.log('⚠️ Enhanced Turn-Based PvP System not available:', error.message);
-}
-
-// Initialize PvP Queue System (optional)
-let PvPQueueSystem = null;
-try {
-    PvPQueueSystem = require('./src/systems/pvp/pvp-queue-system');
-    console.log('✅ PvP Queue System loaded');
-} catch (error) {
-    console.log('⚠️ PvP Queue System not available:', error.message);
-}
-
-// Initialize Legacy Battle Manager (optional)
-let BattleManager = null;
-try {
-    BattleManager = require('./src/systems/pvp/battle-manager');
-    console.log('✅ Legacy Battle Manager loaded');
-} catch (error) {
-    console.log('⚠️ Legacy Battle Manager not available:', error.message);
-}
-
-// Ready event
-client.once(Events.Ready, async () => {
-    console.log('🏴‍☠️ Gacha-Bot is ready to sail the Grand Line!');
-    console.log(`📊 Serving ${client.guilds.cache.size} server(s)`);
-    console.log(`👥 Connected to ${client.users.cache.size} user(s)`);
+// Event handlers
+client.once('ready', async () => {
+    console.log(`✅ ${client.user.tag} is online!`);
     
+    // Register slash commands
     try {
-        await client.user.setPresence({
-            activities: [{ name: 'the Grand Line for Devil Fruits! 🍎', type: 0 }],
-            status: 'online',
-        });
-        console.log('✅ Bot presence set successfully');
+        const commands = Array.from(client.commands.values()).map(cmd => cmd.data.toJSON());
+        await client.application.commands.set(commands);
+        console.log('✅ Slash commands registered successfully!');
     } catch (error) {
-        console.log('❌ Error setting bot presence:', error.message);
+        console.error('❌ Error registering slash commands:', error);
     }
-    
-    console.log('🎉 Ready event completed successfully!');
 });
 
-// Main interaction handler
-client.on(Events.InteractionCreate, async interaction => {
-    // Handle slash commands
-    if (interaction.isChatInputCommand()) {
-        const command = client.commands.get(interaction.commandName);
-        
-        console.log(`📝 Executing command: /${interaction.commandName} for ${interaction.user.username}`);
-        
-        if (!command) {
-            console.error(`❌ No command matching ${interaction.commandName} was found.`);
-            console.log('🔍 Available commands:', Array.from(client.commands.keys()).join(', '));
-            
-            await interaction.reply({
-                content: `❌ Command \`/${interaction.commandName}\` not found!`,
-                ephemeral: true
-            });
-            return;
-        }
-
-        try {
+client.on('interactionCreate', async interaction => {
+    try {
+        if (interaction.isChatInputCommand()) {
+            const command = client.commands.get(interaction.commandName);
+            if (!command) {
+                return await interaction.reply({ content: 'Command not found!', ephemeral: true });
+            }
             await command.execute(interaction);
-            console.log(`✅ Command /${interaction.commandName} executed successfully`);
-        } catch (error) {
-            console.error(`❌ Error executing /${interaction.commandName}:`, error);
-            
-            const errorMessage = {
-                content: 'There was an error while executing this command!',
-                ephemeral: true
-            };
-            
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp(errorMessage);
-            } else {
-                await interaction.reply(errorMessage);
-            }
         }
-    } 
-    
-    // Handle button interactions
-    else if (interaction.isButton()) {
-        console.log(`🔘 Button interaction: ${interaction.customId} from ${interaction.user.username}`);
+        else if (interaction.isButton()) {
+            await handleButtonInteraction(interaction);
+        }
+        else if (interaction.isStringSelectMenu()) {
+            await handleSelectMenuInteraction(interaction);
+        }
+    } catch (error) {
+        console.error('❌ Interaction error:', error);
+        const errorResponse = { content: 'An error occurred while processing your request.', ephemeral: true };
         
-        try {
-            const customId = interaction.customId;
-
-            // Enhanced PvP battle responses (accept/decline)
-            if (customId.startsWith('accept_enhanced_battle_') || 
-                customId.startsWith('decline_enhanced_battle_')) {
-                
-                console.log('🎮 Handling enhanced battle response...');
-                
-                if (!EnhancedTurnBasedPvP) {
-                    return await interaction.reply({
-                        content: '❌ Enhanced PvP system is not available.',
-                        ephemeral: true
-                    });
-                }
-                
-                await EnhancedTurnBasedPvP.handleBattleResponse(interaction);
-            }
-            
-            // Enhanced PvP fruit selection buttons
-            else if (customId.startsWith('page_switch_') ||
-                     customId.startsWith('confirm_selection_') ||
-                     customId.startsWith('clear_selection_')) {
-                
-                console.log('🍈 Handling fruit selection...');
-                
-                if (!EnhancedTurnBasedPvP) {
-                    return await interaction.reply({
-                        content: '❌ Enhanced PvP system is not available.',
-                        ephemeral: true
-                    });
-                }
-
-                // Extract battle ID and user ID from custom ID
-                const parts = customId.split('_');
-                let battleId, userId;
-                
-                if (customId.startsWith('page_switch_')) {
-                    battleId = parts.slice(2, -1).join('_');
-                    userId = parts[parts.length - 1];
-                    await EnhancedTurnBasedPvP.handlePageSwitch(interaction, battleId, userId);
-                }
-                else if (customId.startsWith('confirm_selection_')) {
-                    battleId = parts.slice(2, -1).join('_');
-                    userId = parts[parts.length - 1];
-                    await EnhancedTurnBasedPvP.handleConfirmSelection(interaction, battleId, userId);
-                }
-                else if (customId.startsWith('clear_selection_')) {
-                    battleId = parts.slice(2, -1).join('_');
-                    userId = parts[parts.length - 1];
-                    await EnhancedTurnBasedPvP.handleClearSelection(interaction, battleId, userId);
-                }
-            }
-            
-            // Enhanced PvP battle actions (skill usage, view skills, surrender)
-            else if (customId.startsWith('use_skill_') ||
-                     customId.startsWith('view_skills_') ||
-                     customId.startsWith('surrender_')) {
-                
-                console.log('⚔️ Handling battle action...');
-                
-                if (!EnhancedTurnBasedPvP) {
-                    return await interaction.reply({
-                        content: '❌ Enhanced PvP system is not available.',
-                        ephemeral: true
-                    });
-                }
-
-                // Extract battle ID and user ID from custom ID
-                const parts = customId.split('_');
-                
-                if (customId.startsWith('use_skill_')) {
-                    // use_skill_battleId_userId_skillIndex
-                    const battleId = parts.slice(2, -2).join('_');
-                    const userId = parts[parts.length - 2];
-                    const skillIndex = parseInt(parts[parts.length - 1]);
-                    await EnhancedTurnBasedPvP.handleSkillUsage(interaction, battleId, userId, skillIndex);
-                }
-                else if (customId.startsWith('view_skills_')) {
-                    // view_skills_battleId_userId
-                    const battleId = parts.slice(2, -1).join('_');
-                    const userId = parts[parts.length - 1];
-                    await EnhancedTurnBasedPvP.handleViewSkills(interaction, battleId, userId);
-                }
-                else if (customId.startsWith('surrender_')) {
-                    // surrender_battleId_userId
-                    const battleId = parts.slice(1, -1).join('_');
-                    const userId = parts[parts.length - 1];
-                    await EnhancedTurnBasedPvP.handleSurrender(interaction, battleId, userId);
-                }
-            }
-            
-            // Legacy PvP system support (for backward compatibility)
-            else if (customId.startsWith('pvp_accept_') || 
-                     customId.startsWith('pvp_decline_')) {
-                
-                console.log('🔧 Handling legacy PvP challenge response...');
-                
-                if (!BattleManager) {
-                    return await interaction.reply({
-                        content: '❌ Legacy PvP system is not available.',
-                        ephemeral: true
-                    });
-                }
-                
-                const [action, challengerId, opponentId] = customId.split('_').slice(1);
-                
-                if (interaction.user.id !== opponentId) {
-                    return await interaction.reply({
-                        content: 'This challenge is not for you!',
-                        ephemeral: true
-                    });
-                }
-                
-                if (action === 'accept') {
-                    await BattleManager.startBattle(challengerId, opponentId, interaction);
-                } else {
-                    await interaction.update({
-                        content: '❌ PvP challenge declined.',
-                        components: []
-                    });
-                }
-            }
-            
-            // Legacy battle actions
-            else if (customId.startsWith('battle_')) {
-                console.log('⚔️ Handling legacy battle action...');
-                
-                if (!BattleManager) {
-                    return await interaction.reply({
-                        content: '❌ Legacy PvP system is not available.',
-                        ephemeral: true
-                    });
-                }
-                
-                const parts = customId.split('_');
-                const action = parts[1]; // attack, defend, special, forfeit
-                const battleId = parts[2];
-                const playerId = parts[3];
-                
-                if (interaction.user.id !== playerId) {
-                    return await interaction.reply({
-                        content: 'This battle action is not for you!',
-                        ephemeral: true
-                    });
-                }
-                
-                await BattleManager.processBattleAction(interaction, action, battleId, playerId);
-            }
-            
-            // Pull system buttons (from pull command)
-            else if (customId === 'pull_again' || customId === 'pull_10x') {
-                console.log('🎰 Handling pull button...');
-                
-                try {
-                    const PullButtons = require('./src/commands/helpers/pull-buttons');
-                    await PullButtons.handle(interaction, interaction.user.id);
-                } catch (error) {
-                    console.error('Error with pull buttons:', error);
-                    await interaction.reply({
-                        content: '❌ Pull system error. Please try again.',
-                        ephemeral: true
-                    });
-                }
-            }
-            
-            else {
-                console.log('❓ Unknown button interaction:', customId);
-                await interaction.reply({
-                    content: '❌ Unknown button interaction.',
-                    ephemeral: true
-                });
-            }
-            
-        } catch (error) {
-            console.error('❌ Error handling button interaction:', error);
-            
-            // Handle specific Discord.js errors gracefully
-            if (error.code === 'InteractionAlreadyReplied') {
-                console.log('⚠️ Interaction already replied - this is normal for complex PvP flows');
-                return;
-            }
-            
-            if (error.code === 10062) {
-                console.log('⚠️ Interaction expired - this is normal for old interactions');
-                return;
-            }
-            
-            try {
-                if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({
-                        content: '❌ An error occurred while processing this action.',
-                        flags: MessageFlags.Ephemeral
-                    });
-                }
-            } catch (replyError) {
-                console.error('Failed to send error reply:', replyError);
-            }
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(errorResponse);
+        } else {
+            await interaction.reply(errorResponse);
         }
     }
-    
-    // Handle select menu interactions
-    else if (interaction.isStringSelectMenu()) {
-        console.log(`📋 Select menu interaction: ${interaction.customId}`);
+});
+
+async function handleButtonInteraction(interaction) {
+    const { customId, user } = interaction;
+
+    // PvP Queue buttons
+    if (customId === 'join_pvp_queue') {
+        if (client.pvpQueue.has(user.id)) {
+            return await interaction.reply({ content: '❌ You are already in the PvP queue!', ephemeral: true });
+        }
+
+        await DatabaseManager.ensureUser(user.id, user.username);
+        const userFruits = await DatabaseManager.getUserDevilFruits(user.id);
         
-        try {
-            const customId = interaction.customId;
+        if (userFruits.length < 5) {
+            return await interaction.reply({ 
+                content: '❌ You need at least 5 Devil Fruits to participate in PvP! Use `/spin` to get more fruits.', 
+                ephemeral: true 
+            });
+        }
+
+        client.pvpQueue.set(user.id, {
+            user: user,
+            timestamp: Date.now()
+        });
+
+        // Check for match
+        const queueArray = Array.from(client.pvpQueue.values());
+        if (queueArray.length >= 2) {
+            const [player1Data, player2Data] = queueArray.slice(0, 2);
             
-            // Enhanced PvP fruit selection from dropdown
-            if (customId.startsWith('fruit_selection_')) {
-                console.log('🍈 Handling fruit selection from dropdown...');
-                
-                if (!EnhancedTurnBasedPvP) {
-                    return await interaction.reply({
-                        content: '❌ Enhanced PvP system is not available.',
-                        ephemeral: true
-                    });
-                }
-                
-                // Extract battle ID and user ID from custom ID
-                // fruit_selection_battleId_userId
-                const parts = customId.split('_');
-                const battleId = parts.slice(2, -1).join('_');
-                const userId = parts[parts.length - 1];
-                
-                // Get the selected fruit from the interaction
-                const selectedValue = interaction.values[0];
-                
-                // Extract fruit ID from the selected value
-                // select_fruit_battleId_userId_fruitId
-                const valueParts = selectedValue.split('_');
-                const fruitId = valueParts[valueParts.length - 1];
-                
-                await EnhancedTurnBasedPvP.handleFruitSelection(interaction, battleId, userId, fruitId);
-            }
-            else {
-                console.log('❓ Unknown select menu interaction:', customId);
-                await interaction.reply({
-                    content: '❌ Unknown select menu interaction.',
-                    ephemeral: true
-                });
-            }
+            // Remove from queue
+            client.pvpQueue.delete(player1Data.user.id);
+            client.pvpQueue.delete(player2Data.user.id);
             
-        } catch (error) {
-            console.error('❌ Error handling select menu interaction:', error);
-            
-            // Handle specific Discord.js errors
-            if (error.code === 'InteractionAlreadyReplied') {
-                console.log('⚠️ Select menu interaction already replied');
-                return;
-            }
-            
-            try {
-                if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({
-                        content: '❌ An error occurred while processing the selection.',
-                        flags: MessageFlags.Ephemeral
-                    });
-                }
-            } catch (replyError) {
-                console.error('Failed to send error reply:', replyError);
-            }
+            // Start PvP session
+            await startPvPMatch(player1Data.user, player2Data.user, interaction);
+        } else {
+            await interaction.reply({ content: '⏳ Joined PvP queue! Waiting for an opponent...', ephemeral: true });
         }
     }
+    else if (customId === 'leave_pvp_queue') {
+        if (!client.pvpQueue.has(user.id)) {
+            return await interaction.reply({ content: '❌ You are not in the PvP queue!', ephemeral: true });
+        }
+
+        client.pvpQueue.delete(user.id);
+        await interaction.reply({ content: '✅ Left the PvP queue.', ephemeral: true });
+    }
+    // PvP Battle buttons
+    else if (['attack', 'special_attack', 'defend', 'ultimate'].includes(customId)) {
+        const session = client.pvpSessions.get(user.id);
+        if (!session) {
+            return await interaction.reply({ content: '❌ No active PvP session found!', ephemeral: true });
+        }
+
+        const currentPlayerData = session.currentPlayer === 'player1' ? session.player1 : session.player2;
+        if (currentPlayerData.id !== user.id) {
+            return await interaction.reply({ content: '❌ It\'s not your turn!', ephemeral: true });
+        }
+
+        await session.processAction(customId, interaction);
+    }
+}
+
+async function handleSelectMenuInteraction(interaction) {
+    const { customId, values, user } = interaction;
+
+    if (customId === 'select_fruit') {
+        const session = client.pvpSessions.get(user.id);
+        if (!session || session.gameState !== 'fruit_selection') {
+            return await interaction.reply({ content: '❌ No active fruit selection found!', ephemeral: true });
+        }
+
+        const fruitIndex = parseInt(values[0].replace('fruit_', ''));
+        const userFruits = await DatabaseManager.getUserDevilFruits(user.id);
+        const selectedFruit = userFruits[fruitIndex];
+
+        if (!selectedFruit) {
+            return await interaction.reply({ content: '❌ Invalid fruit selection!', ephemeral: true });
+        }
+
+        // Set the selected fruit
+        if (session.player1.id === user.id) {
+            session.selectedFruits.player1 = selectedFruit;
+        } else {
+            session.selectedFruits.player2 = selectedFruit;
+        }
+
+        await interaction.reply({ 
+            content: `✅ Selected **${selectedFruit.name}** for battle!`, 
+            ephemeral: true 
+        });
+
+        // Check if both players have selected fruits
+        if (session.selectedFruits.player1 && session.selectedFruits.player2) {
+            session.gameState = 'battle';
+            
+            // Start the battle
+            const embed = session.createBattleEmbed();
+            const buttons = session.createBattleButtons();
+
+            // Find the original message and update it
+            const channel = interaction.channel;
+            const battleEmbed = new EmbedBuilder()
+                .setColor(0x00FF00)
+                .setTitle('⚔️ Battle Begins!')
+                .setDescription(`**${session.player1.username}** vs **${session.player2.username}**\n\nBoth players have selected their Devil Fruits!`)
+                .addFields([
+                    { 
+                        name: `${session.player1.username}'s Fruit`, 
+                        value: `${session.selectedFruits.player1.name}\n*${session.selectedFruits.player1.description}*`,
+                        inline: true 
+                    },
+                    { name: 'VS', value: '⚔️', inline: true },
+                    { 
+                        name: `${session.player2.username}'s Fruit`, 
+                        value: `${session.selectedFruits.player2.name}\n*${session.selectedFruits.player2.description}*`,
+                        inline: true 
+                    }
+                ]);
+
+            await channel.send({ embeds: [battleEmbed] });
+
+            setTimeout(async () => {
+                await channel.send({ 
+                    embeds: [embed], 
+                    components: [buttons] 
+                });
+            }, 2000);
+        }
+    }
+}
+
+async function startPvPMatch(player1, player2, interaction) {
+    const session = new EnhancedTurnBasedPvP(player1, player2);
     
-    // Handle modal submit interactions (if you have any)
-    else if (interaction.isModalSubmit()) {
-        console.log(`📝 Modal submit interaction: ${interaction.customId}`);
-        
-        // Handle modal submissions here if needed
-        await interaction.reply({
-            content: '📝 Modal submissions not implemented yet.',
-            ephemeral: true
+    // Store session for both players
+    client.pvpSessions.set(player1.id, session);
+    client.pvpSessions.set(player2.id, session);
+
+    // Get user fruits
+    await DatabaseManager.ensureUser(player1.id, player1.username);
+    await DatabaseManager.ensureUser(player2.id, player2.username);
+    
+    const player1Fruits = await DatabaseManager.getUserDevilFruits(player1.id);
+    const player2Fruits = await DatabaseManager.getUserDevilFruits(player2.id);
+
+    // If users don't have enough fruits, give them some
+    if (player1Fruits.length < 5) {
+        const randomFruits = DatabaseManager.getRandomFruits(5);
+        for (const fruit of randomFruits) {
+            await DatabaseManager.addDevilFruit(player1.id, fruit);
+        }
+    }
+    if (player2Fruits.length < 5) {
+        const randomFruits = DatabaseManager.getRandomFruits(5);
+        for (const fruit of randomFruits) {
+            await DatabaseManager.addDevilFruit(player2.id, fruit);
+        }
+    }
+
+    // Create match found embed
+    const matchEmbed = new EmbedBuilder()
+        .setColor(0x00FF00)
+        .setTitle('🎯 PvP Match Found!')
+        .setDescription(`**${player1.username}** vs **${player2.username}**`)
+        .addFields([
+            { name: '⚔️ Battle Type', value: 'Enhanced Turn-Based Combat' },
+            { name: '🍎 Next Step', value: 'Both players must select their Devil Fruits!' }
+        ])
+        .setTimestamp();
+
+    await interaction.channel.send({ embeds: [matchEmbed] });
+
+    // Send fruit selection to both players
+    const updatedPlayer1Fruits = await DatabaseManager.getUserDevilFruits(player1.id);
+    const updatedPlayer2Fruits = await DatabaseManager.getUserDevilFruits(player2.id);
+
+    try {
+        const player1Embed = session.createFruitSelectionEmbed(player1);
+        const player1Menu = session.createFruitSelectionMenu(updatedPlayer1Fruits);
+        await player1.send({ 
+            embeds: [player1Embed], 
+            components: [new ActionRowBuilder().addComponents(player1Menu)] 
+        });
+
+        const player2Embed = session.createFruitSelectionEmbed(player2);
+        const player2Menu = session.createFruitSelectionMenu(updatedPlayer2Fruits);
+        await player2.send({ 
+            embeds: [player2Embed], 
+            components: [new ActionRowBuilder().addComponents(player2Menu)] 
+        });
+
+        await interaction.channel.send({ 
+            content: `📨 Fruit selection menus sent to ${player1.username} and ${player2.username} via DM!` 
+        });
+    } catch (error) {
+        console.error('Error sending DMs:', error);
+        await interaction.channel.send({ 
+            content: '❌ Could not send DMs to players. Make sure your DMs are open!' 
         });
     }
-    
-    // Handle autocomplete interactions (if you have any)
-    else if (interaction.isAutocomplete()) {
-        console.log(`🔍 Autocomplete interaction: ${interaction.commandName}`);
-        
-        // Handle autocomplete here if needed
-        await interaction.respond([]);
-    }
-});
+}
 
-// Handle message events (for prefix commands if needed)
-client.on(Events.MessageCreate, async message => {
-    // Ignore bot messages
-    if (message.author.bot) return;
-    
-    // Add any prefix command handling here if needed
-    // Example: if (message.content.startsWith('!')) { ... }
-});
-
-// Handle guild member updates for level system
-client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
-    try {
-        // Check if roles changed
-        const oldRoles = oldMember.roles.cache.map(role => role.name);
-        const newRoles = newMember.roles.cache.map(role => role.name);
-        
-        // Check if any level roles changed
-        const levelRoles = ['Level-0', 'Level-5', 'Level-10', 'Level-15', 'Level-20', 'Level-25', 'Level-30', 'Level-35', 'Level-40', 'Level-45', 'Level-50'];
-        const oldLevelRoles = oldRoles.filter(role => levelRoles.includes(role));
-        const newLevelRoles = newRoles.filter(role => levelRoles.includes(role));
-        
-        if (JSON.stringify(oldLevelRoles) !== JSON.stringify(newLevelRoles)) {
-            try {
-                const LevelSystem = require('./src/systems/levels');
-                await LevelSystem.updateUserLevel(
-                    newMember.user.id, 
-                    newMember.user.username, 
-                    newMember.guild.id
-                );
-                console.log(`⭐ Level updated for ${newMember.user.username} due to role change`);
-            } catch (error) {
-                console.error('Error updating user level:', error);
-            }
-        }
-        
-    } catch (error) {
-        console.error('Error in guildMemberUpdate event:', error);
-    }
-});
-
-// Error handling
-client.on('error', error => {
-    console.error('❌ Discord client error:', error);
-});
-
-client.on('warn', warning => {
-    console.warn('⚠️ Discord client warning:', warning);
-});
-
-client.on('debug', info => {
-    // Uncomment for detailed debug info
-    // console.log('🔍 Discord debug:', info);
-});
-
-// Process error handling
-process.on('unhandledRejection', error => {
-    console.error('❌ Unhandled promise rejection:', error);
-});
-
-process.on('uncaughtException', error => {
-    console.error('❌ Uncaught exception:', error);
-    process.exit(1);
-});
-
-// Graceful shutdown
-process.on('SIGINT', () => {
-    console.log('🔄 Received SIGINT, shutting down gracefully...');
-    client.destroy();
-    process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-    console.log('🔄 Received SIGTERM, shutting down gracefully...');
-    client.destroy();
-    process.exit(0);
-});
-
-// Login to Discord
-console.log('🔐 Attempting to login to Discord...');
-client.login(process.env.DISCORD_TOKEN).catch(error => {
+// Login the bot
+const token = process.env.DISCORD_TOKEN || 'YOUR_BOT_TOKEN_HERE';
+client.login(token).catch(error => {
     console.error('❌ Failed to login:', error);
     process.exit(1);
 });
+
+module.exports = client;
