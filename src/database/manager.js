@@ -296,6 +296,69 @@ class DatabaseManager {
     }
 
     /**
+     * Ensure user exists (alias for getUser for compatibility)
+     */
+    static async ensureUser(userId, userData = {}) {
+        return await this.getUser(userId, userData);
+    }
+
+    /**
+     * Get user's characters (alias for getUserDevilFruits for compatibility)
+     */
+    static async getUserCharacters(userId, options = {}) {
+        return await this.getUserDevilFruits(userId, options);
+    }
+
+    /**
+     * Get character by ID (alias for getDevilFruit for compatibility)
+     */
+    static async getCharacter(characterId) {
+        return await this.getDevilFruit(characterId);
+    }
+
+    /**
+     * Update character (alias for updateDevilFruit for compatibility)
+     */
+    static async updateCharacter(characterId, updateData) {
+        return await this.updateDevilFruit(characterId, updateData);
+    }
+
+    /**
+     * Set active character (alias for setActiveDevilFruit for compatibility)
+     */
+    static async setActiveCharacter(userId, characterId) {
+        return await this.setActiveDevilFruit(userId, characterId);
+    }
+
+    /**
+     * Get user's active character (alias for getActiveDevilFruit for compatibility)
+     */
+    static async getActiveCharacter(userId) {
+        return await this.getActiveDevilFruit(userId);
+    }
+
+    /**
+     * Add coins to user (alias for addBerries for compatibility)
+     */
+    static async addCoins(userId, amount) {
+        return await this.addBerries(userId, amount);
+    }
+
+    /**
+     * Remove coins from user (alias for removeBerries for compatibility)
+     */
+    static async removeCoins(userId, amount) {
+        return await this.removeBerries(userId, amount);
+    }
+
+    /**
+     * Add character to user (alias for addDevilFruit for compatibility)
+     */
+    static async addCharacter(userId, characterData) {
+        return await this.addDevilFruit(userId, characterData);
+    }
+
+    /**
      * Update user data
      */
     static async updateUser(userId, updateData) {
