@@ -1,5 +1,10 @@
-// index.js - Complete main bot file with DISCORD_TOKEN and PvP queue support
-const { Client, GatewayIntentBits, Events, Collection } = require('discord.js');
+if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ An error occurred while processing this action.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }// index.js - Complete main bot file with DISCORD_TOKEN and PvP queue support
+const { Client, GatewayIntentBits, Events, Collection, MessageFlags } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
 require('dotenv').config();
@@ -161,7 +166,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         console.error('❌ PvP system not initialized');
                         return await interaction.reply({
                             content: '❌ PvP system is not available. Please contact an administrator.',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
 
@@ -174,7 +179,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                             pvpQueue.removeFromQueue(interaction.user.id);
                             await interaction.reply({
                                 content: '❌ **Left PvP Queue**\nYou have been removed from the PvP queue.',
-                                ephemeral: true
+                                flags: MessageFlags.Ephemeral
                             });
                         } else {
                             // Add to queue and try to find match
@@ -201,7 +206,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                                     console.error('❌ Error starting queued battle:', battleError);
                                     await interaction.followUp({
                                         content: '❌ Error starting the battle. Please try again.',
-                                        ephemeral: true
+                                        flags: MessageFlags.Ephemeral
                                     });
                                 }
                             } else {
@@ -211,11 +216,79 @@ client.on(Events.InteractionCreate, async (interaction) => {
                                            `👥 **Queue Status:** ${pvpQueue.getQueueSize()} player(s) waiting\n` +
                                            `⏱️ You will be automatically matched when another player joins.\n` +
                                            `💡 Use \`/pvp queue\` again to leave the queue.`,
-                                    ephemeral: true
+                                    flags: MessageFlags.Ephemeral
                                 });
                             }
                         }
-                    } else {
+                    } else if (subcommand === 'quick') {
+                        // Handle quick match (same as queue but with different messaging)
+                        console.log(`⚡ Quick match command from ${interaction.user.username}`);
+                        
+                        if (pvpQueue.isInQueue(interaction.user.id)) {
+                            await interaction.reply({
+                                content: '⚠️ **Already in Queue**\nYou are already waiting for a match. Use `/pvp queue` to leave the queue first.',
+                                flags: MessageFlags.Ephemeral
+                            });
+                        } else {
+                            // Add to queue and try to find match immediately
+                            pvpQueue.addToQueue(interaction.user, interaction.guild.id);
+                            
+                            const opponent = pvpQueue.findMatch(interaction.user.id);
+                            
+                            if (opponent) {
+                                // Found a match! Remove both from queue and start battle
+                                pvpQueue.removeFromQueue(interaction.user.id);
+                                pvpQueue.removeFromQueue(opponent.user.id);
+                                
+                                console.log(`⚡ Quick match found: ${interaction.user.username} vs ${opponent.user.username}`);
+                                
+                                await interaction.reply({
+                                    content: `⚡ **Quick Match Found!**\n${interaction.user.username} vs ${opponent.user.username}\nStarting battle now...`
+                                });
+                                
+                                try {
+                                    await pvpSystem.initiateBattle(interaction, opponent.user);
+                                } catch (battleError) {
+                                    console.error('❌ Error starting quick battle:', battleError);
+                                    await interaction.followUp({
+                                        content: '❌ Error starting the battle. Please try again.',
+                                        flags: MessageFlags.Ephemeral
+                                    });
+                                }
+                            } else {
+                                // No match found, added to queue
+                                await interaction.reply({
+                                    content: `⚡ **Quick Match Search**\nNo opponents available right now. Added you to the queue.\n\n` +
+                                           `👥 **Queue Status:** ${pvpQueue.getQueueSize()} player(s) waiting\n` +
+                                           `🔥 You'll be matched instantly when someone else joins!`,
+                                    flags: MessageFlags.Ephemeral
+                                });
+                            }
+                        }
+                    } else if (subcommand === 'queue-status') {
+                        // Handle queue status
+                        const queueList = pvpQueue.getQueueList();
+                        const queueSize = pvpQueue.getQueueSize();
+                        
+                        if (queueSize === 0) {
+                            await interaction.reply({
+                                content: '📋 **PvP Queue is Empty**\nNo players are currently waiting for matches.\nUse `/pvp queue` or `/pvp quick` to join!',
+                                flags: MessageFlags.Ephemeral
+                            });
+                        } else {
+                            const queueNames = queueList.map(p => p.user.username).join(', ');
+                            const userInQueue = pvpQueue.isInQueue(interaction.user.id);
+                            
+                            await interaction.reply({
+                                content: `📋 **PvP Queue Status**\n` +
+                                       `👥 **${queueSize}** player(s) waiting\n` +
+                                       `🎮 **Players:** ${queueNames}\n` +
+                                       `${userInQueue ? '✅ **You are in the queue**' : '❌ **You are not in the queue**'}\n\n` +
+                                       `💡 Use \`/pvp queue\` or \`/pvp quick\` to join!`,
+                                flags: MessageFlags.Ephemeral
+                            });
+                        }
+                    } else if (subcommand === 'challenge') {
                         // Handle direct challenge (original PvP command)
                         const targetUser = interaction.options.getUser('user');
                         console.log('🎯 Direct PvP challenge - Target user:', targetUser?.username || 'undefined');
@@ -223,27 +296,44 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         if (!targetUser) {
                             return await interaction.reply({
                                 content: '❌ Please specify a valid user to challenge, or use `/pvp queue` to join the matchmaking queue.',
-                                ephemeral: true
+                                flags: MessageFlags.Ephemeral
                             });
                         }
 
                         if (targetUser.bot) {
                             return await interaction.reply({
                                 content: '❌ You cannot challenge a bot to battle.',
-                                ephemeral: true
+                                flags: MessageFlags.Ephemeral
                             });
                         }
 
                         if (targetUser.id === interaction.user.id) {
                             return await interaction.reply({
                                 content: '❌ You cannot challenge yourself to a battle. Use `/pvp queue` to find other players!',
-                                ephemeral: true
+                                flags: MessageFlags.Ephemeral
                             });
                         }
 
                         console.log('⚔️ Calling pvpSystem.initiateBattle...');
                         await pvpSystem.initiateBattle(interaction, targetUser);
                         console.log('✅ PvP battle initiated successfully');
+                    } else {
+                        // Default to challenge if no subcommand (backwards compatibility)
+                        const targetUser = interaction.options.getUser('user');
+                        
+                        if (!targetUser) {
+                            return await interaction.reply({
+                                content: '❌ **Unknown PvP Command**\n\nAvailable options:\n' +
+                                       '• `/pvp challenge @user` - Challenge specific user\n' +
+                                       '• `/pvp queue` - Join matchmaking queue\n' +
+                                       '• `/pvp quick` - Quick match search\n' +
+                                       '• `/pvp queue-status` - Check queue status',
+                                flags: MessageFlags.Ephemeral
+                            });
+                        }
+
+                        console.log('⚔️ Default challenge mode');
+                        await pvpSystem.initiateBattle(interaction, targetUser);
                     }
                     break;
 
@@ -252,7 +342,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         if (!DatabaseManager) {
                             return await interaction.reply({
                                 content: '❌ Database system not available.',
-                                ephemeral: true
+                                flags: MessageFlags.Ephemeral
                             });
                         }
 
@@ -260,7 +350,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         if (!userData) {
                             return await interaction.reply({
                                 content: '❌ You are not registered. Use a command to register first!',
-                                ephemeral: true
+                                flags: MessageFlags.Ephemeral
                             });
                         }
 
@@ -271,13 +361,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                                    `⭐ Rarity: ${userData.devil_fruit_rarity || 'None'}\n` +
                                    `⚔️ PvP Wins: ${userData.pvp_wins || 0}\n` +
                                    `💀 PvP Losses: ${userData.pvp_losses || 0}`,
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     } catch (error) {
                         console.error('Error in balance command:', error);
                         await interaction.reply({
                             content: '❌ Error retrieving balance information.',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
                     break;
@@ -290,7 +380,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (queueSize === 0) {
                         await interaction.reply({
                             content: '📋 **PvP Queue is Empty**\nNo players are currently waiting for matches.\nUse `/pvp queue` to join!',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     } else {
                         const queueNames = queueList.map(p => p.user.username).join(', ');
@@ -299,44 +389,59 @@ client.on(Events.InteractionCreate, async (interaction) => {
                                    `👥 **${queueSize}** player(s) waiting\n` +
                                    `🎮 **Players:** ${queueNames}\n\n` +
                                    `💡 Use \`/pvp queue\` to join the queue!`,
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
+                    break;
+
+                case 'income':
+                    await interaction.reply({
+                        content: '💰 **Income System**\n' +
+                               '📊 **Daily Sources:**\n' +
+                               '• Daily Rewards: 100-500 coins\n' +
+                               '• PvP Victories: 50-200 coins\n' +
+                               '• Gacha Pulls: Devil Fruits & Items\n\n' +
+                               '🔜 More income sources coming soon!',
+                        flags: MessageFlags.Ephemeral
+                    });
                     break;
 
                 case 'inventory':
                     await interaction.reply({
                         content: '🎒 **Inventory System**\nInventory feature coming soon!',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     break;
 
                 case 'daily':
                     await interaction.reply({
                         content: '📅 **Daily Rewards**\nDaily rewards feature coming soon!',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     break;
 
                 case 'gacha':
                     await interaction.reply({
                         content: '🎰 **Gacha System**\nGacha feature coming soon!',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     break;
 
                 case 'help':
                     await interaction.reply({
                         content: '📖 **Gacha Bot Commands**\n' +
-                               '`/pvp @user` - Challenge a specific user to PvP battle\n' +
+                               '`/pvp challenge @user` - Challenge a specific user to PvP battle\n' +
                                '`/pvp queue` - Join/leave the PvP matchmaking queue\n' +
+                               '`/pvp quick` - Quick match search\n' +
+                               '`/pvp queue-status` - Check queue status\n' +
                                '`/queue` - Check current PvP queue status\n' +
                                '`/balance` - Check your balance and devil fruit\n' +
+                               '`/income` - Check income sources\n' +
                                '`/inventory` - View your inventory\n' +
                                '`/daily` - Claim daily rewards\n' +
                                '`/gacha` - Use gacha system\n' +
                                '`/help` - Show this help menu',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     break;
 
@@ -348,7 +453,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     } else {
                         await interaction.reply({
                             content: '❌ Unknown command!',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
             }
@@ -360,7 +465,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({
                     content: '❌ An error occurred while processing this command. Please try again later.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
         }
@@ -375,7 +480,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 console.error('❌ PvP system not available for button interaction');
                 return await interaction.reply({
                     content: '❌ PvP system is not available.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -392,7 +497,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 console.log('❓ Unknown button interaction');
                 await interaction.reply({
                     content: '❌ Unknown button interaction.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
         } catch (error) {
@@ -401,7 +506,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({
                     content: '❌ An error occurred while processing this action.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
         }
@@ -412,7 +517,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         console.log(`📋 Select menu interaction: ${interaction.customId}`);
         await interaction.reply({
             content: '📋 Select menu interactions not implemented yet.',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
     }
 });
