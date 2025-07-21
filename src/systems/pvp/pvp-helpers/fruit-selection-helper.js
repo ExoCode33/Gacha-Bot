@@ -1,11 +1,11 @@
-// src/systems/pvp-helpers/fruit-selection-helper.js - Fruit Selection Module
+// src/systems/pvp/pvp-helpers/fruit-selection-helper.js - Fruit Selection Module
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
-const { getRarityEmoji, getRarityColor } = require('../../data/devil-fruits');
+const { getRarityEmoji, getRarityColor } = require('../../../data/devil-fruits');
 
 // Import abilities safely
 let balancedDevilFruitAbilities = {};
 try {
-    const abilitiesData = require('../../data/balanced-devil-fruit-abilities');
+    const abilitiesData = require('../../../data/balanced-devil-fruit-abilities');
     balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
 } catch (error) {
     balancedDevilFruitAbilities = {};
