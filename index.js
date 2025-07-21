@@ -1,4 +1,4 @@
-// index.js - One Piece Devil Fruit Gacha Bot v3.0 (Memory Optimized)
+// index.js - One Piece Devil Fruit Gacha Bot v3.0 (Updated for new PvP system)
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v9');
@@ -115,6 +115,17 @@ client.once('ready', async () => {
         await LevelSystem.initialize(client);
         console.log('✅ Level system initialized!');
         
+        // Initialize NEW MODULAR PvP system
+        console.log('⚔️ Initializing Enhanced PvP System...');
+        try {
+            const PvPSystem = require('./src/systems/pvp/index');
+            await PvPSystem.initialize(client);
+            console.log('✅ Enhanced PvP System initialized successfully!');
+        } catch (pvpError) {
+            console.error('❌ Enhanced PvP System initialization failed:', pvpError);
+            console.log('🔄 Bot will continue without enhanced PvP features...');
+        }
+        
         // Initialize automatic income with delay
         setTimeout(async () => {
             try {
@@ -138,7 +149,7 @@ client.once('ready', async () => {
     // Set bot presence
     try {
         client.user.setPresence({
-            activities: [{ name: 'the Grand Line for Devil Fruits! 🍈', type: 0 }],
+            activities: [{ name: 'Enhanced PvP Battles on the Grand Line! ⚔️', type: 0 }],
             status: 'online'
         });
         console.log('✅ Bot presence set successfully');
@@ -156,10 +167,13 @@ client.once('ready', async () => {
     console.log('📊 Level System: Role-based CP');
     console.log('🔄 Duplicates: +1% CP per duplicate');
     console.log('🎮 Commands: pull, income, collection, stats, leaderboard, info');
-    console.log('⚔️ Enhanced Turn-Based PvP: ACTIVE');
+    console.log('⚔️ Enhanced Modular PvP System: ACTIVE');
+    console.log('🎯 Enhanced Matchmaking Queue: ACTIVE');
+    console.log('🤖 Enhanced NPC Boss Battles: ACTIVE');
+    console.log('🔥 Real-time Turn-Based Combat: ACTIVE');
     console.log('===============================\n');
 
-    // Memory monitoring
+    // Enhanced memory monitoring
     setInterval(() => {
         const used = process.memoryUsage();
         const memoryMB = Math.round(used.heapUsed / 1024 / 1024);
@@ -172,6 +186,18 @@ client.once('ready', async () => {
             }
         }
     }, 60000); // Check every minute
+
+    // Enhanced PvP system cleanup (every 5 minutes)
+    setInterval(() => {
+        try {
+            const PvPSystem = require('./src/systems/pvp/index');
+            if (PvPSystem.isInitialized) {
+                PvPSystem.cleanup();
+            }
+        } catch (error) {
+            console.error('Error in PvP cleanup:', error);
+        }
+    }, 5 * 60 * 1000);
 });
 
 // Register slash commands with retry
@@ -226,11 +252,19 @@ client.on('reconnecting', () => {
     console.log('🔄 Discord client reconnecting...');
 });
 
-// Graceful shutdown
+// Graceful shutdown with enhanced PvP cleanup
 process.on('SIGINT', async () => {
     console.log('\n🛑 Received SIGINT. Graceful shutdown...');
     
     try {
+        // Stop enhanced PvP system
+        try {
+            const PvPSystem = require('./src/systems/pvp/index');
+            await PvPSystem.shutdown();
+        } catch (pvpError) {
+            console.error('Error shutting down PvP system:', pvpError);
+        }
+        
         // Stop auto income
         const AutoIncomeSystem = require('./src/systems/auto-income');
         AutoIncomeSystem.stop();
@@ -251,7 +285,7 @@ process.on('SIGINT', async () => {
 });
 
 process.on('SIGTERM', async () => {
-    console.log('\n🛑 Received SIGTERM. Graceful shutdown...');
+    console.log('\n🛑 Received SIGTERM. Emergency shutdown...');
     
     try {
         // Quick cleanup
