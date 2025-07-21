@@ -56,7 +56,11 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('leave-queue')
-                .setDescription('Leave the PvP matchmaking queue')),
+                .setDescription('Leave the PvP matchmaking queue'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('queue-status')
+                .setDescription('Check the current PvP queue status')),
 
     async execute(interaction) {
         // Check if PvP systems are available
@@ -91,6 +95,9 @@ module.exports = {
                 case 'leave-queue':
                     await handleLeaveQueue(interaction, userId);
                     break;
+                case 'queue-status':
+                    await handleQueueStatus(interaction);
+                    break;
                 default:
                     await interaction.reply({ content: 'Unknown subcommand!', ephemeral: true });
             }
@@ -106,6 +113,33 @@ module.exports = {
                 await interaction.followUp({ embeds: [embed], ephemeral: true });
             } else {
                 await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+async function handleQueueStatus(interaction) {
+    const queueStatus = PvPQueueSystem.getQueueStatus();
+    
+    const embed = new EmbedBuilder()
+        .setTitle('📊 PvP Queue Status')
+        .addFields([
+            { name: '👥 Players in Queue', value: queueStatus.queueSize.toString(), inline: true },
+            { name: '⚔️ Active Battles', value: queueStatus.activeMatches.toString(), inline: true },
+            { name: '⏱️ Average Wait Time', value: `${Math.max(1, queueStatus.queueSize * 30)} seconds`, inline: true }
+        ])
+        .setColor('#F39C12')
+        .setTimestamp();
+
+    if (queueStatus.queuedPlayers.length > 0) {
+        const queueList = queueStatus.queuedPlayers
+            .slice(0, 5) // Show top 5 players
+            .map((player, index) => `${index + 1}. ${player.username}`)
+            .join('\n');
+        
+        embed.addFields([
+            { name: '📋 Queue List (Top 5)', value: queueList || 'No players in queue', inline: false }
+        ]);
+    }
+
+    await interaction.reply({ embeds: [embed] });
             }
         }
     }
@@ -192,7 +226,7 @@ async function handleChallenge(interaction, userId, userName) {
 }
 
 async function handleQueue(interaction, userId, userName) {
-    const result = PvPQueueSystem.joinQueue(userId, userName);
+    const result = PvPQueueSystem.joinQueue(userId, userName || interaction.user.username);
     
     const embed = new EmbedBuilder()
         .setTimestamp();
@@ -201,8 +235,17 @@ async function handleQueue(interaction, userId, userName) {
         if (result.matched) {
             embed
                 .setTitle('⚔️ Match Found!')
-                .setDescription(`Battle starting between ${result.player1.name} and ${result.player2.name}!`)
+                .setDescription(`Battle starting between **${result.player1.username}** and **${result.player2.username}**!`)
                 .setColor('#4ECDC4');
+            
+            // Try to start the battle
+            try {
+                const battleId = await BattleManager.startBattle(result.player1.userId, result.player2.userId, interaction);
+                console.log(`Battle started: ${battleId}`);
+            } catch (error) {
+                console.error('Error starting battle:', error);
+                embed.setDescription('Match found but battle could not start. Please try again.');
+            }
         } else {
             embed
                 .setTitle('🔍 Joined Queue')
