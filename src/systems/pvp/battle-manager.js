@@ -9,7 +9,60 @@ class BattleManager {
     }
 
     /**
-     * Start a new PvP battle
+     * Start a new PvP battle from queue
+     */
+    async startBattleFromQueue(player1Id, player2Id, interaction) {
+        const battleId = `${player1Id}_${player2Id}_${Date.now()}`;
+        
+        try {
+            // Get player data
+            const player1Data = await this.getPlayerBattleData(player1Id);
+            const player2Data = await this.getPlayerBattleData(player2Id);
+            
+            if (!player1Data || !player2Data) {
+                throw new Error('Could not load player data');
+            }
+
+            // Create battle data
+            const battle = {
+                id: battleId,
+                player1: player1Data,
+                player2: player2Data,
+                currentTurn: player1Id,
+                turnCount: 0,
+                maxTurns: 20,
+                startTime: Date.now(),
+                status: 'active',
+                lastActivity: Date.now()
+            };
+
+            // Store battle
+            this.activeBattles.set(battleId, battle);
+            this.playerBattles.set(player1Id, battleId);
+            this.playerBattles.set(player2Id, battleId);
+
+            // Create battle embed
+            const embed = await this.createBattleEmbed(battle);
+            const actionRow = this.createBattleButtons(battleId, player1Id);
+
+            // Send battle as a follow-up message
+            await interaction.followUp({
+                embeds: [embed],
+                components: [actionRow]
+            });
+
+            // Set battle timeout
+            this.setBattleTimeout(battleId);
+
+            return battleId;
+        } catch (error) {
+            console.error('Error starting battle from queue:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Start a new PvP battle (for direct challenges)
      */
     async startBattle(player1Id, player2Id, interaction) {
         const battleId = `${player1Id}_${player2Id}_${Date.now()}`;
@@ -45,10 +98,18 @@ class BattleManager {
             const embed = await this.createBattleEmbed(battle);
             const actionRow = this.createBattleButtons(battleId, player1Id);
 
-            await interaction.update({
-                embeds: [embed],
-                components: [actionRow]
-            });
+            // Check if this is a button interaction (has update method) or slash command (has reply method)
+            if (interaction.update && typeof interaction.update === 'function') {
+                await interaction.update({
+                    embeds: [embed],
+                    components: [actionRow]
+                });
+            } else {
+                await interaction.followUp({
+                    embeds: [embed],
+                    components: [actionRow]
+                });
+            }
 
             // Set battle timeout
             this.setBattleTimeout(battleId);
