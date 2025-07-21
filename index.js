@@ -233,6 +233,32 @@ client.on(Events.InteractionCreate, async interaction => {
                     ephemeral: true
                 });
             }
+        } else if (customId.startsWith('battle_')) {
+            // Handle battle action buttons
+            try {
+                const parts = customId.split('_');
+                const action = parts[1]; // attack, defend, special, forfeit
+                const battleId = parts[2];
+                const playerId = parts[3];
+                
+                if (interaction.user.id !== playerId) {
+                    await interaction.reply({
+                        content: 'This battle action is not for you!',
+                        ephemeral: true
+                    });
+                    return;
+                }
+                
+                const BattleManager = require('./src/systems/pvp/battle-manager');
+                await BattleManager.processBattleAction(interaction, action, battleId, playerId);
+                
+            } catch (error) {
+                console.error('Error handling battle button interaction:', error);
+                await interaction.reply({
+                    content: 'Error processing battle action.',
+                    ephemeral: true
+                });
+            }
         }
     }
 });
