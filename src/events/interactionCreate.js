@@ -1,6 +1,5 @@
-// src/events/interactionCreate.js - UPDATED for new modular PvP system
+// src/events/interactionCreate.js - Updated with Queue System Integration
 const { Events } = require('discord.js');
-const PvPSystem = require('../systems/pvp/index');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -33,70 +32,168 @@ module.exports = {
             return;
         }
 
-        // PRIORITY: Handle Enhanced PvP System interactions FIRST
+        // Handle button and select menu interactions
         if (interaction.isButton() || interaction.isStringSelectMenu()) {
-            if (await handleEnhancedPvPSystem(interaction)) {
-                return; // PvP interaction was handled
-            }
-        }
+            const customId = interaction.customId;
 
-        // Handle other button interactions
-        if (interaction.isButton()) {
-            // Handle pull command buttons
-            if (interaction.customId === 'pull_again' || interaction.customId === 'pull_10x') {
-                const PullButtons = require('../commands/helpers/pull-buttons');
-                const originalMessage = interaction.message;
-                
-                // Find the original user from the interaction or message
-                let originalUserId = null;
-                
-                // Try to find user ID from message content or embeds
-                if (originalMessage.interaction && originalMessage.interaction.user) {
-                    originalUserId = originalMessage.interaction.user.id;
-                } else if (originalMessage.embeds && originalMessage.embeds[0]) {
-                    // Try to extract from embed if needed
-                    originalUserId = interaction.user.id; // Fallback to current user
-                }
-                
-                if (originalUserId) {
-                    await PullButtons.handle(interaction, originalUserId);
-                } else {
-                    await interaction.reply({
-                        content: '❌ Could not determine the original user for this pull.',
-                        ephemeral: true
-                    });
-                }
+            // PRIORITY 1: Handle Queue System interactions
+            if (await handleQueueSystemInteractions(interaction)) {
                 return;
             }
 
-            // Handle collection pagination buttons
-            if (interaction.customId.startsWith('collection_')) {
-                await handleCollectionButtons(interaction);
+            // PRIORITY 2: Handle Enhanced Turn-Based PvP interactions
+            if (await handleEnhancedTurnBasedPvP(interaction)) {
                 return;
             }
 
-            // Handle abilities command buttons
-            if (interaction.customId.startsWith('abilities_')) {
-                await handleAbilitiesButtons(interaction);
-                return;
-            }
-
-            // Add other button handlers here as needed
-            console.log(`Unhandled button interaction: ${interaction.customId}`);
-            return;
-        }
-
-        // Handle select menu interactions
-        if (interaction.isStringSelectMenu()) {
-            // Enhanced PvP select menus are handled above
-            console.log(`Unhandled select menu interaction: ${interaction.customId}`);
-            return;
+            // PRIORITY 3: Handle other interactions
+            await handleOtherInteractions(interaction);
         }
     }
 };
 
-// UPDATED: Handle Enhanced PvP System interactions with new modular structure
-async function handleEnhancedPvPSystem(interaction) {
+// Handle Queue System interactions
+async function handleQueueSystemInteractions(interaction) {
+    const customId = interaction.customId;
+
+    try {
+        // Get the queue system from the enhanced PvP command
+        let queueSystem = null;
+        try {
+            const enhancedPvPCommand = require('../commands/enhanced-pvp');
+            queueSystem = enhancedPvPCommand.PvPQueueSystem;
+        } catch (error) {
+            console.error('Queue system not available:', error);
+            return false;
+        }
+
+        if (!queueSystem) return false;
+
+        // Handle leave queue button
+        if (customId.startsWith('leave_queue_')) {
+            const userId = customId.replace('leave_queue_', '');
+            
+            if (interaction.user.id !== userId) {
+                await interaction.reply({
+                    content: '❌ You can only interact with your own queue!',
+                    ephemeral: true
+                });
+                return true;
+            }
+            
+            await queueSystem.leaveQueue(interaction, userId);
+            return true;
+        }
+
+        // Handle fruit selection dropdowns
+        if (customId.includes('fruit_selection_') && 
+           (customId.includes('_divine') || customId.includes('_mythical') || 
+            customId.includes('_legendary') || customId.includes('_epic') ||
+            customId.includes('_rare') || customId.includes('_uncommon') || customId.includes('_common'))) {
+            
+            const parts = customId.split('_');
+            const selectionIndex = parts.findIndex(part => part === 'selection');
+            
+            if (selectionIndex !== -1 && selectionIndex + 3 < parts.length) {
+                const battleId = parts.slice(selectionIndex + 1, -2).join('_');
+                const userId = parts[parts.length - 2];
+                const rarity = parts[parts.length - 1];
+                
+                if (interaction.user.id !== userId) {
+                    await interaction.reply({
+                        content: '❌ You can only interact with your own selection!',
+                        ephemeral: true
+                    });
+                    return true;
+                }
+                
+                await queueSystem.handleFruitSelection(interaction, battleId, userId, rarity);
+                return true;
+            }
+        }
+
+        // Handle page switching
+        if (customId.startsWith('page_switch_')) {
+            const parts = customId.split('_');
+            if (parts.length >= 4) {
+                const battleId = parts.slice(2, -1).join('_');
+                const userId = parts[parts.length - 1];
+                
+                if (interaction.user.id !== userId) {
+                    await interaction.reply({
+                        content: '❌ You can only interact with your own selection!',
+                        ephemeral: true
+                    });
+                    return true;
+                }
+                
+                await queueSystem.handlePageSwitch(interaction, battleId, userId);
+                return true;
+            }
+        }
+
+        // Handle confirm selection
+        if (customId.startsWith('confirm_selection_')) {
+            const parts = customId.split('_');
+            if (parts.length >= 4) {
+                const battleId = parts.slice(2, -1).join('_');
+                const userId = parts[parts.length - 1];
+                
+                if (interaction.user.id !== userId) {
+                    await interaction.reply({
+                        content: '❌ You can only interact with your own selection!',
+                        ephemeral: true
+                    });
+                    return true;
+                }
+                
+                await queueSystem.handleConfirmSelection(interaction, battleId, userId);
+                return true;
+            }
+        }
+
+        // Handle clear selection
+        if (customId.startsWith('clear_selection_')) {
+            const parts = customId.split('_');
+            if (parts.length >= 4) {
+                const battleId = parts.slice(2, -1).join('_');
+                const userId = parts[parts.length - 1];
+                
+                if (interaction.user.id !== userId) {
+                    await interaction.reply({
+                        content: '❌ You can only interact with your own selection!',
+                        ephemeral: true
+                    });
+                    return true;
+                }
+                
+                await queueSystem.handleClearSelection(interaction, battleId, userId);
+                return true;
+            }
+        }
+
+        return false;
+
+    } catch (error) {
+        console.error('Error handling queue system interaction:', error);
+        
+        try {
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ An error occurred during queue interaction.',
+                    ephemeral: true
+                });
+            }
+        } catch (replyError) {
+            console.error('Failed to send queue error reply:', replyError);
+        }
+        
+        return true;
+    }
+}
+
+// Handle Enhanced Turn-Based PvP interactions
+async function handleEnhancedTurnBasedPvP(interaction) {
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) {
         return false;
     }
@@ -104,65 +201,59 @@ async function handleEnhancedPvPSystem(interaction) {
     const customId = interaction.customId;
     
     try {
-        // Check if PvP system is initialized
-        if (!PvPSystem.isInitialized) {
-            console.log('❌ PvP System not initialized - skipping interaction');
+        // Try to load the enhanced PvP system
+        let enhancedPvPSystem = null;
+        
+        try {
+            enhancedPvPSystem = require('../systems/enhanced-turn-based-pvp');
+        } catch (error) {
+            console.error('Could not load Enhanced PvP system:', error);
             return false;
         }
 
+        if (!enhancedPvPSystem || !enhancedPvPSystem.interactionHandler) {
+            return false;
+        }
+        
         // Enhanced pattern matching for all PvP interactions
         const pvpPrefixes = [
-            'fruit_selection_',         // Enhanced multi-rarity fruit selection
-            'confirm_selection_',       // Confirm fruit selection
-            'clear_selection_',         // Clear fruit selection
-            'page_switch_',            // Page switching between High/Low
-            'use_skill_',              // Enhanced skill usage
-            'start_battle_',           // Enhanced battle start
-            'show_skills_',            // Enhanced skill display
-            'surrender_',              // Enhanced surrender
-            'view_log_',               // Enhanced battle log
-            'battle_stats_',           // Enhanced battle stats
-            'leave_queue_'             // Leave matchmaking queue
+            'use_skill_',              // Skill usage in battle
+            'start_battle_',           // Start battle button
+            'show_skills_',            // Show skill details
+            'surrender_',              // Surrender battle
+            'view_log_',               // View battle log
+            'battle_stats_'            // Battle statistics
         ];
 
-        // Enhanced pattern matching for all PvP interactions
-        const isPvPInteraction = pvpPrefixes.some(prefix => customId.startsWith(prefix)) ||
-                                customId.includes('_divine') ||
-                                customId.includes('_mythical') ||
-                                customId.includes('_legendary') ||
-                                customId.includes('_epic') ||
-                                customId.includes('_rare') ||
-                                customId.includes('_uncommon') ||
-                                customId.includes('_common') ||
-                                customId.includes('battle_') ||
-                                customId.includes('_battle_');
+        // Check if this is a PvP battle interaction (not queue-related)
+        const isPvPBattleInteraction = pvpPrefixes.some(prefix => customId.startsWith(prefix)) ||
+                                      customId.includes('battle_') ||
+                                      customId.includes('_battle_');
         
-        if (isPvPInteraction) {
-            console.log(`🎮 Handling enhanced PvP interaction: ${customId}`);
-            return await PvPSystem.handleInteraction(interaction);
+        if (isPvPBattleInteraction) {
+            console.log(`🎮 Handling enhanced turn-based PvP interaction: ${customId}`);
+            return await enhancedPvPSystem.interactionHandler.handleInteraction(interaction);
         }
 
-        return false; // Not a PvP interaction
+        return false;
 
     } catch (error) {
-        console.error('Error handling enhanced PvP interaction:', error);
+        console.error('Error handling enhanced turn-based PvP interaction:', error);
         
-        // Check for specific Discord error codes
         if (error.code === 10062) {
-            console.warn('⚠️ Enhanced PvP interaction expired - this is normal for old interactions');
-            return true; // Mark as handled to prevent further processing
+            console.warn('⚠️ Enhanced PvP interaction expired');
+            return true;
         }
         
-        // Check for interaction already replied
         if (error.code === 'InteractionNotReplied' || error.message.includes('InteractionNotReplied')) {
             console.warn('⚠️ Interaction not replied - this can happen during complex battle flows');
-            return true; // Mark as handled
+            return true;
         }
         
         try {
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({
-                    content: '❌ An error occurred while processing your enhanced battle interaction.',
+                    content: '❌ An error occurred while processing your battle interaction.',
                     ephemeral: true
                 });
             }
@@ -170,7 +261,67 @@ async function handleEnhancedPvPSystem(interaction) {
             console.error('Failed to send enhanced PvP error reply:', replyError);
         }
         
-        return true; // We attempted to handle it
+        return true;
+    }
+}
+
+// Handle other interactions (pull buttons, collection, etc.)
+async function handleOtherInteractions(interaction) {
+    const customId = interaction.customId;
+
+    try {
+        // Handle pull command buttons
+        if (customId === 'pull_again' || customId === 'pull_10x') {
+            const PullButtons = require('../commands/helpers/pull-buttons');
+            const originalMessage = interaction.message;
+            
+            let originalUserId = null;
+            
+            if (originalMessage.interaction && originalMessage.interaction.user) {
+                originalUserId = originalMessage.interaction.user.id;
+            } else {
+                originalUserId = interaction.user.id;
+            }
+            
+            if (originalUserId) {
+                await PullButtons.handle(interaction, originalUserId);
+            } else {
+                await interaction.reply({
+                    content: '❌ Could not determine the original user for this pull.',
+                    ephemeral: true
+                });
+            }
+            return;
+        }
+
+        // Handle collection pagination buttons
+        if (customId.startsWith('collection_')) {
+            await handleCollectionButtons(interaction);
+            return;
+        }
+
+        // Handle abilities command buttons
+        if (customId.startsWith('abilities_')) {
+            await handleAbilitiesButtons(interaction);
+            return;
+        }
+
+        // Log unhandled interactions
+        console.log(`Unhandled interaction: ${customId}`);
+
+    } catch (error) {
+        console.error('Error handling other interactions:', error);
+        
+        try {
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ An error occurred while processing your interaction.',
+                    ephemeral: true
+                });
+            }
+        } catch (replyError) {
+            console.error('Failed to send error reply:', replyError);
+        }
     }
 }
 
@@ -178,12 +329,11 @@ async function handleEnhancedPvPSystem(interaction) {
 async function handleCollectionButtons(interaction) {
     try {
         const parts = interaction.customId.split('_');
-        const action = parts[1]; // prev, next, etc.
+        const action = parts[1];
         const userId = parts[2];
         const currentPage = parseInt(parts[3]);
         const rarityFilter = parts[4] === 'all' ? null : parts[4];
         
-        // Verify user can interact
         if (interaction.user.id !== userId) {
             return interaction.reply({
                 content: '❌ You can only interact with your own collection!',
@@ -191,7 +341,6 @@ async function handleCollectionButtons(interaction) {
             });
         }
         
-        // Get collection command and handle pagination
         const collectionCommand = interaction.client.commands.get('collection');
         if (collectionCommand && collectionCommand.handlePagination) {
             await collectionCommand.handlePagination(interaction, action, userId, currentPage, rarityFilter);
@@ -215,9 +364,8 @@ async function handleCollectionButtons(interaction) {
 async function handleAbilitiesButtons(interaction) {
     try {
         const parts = interaction.customId.split('_');
-        const action = parts[1]; // prev, next, toggle, etc.
+        const action = parts[1];
         
-        // Get abilities command and handle interaction
         const abilitiesCommand = interaction.client.commands.get('abilities');
         if (abilitiesCommand && abilitiesCommand.handleButtonInteraction) {
             await abilitiesCommand.handleButtonInteraction(interaction, action, parts);
