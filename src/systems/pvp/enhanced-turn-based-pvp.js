@@ -1,4 +1,4 @@
-// src/systems/enhanced-turn-based-pvp.js - UPDATED with Old-Style 2-Page System
+// src/systems/pvp/enhanced-turn-based-pvp.js - FIXED - Complete file without syntax errors
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 const PvPBalanceSystem = require('./pvp-balance');
@@ -42,7 +42,22 @@ class EnhancedTurnBasedPvP {
         this.battleInterfaceHelper = new BattleInterfaceHelper(this);
         this.interactionHandler = new PvPInteractionHandler(this);
         
-        console.log('⚔️ Enhanced Turn-Based PvP System initialized with OLD-STYLE 2-page selection');
+        console.log('⚔️ Enhanced Turn-Based PvP System initialized with 2-page selection');
+    }
+
+    // Initialize system
+    async initialize(client) {
+        this.client = client;
+        console.log('⚔️ Enhanced Turn-Based PvP System ready');
+    }
+
+    // Shutdown system
+    async shutdown() {
+        this.activeBattles.clear();
+        this.playerSelections.clear();
+        this.battleQueue.clear();
+        this.battleCooldowns.clear();
+        console.log('⚔️ Enhanced Turn-Based PvP System shutdown complete');
     }
 
     // Generate battle ID
@@ -84,13 +99,13 @@ class EnhancedTurnBasedPvP {
                 selectionData: {
                     player1: {
                         selectedFruits: [],
-                        currentPage: 1, // CHANGED: Use 1/2 instead of high/low
+                        currentPage: 1,
                         selectionComplete: false,
                         lastUpdate: Date.now()
                     },
                     player2: {
                         selectedFruits: [],
-                        currentPage: 1, // CHANGED: Use 1/2 instead of high/low
+                        currentPage: 1,
                         selectionComplete: isVsNPC,
                         lastUpdate: Date.now()
                     }
@@ -98,7 +113,7 @@ class EnhancedTurnBasedPvP {
             };
 
             this.activeBattles.set(battleId, battleData);
-            console.log(`⚔️ Battle ${battleId} created successfully with OLD-STYLE selection`);
+            console.log(`⚔️ Battle ${battleId} created successfully`);
             
             await this.startFruitSelection(interaction, battleData);
             
@@ -157,7 +172,6 @@ class EnhancedTurnBasedPvP {
     // Start fruit selection phase
     async startFruitSelection(interaction, battleData) {
         try {
-            // FIXED: Ensure we have a proper response first
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.deferReply();
             }
@@ -203,7 +217,7 @@ class EnhancedTurnBasedPvP {
         this.activeBattles.set(battleData.id, battleData);
     }
 
-    // Handle fruit selection from rarity dropdowns (FIXED)
+    // Handle fruit selection from rarity dropdowns
     async handleFruitSelection(interaction, battleId, userId, rarity) {
         try {
             const battleData = this.activeBattles.get(battleId);
@@ -220,12 +234,65 @@ class EnhancedTurnBasedPvP {
             }
 
         } catch (error) {
+            console.error('Error handling fruit selection:', error);
+            await this.safeReply(interaction, '❌ Error during fruit selection', true);
+        }
+    }
+
+    // Handle page switching
+    async handlePageSwitch(interaction, battleId, userId) {
+        try {
+            const battleData = this.activeBattles.get(battleId);
+            if (!battleData) {
+                return await this.safeReply(interaction, '❌ Battle not found!', true);
+            }
+
+            await this.fruitSelectionHelper.handlePageSwitch(interaction, battleData, userId);
+            await this.fruitSelectionHelper.updatePublicBattleScreen(interaction, battleData);
+
+        } catch (error) {
+            console.error('Error handling page switch:', error);
+            await this.safeReply(interaction, '❌ Error switching pages', true);
+        }
+    }
+
+    // Handle confirm selection
+    async handleConfirmSelection(interaction, battleId, userId) {
+        try {
+            const battleData = this.activeBattles.get(battleId);
+            if (!battleData) {
+                return await this.safeReply(interaction, '❌ Battle not found!', true);
+            }
+
+            const result = await this.fruitSelectionHelper.handleConfirmSelection(
+                interaction, battleData, userId
+            );
+
+            if (result.success && result.allSelected) {
+                if (battleData.isVsNPC) {
+                    await this.revealBossAndStartBattle(interaction, battleData);
+                } else {
+                    await this.startTurnBasedBattle(interaction, battleData);
+                }
+            } else if (result.success) {
+                await this.safeUpdate(interaction, {
+                    content: '✅ Fruits selected! Waiting for opponent...',
+                    embeds: [],
+                    components: []
+                });
+            }
+
+            if (result.success) {
+                await this.fruitSelectionHelper.updatePublicBattleScreen(interaction, battleData);
+            }
+
+        } catch (error) {
             console.error('Error confirming selection:', error);
             await this.safeReply(interaction, '❌ Error confirming selection', true);
         }
     }
 
-    // Handle clear selection (FIXED)
+    // Handle clear selection
     async handleClearSelection(interaction, battleId, userId) {
         try {
             const battleData = this.activeBattles.get(battleId);
@@ -242,7 +309,7 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // Reveal boss and start battle (FIXED)
+    // Reveal boss and start battle
     async revealBossAndStartBattle(interaction, battleData) {
         try {
             const { npcBoss, player1 } = battleData;
@@ -282,7 +349,6 @@ class EnhancedTurnBasedPvP {
                         .setStyle(ButtonStyle.Success)
                 );
 
-            // FIXED: Use safeUpdate instead of direct editReply
             await this.safeUpdate(interaction, {
                 embeds: [bossEmbed],
                 components: [startButton]
@@ -293,7 +359,7 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // Start the actual turn-based battle (FIXED)
+    // Start the actual turn-based battle
     async startTurnBasedBattle(interaction, battleData) {
         try {
             console.log(`⚔️ Starting turn-based battle interface for ${battleData.id}`);
@@ -366,7 +432,6 @@ class EnhancedTurnBasedPvP {
             }
         } catch (error) {
             console.error('Error in safe update:', error);
-            // Fallback to followUp if update fails
             try {
                 return await interaction.followUp(payload);
             } catch (followUpError) {
@@ -386,7 +451,7 @@ class EnhancedTurnBasedPvP {
     }
 
     // Clean up old battles
-    cleanupOldBattles() {
+    cleanup() {
         const now = Date.now();
         const maxAge = 30 * 60 * 1000; // 30 minutes
         let cleanedCount = 0;
@@ -418,66 +483,12 @@ const enhancedTurnBasedPvP = new EnhancedTurnBasedPvP();
 
 // Set up cleanup interval
 setInterval(() => {
-    enhancedTurnBasedPvP.cleanupOldBattles();
+    enhancedTurnBasedPvP.cleanup();
 }, 5 * 60 * 1000);
 
-console.log('✅ Enhanced Turn-Based PvP Core System LOADED - OLD-STYLE 2-page selection integrated!');
+console.log('✅ Enhanced Turn-Based PvP Core System LOADED - Fixed syntax errors!');
 
 // Export both the main system and the interaction handler
 module.exports = enhancedTurnBasedPvP;
 module.exports.PvPInteractionHandler = enhancedTurnBasedPvP.interactionHandler;
 module.exports.activeBattles = enhancedTurnBasedPvP.activeBattles;
-                await this.fruitSelectionHelper.updatePublicBattleScreen(interaction, battleData);
-            }
-
-        } catch (error) {
-            console.error('Error handling fruit selection:', error);
-            await this.safeReply(interaction, '❌ Error during fruit selection', true);
-        }
-    }
-
-    // Handle page switching (FIXED for 2-page system)
-    async handlePageSwitch(interaction, battleId, userId) {
-        try {
-            const battleData = this.activeBattles.get(battleId);
-            if (!battleData) {
-                return await this.safeReply(interaction, '❌ Battle not found!', true);
-            }
-
-            await this.fruitSelectionHelper.handlePageSwitch(interaction, battleData, userId);
-            await this.fruitSelectionHelper.updatePublicBattleScreen(interaction, battleData);
-
-        } catch (error) {
-            console.error('Error handling page switch:', error);
-            await this.safeReply(interaction, '❌ Error switching pages', true);
-        }
-    }
-
-    // Handle confirm selection (FIXED)
-    async handleConfirmSelection(interaction, battleId, userId) {
-        try {
-            const battleData = this.activeBattles.get(battleId);
-            if (!battleData) {
-                return await this.safeReply(interaction, '❌ Battle not found!', true);
-            }
-
-            const result = await this.fruitSelectionHelper.handleConfirmSelection(
-                interaction, battleData, userId
-            );
-
-            if (result.success && result.allSelected) {
-                if (battleData.isVsNPC) {
-                    await this.revealBossAndStartBattle(interaction, battleData);
-                } else {
-                    await this.startTurnBasedBattle(interaction, battleData);
-                }
-            } else if (result.success) {
-                // Just update the components, don't change the main message
-                await this.safeUpdate(interaction, {
-                    content: '✅ Fruits selected! Waiting for opponent...',
-                    embeds: [],
-                    components: []
-                });
-            }
-
-            if (result.success) {
