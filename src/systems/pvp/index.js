@@ -1,9 +1,126 @@
-// src/systems/pvp/index.js - FIXED Queue System Import Path
+// src/systems/pvp/index.js - FINAL FIX - Self-contained with embedded queue system
 const EnhancedTurnBasedPvP = require('./enhanced-turn-based-pvp');
 const PvPBalanceSystem = require('./balance-system');
 const NPCBossSystem = require('./npc-bosses');
 
-// Create the main PvP system instance
+// Embedded Simple Queue System Class
+class EmbeddedPvPQueueSystem {
+    constructor(enhancedPvPSystem) {
+        this.enhancedPvP = enhancedPvPSystem;
+        this.queue = new Map();
+        this.queueTimers = new Map();
+        this.maxQueueSize = 20;
+        this.cooldowns = new Map();
+        console.log('🎯 Embedded PvP Queue System initialized');
+    }
+
+    async joinQueue(interaction, fighter) {
+        const userId = fighter.userId;
+
+        if (this.queue.size >= this.maxQueueSize) {
+            return await interaction.reply({
+                content: `❌ Queue is full! (${this.queue.size}/${this.maxQueueSize})`,
+                ephemeral: true
+            });
+        }
+
+        if (this.queue.has(userId)) {
+            return await interaction.reply({
+                content: '⚔️ You are already in the matchmaking queue!',
+                ephemeral: true
+            });
+        }
+
+        const queueData = { userId, username: fighter.username, fighter, joinTime: Date.now(), balancedCP: fighter.balancedCP };
+        this.queue.set(userId, queueData);
+        
+        await interaction.deferReply();
+        
+        const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+        
+        const embed = new EmbedBuilder()
+            .setColor(0x3498DB)
+            .setTitle('🎯 Searching for Opponent')
+            .setDescription(`**${queueData.username}** is looking for a battle!`)
+            .addFields([
+                { name: '🏴‍☠️ Your Stats', value: `**Level**: ${fighter.level}\n**CP**: ${fighter.balancedCP.toLocaleString()}\n**Fruits**: ${fighter.fruits.length}`, inline: true },
+                { name: '🎯 Queue Status', value: `**Players**: ${this.queue.size}/${this.maxQueueSize}\n**Searching**: 60 seconds\n**Fallback**: Boss battle`, inline: true }
+            ]);
+
+        const leaveButton = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`leave_queue_${userId}`).setLabel('🚪 Leave Queue').setStyle(ButtonStyle.Danger)
+        );
+
+        await interaction.editReply({ embeds: [embed], components: [leaveButton] });
+
+        const timeoutId = setTimeout(async () => {
+            if (this.queue.has(userId)) {
+                this.removeFromQueue(userId);
+                try {
+                    await this.enhancedPvP.startBattle(interaction, fighter, null);
+                } catch (error) {
+                    console.error('Error starting boss battle:', error);
+                }
+            }
+        }, 60000);
+
+        this.queueTimers.set(userId, timeoutId);
+    }
+
+    async leaveQueue(interaction, userId) {
+        if (!this.queue.has(userId)) {
+            return await interaction.reply({ content: '❌ You are not in queue.', ephemeral: true });
+        }
+        this.removeFromQueue(userId);
+        const { EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder().setColor(0xFF8000).setTitle('🚪 Left Queue').setDescription('You have left the matchmaking queue.');
+        await interaction.update({ embeds: [embed], components: [] });
+    }
+
+    async handleLeaveQueueButton(interaction, userId) {
+        if (interaction.user.id !== userId) {
+            return await interaction.reply({ content: '❌ You can only interact with your own queue!', ephemeral: true });
+        }
+        await this.leaveQueue(interaction, userId);
+    }
+
+    removeFromQueue(userId) {
+        if (this.queue.has(userId)) {
+            this.queue.delete(userId);
+            if (this.queueTimers.has(userId)) {
+                clearTimeout(this.queueTimers.get(userId));
+                this.queueTimers.delete(userId);
+            }
+        }
+    }
+
+    getQueueStats() {
+        const players = Array.from(this.queue.values());
+        const cpValues = players.map(p => p.balancedCP);
+        return {
+            size: this.queue.size,
+            maxSize: this.maxQueueSize,
+            averageCP: cpValues.length > 0 ? Math.floor(cpValues.reduce((a, b) => a + b, 0) / cpValues.length) : 0,
+            minCP: cpValues.length > 0 ? Math.min(...cpValues) : 0,
+            maxCP: cpValues.length > 0 ? Math.max(...cpValues) : 0,
+            averageWaitTime: 60
+        };
+    }
+
+    cleanup() {
+        const now = Date.now();
+        let cleaned = 0;
+        for (const [userId, queueData] of this.queue) {
+            if (now - queueData.joinTime > 5 * 60 * 1000) {
+                this.removeFromQueue(userId);
+                cleaned++;
+            }
+        }
+        if (cleaned > 0) console.log(`🧹 Cleaned ${cleaned} old queue entries`);
+    }
+}
+
+// Main PvP system instance
 let enhancedPvP = null;
 let queueSystem = null;
 let isInitialized = false;
@@ -17,9 +134,8 @@ async function initialize(client) {
         enhancedPvP = new EnhancedTurnBasedPvP();
         await enhancedPvP.initialize(client);
         
-        // Create queue system - FIXED import path
-        const PvPQueueSystem = require('../pvp-queue-system'); // Changed from './pvp-queue-system'
-        queueSystem = new PvPQueueSystem(enhancedPvP);
+        // Create embedded queue system
+        queueSystem = new EmbeddedPvPQueueSystem(enhancedPvP);
         
         isInitialized = true;
         console.log('✅ Enhanced PvP System fully initialized');
@@ -27,24 +143,8 @@ async function initialize(client) {
         
     } catch (error) {
         console.error('❌ Failed to initialize Enhanced PvP System:', error);
-        
-        // Try alternative import path
-        try {
-            console.log('🔄 Trying alternative import path for queue system...');
-            const AlternativePvPQueueSystem = require('./queue-system'); // Alternative path
-            queueSystem = new AlternativePvPQueueSystem(enhancedPvP);
-            
-            isInitialized = true;
-            console.log('✅ Enhanced PvP System initialized with alternative queue system');
-            return true;
-        } catch (altError) {
-            console.error('❌ Alternative queue system import also failed:', altError);
-            
-            // Initialize without queue system as fallback
-            console.log('⚠️ Initializing PvP system without queue (queue system will be disabled)');
-            isInitialized = true;
-            return true;
-        }
+        isInitialized = false;
+        return false;
     }
 }
 
@@ -58,7 +158,6 @@ async function shutdown() {
         }
         
         if (queueSystem) {
-            // Clear queue timers and data
             queueSystem.queue.clear();
             queueSystem.queueTimers.clear();
             queueSystem.cooldowns.clear();
@@ -75,31 +174,23 @@ async function shutdown() {
 // Cleanup function
 function cleanup() {
     try {
-        if (enhancedPvP) {
-            enhancedPvP.cleanup();
-        }
-        
-        if (queueSystem) {
-            queueSystem.cleanup();
-        }
+        if (enhancedPvP) enhancedPvP.cleanup();
+        if (queueSystem) queueSystem.cleanup();
     } catch (error) {
         console.error('Error during PvP cleanup:', error);
     }
 }
 
-// Main exports - using getter functions to ensure systems are initialized
+// Main exports
 module.exports = {
-    // Initialization
     initialize,
     shutdown,
     cleanup,
     
-    // System status
     get isInitialized() {
         return isInitialized && enhancedPvP;
     },
     
-    // Main systems (with safety checks)
     get EnhancedTurnBasedPvP() {
         return enhancedPvP;
     },
@@ -116,12 +207,10 @@ module.exports = {
         return queueSystem;
     },
     
-    // For compatibility with existing commands
     get activeBattles() {
         return enhancedPvP ? enhancedPvP.activeBattles : new Map();
     },
     
-    // Main system methods with safety checks
     async createFighter(userId) {
         if (!isInitialized || !PvPBalanceSystem) {
             console.error('❌ PvP System not initialized - cannot create fighter');
@@ -144,42 +233,27 @@ module.exports = {
         return enhancedPvP.getUserActiveBattle(userId);
     },
     
-    // Queue system methods (with safety checks)
     async joinQueue(interaction, fighter) {
         if (!isInitialized || !queueSystem) {
-            return await interaction.reply({
-                content: '❌ Queue system is not available. You can still use `/pvp challenge` for direct battles!',
-                ephemeral: true
-            });
+            throw new Error('Queue System not initialized');
         }
         return await queueSystem.joinQueue(interaction, fighter);
     },
     
     async leaveQueue(interaction, userId) {
         if (!isInitialized || !queueSystem) {
-            return await interaction.reply({
-                content: '❌ Queue system is not available.',
-                ephemeral: true
-            });
+            throw new Error('Queue System not initialized');
         }
         return await queueSystem.leaveQueue(interaction, userId);
     },
     
     getQueueStats() {
         if (!isInitialized || !queueSystem) {
-            return {
-                size: 0,
-                maxSize: 20,
-                averageCP: 0,
-                minCP: 0,
-                maxCP: 0,
-                averageWaitTime: 0
-            };
+            return { size: 0, maxSize: 20, averageCP: 0, minCP: 0, maxCP: 0, averageWaitTime: 0 };
         }
         return queueSystem.getQueueStats();
     },
     
-    // Handle interactions
     async handleInteraction(interaction) {
         if (!isInitialized || !enhancedPvP) {
             console.error('❌ PvP System not initialized - cannot handle interaction');
@@ -187,22 +261,12 @@ module.exports = {
         }
         
         try {
-            // Check for queue leave button first
             if (interaction.customId && interaction.customId.startsWith('leave_queue_')) {
-                if (!queueSystem) {
-                    await interaction.reply({
-                        content: '❌ Queue system is not available.',
-                        ephemeral: true
-                    });
-                    return true;
-                }
-                
                 const userId = interaction.customId.replace('leave_queue_', '');
                 await queueSystem.handleLeaveQueueButton(interaction, userId);
                 return true;
             }
             
-            // Handle other PvP interactions
             return await enhancedPvP.handleInteraction(interaction);
             
         } catch (error) {
@@ -211,13 +275,11 @@ module.exports = {
         }
     },
     
-    // System status and info
     getSystemStatus() {
         return {
             initialized: isInitialized,
             activeBattles: enhancedPvP ? enhancedPvP.activeBattles.size : 0,
             queueSize: queueSystem ? queueSystem.queue.size : 0,
-            queueAvailable: !!queueSystem,
             components: {
                 enhancedPvP: !!enhancedPvP,
                 balanceSystem: !!PvPBalanceSystem,
@@ -233,45 +295,20 @@ module.exports = {
             return new EmbedBuilder()
                 .setColor(0xFF0000)
                 .setTitle('❌ Enhanced PvP System')
-                .setDescription('System not initialized')
-                .addFields([
-                    {
-                        name: '🔧 Status',
-                        value: 'Enhanced PvP System is currently unavailable',
-                        inline: false
-                    }
-                ]);
+                .setDescription('System not initialized');
         }
-        
-        const embed = enhancedPvP.createSystemInfoEmbed();
-        const status = this.getSystemStatus();
-        
-        // Add queue system status
-        if (!queueSystem) {
-            embed.addFields([{
-                name: '⚠️ Queue System',
-                value: 'Queue system unavailable - use `/pvp challenge` for direct battles',
-                inline: false
-            }]);
-        }
-        
-        return embed;
+        return enhancedPvP.createSystemInfoEmbed();
     },
     
-    // Validation helpers
     validateSystem() {
         const issues = [];
-        
         if (!isInitialized) issues.push('System not initialized');
         if (!enhancedPvP) issues.push('Enhanced PvP missing');
-        if (!queueSystem) issues.push('Queue system missing (non-critical)');
+        if (!queueSystem) issues.push('Queue system missing');
         if (!PvPBalanceSystem) issues.push('Balance system missing');
         if (!NPCBossSystem) issues.push('NPC boss system missing');
         
-        return {
-            isValid: issues.length <= 1, // Allow 1 issue (queue system is optional)
-            issues
-        };
+        return { isValid: issues.length === 0, issues };
     }
 };
 
