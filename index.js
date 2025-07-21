@@ -1,9 +1,4 @@
-if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({
-                    content: '❌ An error occurred while processing this action.',
-                    flags: MessageFlags.Ephemeral
-                });
-            }// index.js - Complete main bot file with DISCORD_TOKEN and PvP queue support
+// index.js - Complete main bot file
 const { Client, GatewayIntentBits, Events, Collection, MessageFlags } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
