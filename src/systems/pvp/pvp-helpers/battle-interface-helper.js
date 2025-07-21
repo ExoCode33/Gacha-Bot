@@ -1,4 +1,4 @@
-// src/systems/pvp/pvp-helpers/battle-interface-helper.js - Battle Interface Module
+// src/systems/pvp/helpers/battle-interface-helper.js - Create missing helper
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const { getRarityEmoji } = require('../../../data/devil-fruits');
 const DatabaseManager = require('../../../database/manager');
