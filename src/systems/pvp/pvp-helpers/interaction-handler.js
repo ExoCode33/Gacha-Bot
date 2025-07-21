@@ -1,13 +1,13 @@
-// src/systems/pvp-helpers/interaction-handler.js - Interaction Handler Module
+// src/systems/pvp/pvp-helpers/interaction-handler.js - Interaction Handler Module
 const { EmbedBuilder, MessageFlags } = require('discord.js');
-const { getRarityEmoji } = require('../../data/devil-fruits');
+const { getRarityEmoji } = require('../../../data/devil-fruits');
 
 // Import abilities safely
 let balancedDevilFruitAbilities = {};
 let statusEffects = {};
 
 try {
-    const abilitiesData = require('../../data/balanced-devil-fruit-abilities');
+    const abilitiesData = require('../../../data/balanced-devil-fruit-abilities');
     balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
     statusEffects = abilitiesData.statusEffects || {};
 } catch (error) {
