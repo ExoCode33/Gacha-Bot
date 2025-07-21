@@ -1,501 +1,369 @@
-// src/systems/pvp/battle-manager.js - Battle State Management
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+// src/systems/pvp/battle-manager.js
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const DatabaseManager = require('../../database/manager');
-const { getRarityEmoji, getRarityColor } = require('../../data/devil-fruits');
-
-// Import abilities safely
-let balancedDevilFruitAbilities = {};
-let statusEffects = {};
-
-try {
-    const abilitiesData = require('../../data/balanced-devil-fruit-abilities');
-    balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
-    statusEffects = abilitiesData.statusEffects || {};
-} catch (error) {
-    console.warn('⚠️ Could not load abilities for battle manager');
-    balancedDevilFruitAbilities = {};
-    statusEffects = {};
-}
 
 class BattleManager {
     constructor() {
-        this.activeBattles = new Map(); // battleId -> battleData
-        this.battleTimeouts = new Map(); // battleId -> timeoutId
-        this.maxBattleDuration = 30 * 60 * 1000; // 30 minutes
-        
-        console.log('⚔️ Battle Manager initialized');
+        this.activeBattles = new Map(); // battleId -> battle data
+        this.playerBattles = new Map(); // userId -> battleId
     }
 
-    // Create a new battle
-    createBattle(player1, player2, isVsNPC = false, npcBoss = null) {
-        const battleId = this.generateBattleId();
+    /**
+     * Start a new PvP battle
+     */
+    async startBattle(player1Id, player2Id, interaction) {
+        const battleId = `${player1Id}_${player2Id}_${Date.now()}`;
         
-        const battleData = {
-            id: battleId,
-            player1,
-            player2,
-            isVsNPC,
-            npcBoss,
-            status: 'created', // created -> fruit_selection -> battle -> ended
-            currentTurn: 1,
-            currentPlayer: Math.random() < 0.5 ? 'player1' : 'player2',
-            battleLog: [],
-            created: Date.now(),
-            lastActivity: Date.now(),
-            maxTurns: 15,
-            selectionPhase: {
-                player1Complete: false,
-                player2Complete: isVsNPC, // NPC auto-completes
-                player1Fruits: [],
-                player2Fruits: isVsNPC ? npcBoss?.selectedFruits || [] : []
-            },
-            battleStats: {
-                totalDamageDealt: { player1: 0, player2: 0 },
-                abilitiesUsed: { player1: 0, player2: 0 },
-                effectsApplied: { player1: 0, player2: 0 },
-                turnsSurvived: { player1: 0, player2: 0 }
+        try {
+            // Get player data
+            const player1Data = await this.getPlayerBattleData(player1Id);
+            const player2Data = await this.getPlayerBattleData(player2Id);
+            
+            if (!player1Data || !player2Data) {
+                throw new Error('Could not load player data');
             }
-        };
 
-        // Initialize player health and effects
-        player1.hp = player1.maxHealth;
-        player1.effects = [];
-        player2.hp = player2.maxHealth;
-        player2.effects = [];
+            // Create battle data
+            const battle = {
+                id: battleId,
+                player1: player1Data,
+                player2: player2Data,
+                currentTurn: player1Id,
+                turnCount: 0,
+                maxTurns: 20,
+                startTime: Date.now(),
+                status: 'active',
+                lastActivity: Date.now()
+            };
 
-        this.activeBattles.set(battleId, battleData);
-        this.setBattleTimeout(battleId);
-        
-        console.log(`⚔️ Battle created: ${battleId} (${player1.username} vs ${player2.username})`);
-        return battleData;
-    }
-
-    // Generate unique battle ID
-    generateBattleId() {
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substr(2, 5);
-        return `battle_${timestamp}_${random}`;
-    }
-
-    // Get battle by ID
-    getBattle(battleId) {
-        return this.activeBattles.get(battleId);
-    }
-
-    // Update battle data
-    updateBattle(battleId, updates) {
-        const battle = this.activeBattles.get(battleId);
-        if (battle) {
-            Object.assign(battle, updates);
-            battle.lastActivity = Date.now();
+            // Store battle
             this.activeBattles.set(battleId, battle);
-        }
-        return battle;
-    }
+            this.playerBattles.set(player1Id, battleId);
+            this.playerBattles.set(player2Id, battleId);
 
-    // Add to battle log
-    addToBattleLog(battleId, logEntry) {
-        const battle = this.activeBattles.get(battleId);
-        if (battle) {
-            logEntry.timestamp = Date.now();
-            logEntry.turn = battle.currentTurn;
-            battle.battleLog.push(logEntry);
-            battle.lastActivity = Date.now();
-            
-            // Keep log size manageable
-            if (battle.battleLog.length > 50) {
-                battle.battleLog = battle.battleLog.slice(-30);
-            }
-            
-            this.activeBattles.set(battleId, battle);
-        }
-    }
+            // Create battle embed
+            const embed = await this.createBattleEmbed(battle);
+            const actionRow = this.createBattleButtons(battleId, player1Id);
 
-    // Process attack
-    async processAttack(battleId, attackerId, targetId, ability, fruitData) {
-        const battle = this.activeBattles.get(battleId);
-        if (!battle || battle.status !== 'battle') {
-            throw new Error('Battle not found or not in battle phase');
-        }
-
-        const attacker = battle.player1.userId === attackerId ? battle.player1 : battle.player2;
-        const defender = battle.player1.userId === targetId ? battle.player1 : battle.player2;
-        const attackerKey = battle.player1.userId === attackerId ? 'player1' : 'player2';
-
-        if (!attacker || !defender) {
-            throw new Error('Invalid attacker or defender');
-        }
-
-        // Calculate damage
-        const damage = this.calculateDamage(ability, attacker, defender, battle.currentTurn);
-        const accuracy = ability.accuracy || 85;
-        const hit = Math.random() * 100 <= accuracy;
-
-        let attackResult = {
-            hit,
-            damage: hit ? damage : 0,
-            critical: hit && Math.random() * 100 <= 10,
-            ability: ability.name,
-            attacker: attacker.username,
-            defender: defender.username,
-            remainingHP: defender.hp
-        };
-
-        if (hit) {
-            // Apply damage
-            defender.hp = Math.max(0, defender.hp - damage);
-            attackResult.remainingHP = defender.hp;
-            
-            // Update battle stats
-            battle.battleStats.totalDamageDealt[attackerKey] += damage;
-            battle.battleStats.abilitiesUsed[attackerKey]++;
-
-            // Apply status effects
-            if (ability.effect) {
-                this.applyStatusEffect(defender, ability.effect);
-                battle.battleStats.effectsApplied[attackerKey]++;
-                attackResult.effectApplied = ability.effect;
-            }
-
-            // Create attack log entry
-            let logMessage = `⚡ **${attacker.username}** uses **${ability.name}**!\n`;
-            logMessage += `💥 Deals **${damage}** damage to **${defender.username}**!`;
-            
-            if (attackResult.critical) {
-                logMessage += ` 🎯 **CRITICAL HIT!**`;
-            }
-            
-            if (ability.effect) {
-                logMessage += ` ✨ **${ability.effect} applied!**`;
-            }
-
-            this.addToBattleLog(battleId, {
-                type: 'attack',
-                message: logMessage,
-                data: attackResult
+            await interaction.update({
+                embeds: [embed],
+                components: [actionRow]
             });
-        } else {
-            // Miss
-            this.addToBattleLog(battleId, {
-                type: 'miss',
-                message: `⚡ **${attacker.username}** uses **${ability.name}** but misses!`,
-                data: attackResult
-            });
+
+            // Set battle timeout
+            this.setBattleTimeout(battleId);
+
+            return battleId;
+        } catch (error) {
+            console.error('Error starting battle:', error);
+            throw error;
         }
-
-        // Check for battle end
-        if (defender.hp <= 0) {
-            await this.endBattle(battleId, attacker, defender, 'knockout');
-            return { ...attackResult, battleEnded: true, winner: attacker };
-        }
-
-        // Switch turns
-        battle.currentPlayer = battle.currentPlayer === 'player1' ? 'player2' : 'player1';
-        battle.currentTurn++;
-
-        // Check max turns
-        if (battle.currentTurn > battle.maxTurns) {
-            const winner = battle.player1.hp > battle.player2.hp ? battle.player1 : battle.player2;
-            const loser = winner === battle.player1 ? battle.player2 : battle.player1;
-            await this.endBattle(battleId, winner, loser, 'timeout');
-            return { ...attackResult, battleEnded: true, winner };
-        }
-
-        // Process ongoing effects
-        this.processOngoingEffects(battleId);
-        
-        this.updateBattle(battleId, battle);
-        return { ...attackResult, battleEnded: false };
     }
 
-    // Calculate damage for an attack
-    calculateDamage(ability, attacker, defender, turn) {
-        const baseDamage = ability.damage || 100;
-        
-        // CP scaling (limited for balance)
-        const cpRatio = Math.min(attacker.balancedCP / defender.balancedCP, 1.5);
-        
-        // Turn-based damage reduction (prevents early KOs)
-        let turnMultiplier = 1.0;
-        if (turn === 1) turnMultiplier = 0.5;
-        else if (turn === 2) turnMultiplier = 0.7;
-        else if (turn === 3) turnMultiplier = 0.85;
-        
-        // Apply defender damage reduction from effects
-        let damageReduction = 1.0;
-        defender.effects.forEach(effect => {
-            if (statusEffects[effect.type]?.damageReduction) {
-                damageReduction *= (100 - statusEffects[effect.type].damageReduction) / 100;
+    /**
+     * Get player data for battle
+     */
+    async getPlayerBattleData(userId) {
+        try {
+            const userData = await DatabaseManager.getUser(userId);
+            if (!userData) {
+                return null;
             }
-        });
-        
-        let finalDamage = Math.floor(baseDamage * cpRatio * turnMultiplier * damageReduction);
-        
-        // Minimum damage
-        finalDamage = Math.max(5, finalDamage);
-        
-        return finalDamage;
-    }
 
-    // Apply status effect
-    applyStatusEffect(target, effectName) {
-        const effect = statusEffects[effectName];
-        if (!effect) return;
-
-        // Don't stack the same effect
-        const existingEffect = target.effects.find(e => e.type === effectName);
-        if (existingEffect) {
-            existingEffect.duration = Math.max(existingEffect.duration, effect.duration || 2);
-        } else {
-            target.effects.push({
-                type: effectName,
-                name: effectName,
-                duration: effect.duration || 2,
-                damage: effect.damage || 0,
-                description: effect.description || 'Unknown effect'
-            });
+            return {
+                userId: userId,
+                username: userData.username || 'Unknown',
+                health: userData.health || 100,
+                maxHealth: userData.health || 100,
+                attack: userData.attack || 20,
+                defense: userData.defense || 15,
+                speed: userData.speed || 10,
+                level: userData.level || 1,
+                devilFruit: userData.devil_fruit || null
+            };
+        } catch (error) {
+            console.error('Error getting player battle data:', error);
+            return null;
         }
     }
 
-    // Process ongoing effects (DoT, debuffs, etc.)
-    processOngoingEffects(battleId) {
-        const battle = this.activeBattles.get(battleId);
-        if (!battle) return;
-
-        [battle.player1, battle.player2].forEach(player => {
-            player.effects = player.effects.filter(effect => {
-                // Apply damage over time effects
-                if (effect.damage && effect.damage > 0) {
-                    player.hp = Math.max(0, player.hp - effect.damage);
-                    
-                    this.addToBattleLog(battleId, {
-                        type: 'effect_damage',
-                        message: `🔥 ${player.username} takes ${effect.damage} ${effect.name} damage!`,
-                        data: { player: player.username, effect: effect.name, damage: effect.damage }
-                    });
-                }
-                
-                // Reduce duration
-                effect.duration--;
-                return effect.duration > 0;
-            });
-        });
-
-        this.updateBattle(battleId, battle);
-    }
-
-    // End battle
-    async endBattle(battleId, winner, loser, reason = 'unknown') {
-        const battle = this.activeBattles.get(battleId);
-        if (!battle) return;
-
-        battle.status = 'ended';
-        battle.endTime = Date.now();
-        battle.duration = battle.endTime - battle.created;
-        battle.winner = winner;
-        battle.loser = loser;
-        battle.endReason = reason;
-
-        // Calculate final stats
-        const winnerKey = battle.player1.userId === winner.userId ? 'player1' : 'player2';
-        const loserKey = winnerKey === 'player1' ? 'player2' : 'player1';
+    /**
+     * Create battle embed
+     */
+    async createBattleEmbed(battle) {
+        const { player1, player2, currentTurn, turnCount, maxTurns } = battle;
         
-        battle.battleStats.turnsSurvived[winnerKey] = battle.currentTurn;
-        battle.battleStats.turnsSurvived[loserKey] = battle.currentTurn - 1;
+        const currentPlayer = currentTurn === player1.userId ? player1 : player2;
+        const waitingPlayer = currentTurn === player1.userId ? player2 : player1;
 
-        // Award rewards for PvE victories
-        if (battle.isVsNPC && winner.userId === battle.player1.userId) {
-            const berryReward = this.calculateBerryReward(battle.npcBoss?.difficulty || 'Easy');
-            try {
-                await DatabaseManager.updateUserBerries(winner.userId, berryReward, 'PvE Victory');
-                battle.berryReward = berryReward;
-            } catch (error) {
-                console.error('Error awarding berries:', error);
-            }
-        }
-
-        this.addToBattleLog(battleId, {
-            type: 'battle_end',
-            message: `🏆 **${winner.username}** emerges victorious! (${reason})`,
-            data: { winner: winner.username, loser: loser.username, reason, duration: battle.duration }
-        });
-
-        // Clear timeout
-        this.clearBattleTimeout(battleId);
-        
-        // Keep battle data for a short while for final display, then cleanup
-        setTimeout(() => {
-            this.activeBattles.delete(battleId);
-            console.log(`🧹 Battle ${battleId} cleaned up`);
-        }, 5 * 60 * 1000); // 5 minutes
-
-        console.log(`🏆 Battle ${battleId} ended: ${winner.username} defeats ${loser.username} (${reason})`);
-        
-        return battle;
-    }
-
-    // Calculate berry reward
-    calculateBerryReward(difficulty) {
-        const rewards = {
-            'Easy': 500,
-            'Medium': 1000,
-            'Hard': 2000,
-            'Very Hard': 4000,
-            'Legendary': 7000,
-            'Mythical': 10000,
-            'Divine': 15000
-        };
-        
-        return rewards[difficulty] || 500;
-    }
-
-    // Set battle timeout
-    setBattleTimeout(battleId) {
-        const timeoutId = setTimeout(() => {
-            this.handleBattleTimeout(battleId);
-        }, this.maxBattleDuration);
-        
-        this.battleTimeouts.set(battleId, timeoutId);
-    }
-
-    // Clear battle timeout
-    clearBattleTimeout(battleId) {
-        const timeoutId = this.battleTimeouts.get(battleId);
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-            this.battleTimeouts.delete(battleId);
-        }
-    }
-
-    // Handle battle timeout
-    async handleBattleTimeout(battleId) {
-        const battle = this.activeBattles.get(battleId);
-        if (battle && battle.status === 'battle') {
-            console.log(`⏰ Battle ${battleId} timed out`);
-            
-            const winner = battle.player1.hp > battle.player2.hp ? battle.player1 : battle.player2;
-            const loser = winner === battle.player1 ? battle.player2 : battle.player1;
-            
-            await this.endBattle(battleId, winner, loser, 'timeout');
-        }
-    }
-
-    // Get user's active battle
-    getUserActiveBattle(userId) {
-        for (const [battleId, battle] of this.activeBattles) {
-            if ((battle.player1.userId === userId || battle.player2.userId === userId) && 
-                battle.status !== 'ended') {
-                return { battleId, battle };
-            }
-        }
-        return null;
-    }
-
-    // Create battle summary embed
-    createBattleSummaryEmbed(battle) {
-        const { winner, loser, battleStats, duration, endReason } = battle;
-        
         const embed = new EmbedBuilder()
-            .setColor(0x00FF00)
-            .setTitle('🏆 Battle Complete!')
-            .setDescription(`**${winner.username}** defeats **${loser.username}**!`)
+            .setTitle('⚔️ PvP Battle in Progress!')
+            .setDescription(`Turn ${turnCount + 1}/${maxTurns} - ${currentPlayer.username}'s turn`)
             .addFields([
                 {
-                    name: '📊 Battle Statistics',
-                    value: [
-                        `**Duration**: ${Math.floor(duration / 1000)}s`,
-                        `**Turns**: ${battle.currentTurn}`,
-                        `**End Reason**: ${endReason}`,
-                        `**Battle Type**: ${battle.isVsNPC ? 'PvE' : 'PvP'}`
-                    ].join('\n'),
+                    name: `🗡️ ${player1.username} (Level ${player1.level})`,
+                    value: `❤️ ${player1.health}/${player1.maxHealth} HP\n⚔️ ${player1.attack} ATK | 🛡️ ${player1.defense} DEF`,
                     inline: true
                 },
                 {
-                    name: '⚔️ Combat Stats',
-                    value: [
-                        `**${winner.username}**: ${battleStats.totalDamageDealt.player1} dmg`,
-                        `**${loser.username}**: ${battleStats.totalDamageDealt.player2} dmg`,
-                        `**Abilities Used**: ${battleStats.abilitiesUsed.player1 + battleStats.abilitiesUsed.player2}`,
-                        `**Effects Applied**: ${battleStats.effectsApplied.player1 + battleStats.effectsApplied.player2}`
-                    ].join('\n'),
+                    name: '⚔️ VS ⚔️',
+                    value: '\u200B',
+                    inline: true
+                },
+                {
+                    name: `🛡️ ${player2.username} (Level ${player2.level})`,
+                    value: `❤️ ${player2.health}/${player2.maxHealth} HP\n⚔️ ${player2.attack} ATK | 🛡️ ${player2.defense} DEF`,
                     inline: true
                 }
             ])
-            .setFooter({ text: `Battle ID: ${battle.id}` })
+            .setColor('#4ECDC4')
             .setTimestamp();
 
-        if (battle.berryReward) {
-            embed.addFields([{
-                name: '💰 Rewards',
-                value: `+${battle.berryReward.toLocaleString()} berries`,
-                inline: true
-            }]);
+        // Add devil fruit info if available
+        if (player1.devilFruit) {
+            embed.addFields([{ name: `${player1.username}'s Devil Fruit`, value: player1.devilFruit, inline: true }]);
+        }
+        if (player2.devilFruit) {
+            embed.addFields([{ name: `${player2.username}'s Devil Fruit`, value: player2.devilFruit, inline: true }]);
         }
 
         return embed;
     }
 
-    // Get battle status for user
-    getBattleStatus(userId) {
-        const userBattle = this.getUserActiveBattle(userId);
-        if (!userBattle) {
-            return { inBattle: false };
-        }
-
-        const { battle } = userBattle;
-        const isPlayer1 = battle.player1.userId === userId;
-        const player = isPlayer1 ? battle.player1 : battle.player2;
-        const opponent = isPlayer1 ? battle.player2 : battle.player1;
-
-        return {
-            inBattle: true,
-            battleId: battle.id,
-            status: battle.status,
-            currentTurn: battle.currentTurn,
-            isMyTurn: battle.currentPlayer === (isPlayer1 ? 'player1' : 'player2'),
-            myHP: player.hp,
-            myMaxHP: player.maxHealth,
-            opponentHP: opponent.hp,
-            opponentMaxHP: opponent.maxHealth,
-            myEffects: player.effects,
-            opponentEffects: opponent.effects
-        };
+    /**
+     * Create battle action buttons
+     */
+    createBattleButtons(battleId, currentPlayerId) {
+        return new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`battle_attack_${battleId}_${currentPlayerId}`)
+                    .setLabel('Attack')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('⚔️'),
+                new ButtonBuilder()
+                    .setCustomId(`battle_defend_${battleId}_${currentPlayerId}`)
+                    .setLabel('Defend')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('🛡️'),
+                new ButtonBuilder()
+                    .setCustomId(`battle_special_${battleId}_${currentPlayerId}`)
+                    .setLabel('Special')
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji('✨'),
+                new ButtonBuilder()
+                    .setCustomId(`battle_forfeit_${battleId}_${currentPlayerId}`)
+                    .setLabel('Forfeit')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('🏳️')
+            );
     }
 
-    // Cleanup old battles
-    cleanup() {
-        const now = Date.now();
-        let cleanedCount = 0;
-
-        for (const [battleId, battle] of this.activeBattles) {
-            // Clean battles older than 1 hour or ended battles older than 10 minutes
-            const maxAge = battle.status === 'ended' ? 10 * 60 * 1000 : 60 * 60 * 1000;
-            
-            if (now - battle.lastActivity > maxAge) {
-                this.activeBattles.delete(battleId);
-                this.clearBattleTimeout(battleId);
-                cleanedCount++;
-            }
-        }
-
-        if (cleanedCount > 0) {
-            console.log(`🧹 Battle Manager cleaned up ${cleanedCount} old battles`);
-        }
-    }
-
-    // Get system statistics
-    getStats() {
-        const battles = Array.from(this.activeBattles.values());
+    /**
+     * Process battle action
+     */
+    async processBattleAction(interaction, action, battleId, playerId) {
+        const battle = this.activeBattles.get(battleId);
         
-        return {
-            totalBattles: battles.length,
-            activeBattles: battles.filter(b => b.status === 'battle').length,
-            selectionPhase: battles.filter(b => b.status === 'fruit_selection').length,
-            endedBattles: battles.filter(b => b.status === 'ended').length,
-            pveBattles: battles.filter(b => b.isVsNPC).length,
-            pvpBattles: battles.filter(b => !b.isVsNPC).length
-        };
+        if (!battle) {
+            await interaction.reply({
+                content: 'This battle no longer exists!',
+                ephemeral: true
+            });
+            return;
+        }
+
+        if (battle.currentTurn !== playerId) {
+            await interaction.reply({
+                content: 'It\'s not your turn!',
+                ephemeral: true
+            });
+            return;
+        }
+
+        const attacker = battle.currentTurn === battle.player1.userId ? battle.player1 : battle.player2;
+        const defender = battle.currentTurn === battle.player1.userId ? battle.player2 : battle.player1;
+
+        let actionResult = '';
+        let damage = 0;
+
+        switch (action) {
+            case 'attack':
+                damage = this.calculateDamage(attacker, defender, 'normal');
+                defender.health = Math.max(0, defender.health - damage);
+                actionResult = `${attacker.username} attacks ${defender.username} for ${damage} damage!`;
+                break;
+                
+            case 'defend':
+                attacker.defense += 5; // Temporary defense boost
+                actionResult = `${attacker.username} takes a defensive stance! (+5 Defense)`;
+                break;
+                
+            case 'special':
+                if (attacker.devilFruit) {
+                    damage = this.calculateDamage(attacker, defender, 'special');
+                    defender.health = Math.max(0, defender.health - damage);
+                    actionResult = `${attacker.username} uses their Devil Fruit power for ${damage} damage!`;
+                } else {
+                    damage = this.calculateDamage(attacker, defender, 'heavy');
+                    defender.health = Math.max(0, defender.health - damage);
+                    actionResult = `${attacker.username} performs a heavy attack for ${damage} damage!`;
+                }
+                break;
+                
+            case 'forfeit':
+                await this.endBattle(battleId, defender.userId, 'forfeit');
+                await interaction.update({
+                    content: `${attacker.username} has forfeited the battle! ${defender.username} wins!`,
+                    embeds: [],
+                    components: []
+                });
+                return;
+        }
+
+        // Check if battle is over
+        if (defender.health <= 0) {
+            await this.endBattle(battleId, attacker.userId, 'victory');
+            
+            const winEmbed = new EmbedBuilder()
+                .setTitle('🏆 Battle Complete!')
+                .setDescription(`${attacker.username} defeats ${defender.username}!`)
+                .addFields([
+                    { name: '🎉 Winner', value: attacker.username, inline: true },
+                    { name: '💀 Final Action', value: actionResult, inline: false }
+                ])
+                .setColor('#FFD700')
+                .setTimestamp();
+
+            await interaction.update({
+                embeds: [winEmbed],
+                components: []
+            });
+            return;
+        }
+
+        // Switch turns
+        battle.currentTurn = battle.currentTurn === battle.player1.userId ? battle.player2.userId : battle.player1.userId;
+        battle.turnCount++;
+        battle.lastActivity = Date.now();
+
+        // Check for max turns
+        if (battle.turnCount >= battle.maxTurns) {
+            const winner = battle.player1.health > battle.player2.health ? battle.player1 : battle.player2;
+            await this.endBattle(battleId, winner.userId, 'timeout');
+            
+            const timeoutEmbed = new EmbedBuilder()
+                .setTitle('⏰ Battle Timeout!')
+                .setDescription(`Maximum turns reached! ${winner.username} wins with more health remaining.`)
+                .setColor('#95A5A6')
+                .setTimestamp();
+
+            await interaction.update({
+                embeds: [timeoutEmbed],
+                components: []
+            });
+            return;
+        }
+
+        // Continue battle
+        const updatedEmbed = await this.createBattleEmbed(battle);
+        const newActionRow = this.createBattleButtons(battleId, battle.currentTurn);
+        
+        // Add action result to embed
+        updatedEmbed.addFields([{ name: '⚡ Last Action', value: actionResult, inline: false }]);
+
+        await interaction.update({
+            embeds: [updatedEmbed],
+            components: [newActionRow]
+        });
+    }
+
+    /**
+     * Calculate damage
+     */
+    calculateDamage(attacker, defender, attackType) {
+        let baseDamage = attacker.attack;
+        
+        switch (attackType) {
+            case 'normal':
+                baseDamage *= 1.0;
+                break;
+            case 'heavy':
+                baseDamage *= 1.5;
+                break;
+            case 'special':
+                baseDamage *= 2.0;
+                break;
+        }
+        
+        const defense = defender.defense || 0;
+        const damage = Math.max(1, Math.floor(baseDamage - (defense * 0.3)));
+        
+        // Add randomness (±15%)
+        const randomFactor = 0.85 + (Math.random() * 0.3);
+        
+        return Math.floor(damage * randomFactor);
+    }
+
+    /**
+     * End battle and update stats
+     */
+    async endBattle(battleId, winnerId, reason) {
+        const battle = this.activeBattles.get(battleId);
+        if (!battle) return;
+
+        const loserId = winnerId === battle.player1.userId ? battle.player2.userId : battle.player1.userId;
+
+        try {
+            // Update PvP stats
+            await DatabaseManager.updatePvPStats(winnerId, true);
+            await DatabaseManager.updatePvPStats(loserId, false);
+            
+            // Award rewards
+            const winReward = 100;
+            const lossReward = 25;
+            
+            await DatabaseManager.addMoney(winnerId, winReward);
+            await DatabaseManager.addMoney(loserId, lossReward);
+            
+            console.log(`PvP battle ended: ${winnerId} defeats ${loserId} (${reason})`);
+        } catch (error) {
+            console.error('Error updating battle results:', error);
+        }
+
+        // Clean up
+        this.activeBattles.delete(battleId);
+        this.playerBattles.delete(battle.player1.userId);
+        this.playerBattles.delete(battle.player2.userId);
+    }
+
+    /**
+     * Set battle timeout
+     */
+    setBattleTimeout(battleId) {
+        setTimeout(() => {
+            const battle = this.activeBattles.get(battleId);
+            if (battle && battle.status === 'active') {
+                console.log(`Battle ${battleId} timed out due to inactivity`);
+                this.endBattle(battleId, null, 'timeout');
+            }
+        }, 10 * 60 * 1000); // 10 minutes
+    }
+
+    /**
+     * Check if player is in battle
+     */
+    isInBattle(userId) {
+        return this.playerBattles.has(userId);
+    }
+
+    /**
+     * Get battle by player ID
+     */
+    getBattleByPlayer(userId) {
+        const battleId = this.playerBattles.get(userId);
+        return battleId ? this.activeBattles.get(battleId) : null;
     }
 }
 
-module.exports = BattleManager;
+module.exports = new BattleManager();
