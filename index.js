@@ -11,7 +11,7 @@ const client = new Client({
 });
 
 // Bot configuration
-const BOT_TOKEN = process.env.BOT_TOKEN || 'YOUR_BOT_TOKEN_HERE';
+const BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE';
 const DEBUG_BOT_IDS = ['DEBUG_BOT_ID_1', 'DEBUG_BOT_ID_2']; // Add your debug bot IDs here
 
 client.commands = new Collection();
@@ -30,7 +30,7 @@ class EnhancedPvPSystem {
         // Generate unique battle ID
         const battleId = `pvp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        // Get player data
+        // Get player data (you'll need to implement getUserData function)
         const challengerData = await this.getUserData(challenger.id);
         const targetData = await this.getUserData(target.id);
         
@@ -341,7 +341,7 @@ class EnhancedPvPSystem {
         if (!challengeData) return;
 
         const acceptedSet = this.acceptedPlayers.get(battleId);
-        if (acceptedSet && acceptedSet.size < 2) {
+        if (acceptedSet.size < 2) {
             const expireEmbed = new EmbedBuilder()
                 .setColor('#95A5A6')
                 .setTitle('⏰ Challenge Expired')
@@ -385,6 +385,7 @@ class EnhancedPvPSystem {
                user.bot === true;
     }
 
+    async getUserData(userId) {
     async getUserData(userId) {
         // Replace this with your actual database/user data retrieval system
         // This is a placeholder that returns mock data
@@ -636,6 +637,6 @@ if (BOT_TOKEN && BOT_TOKEN !== 'YOUR_BOT_TOKEN_HERE') {
         process.exit(1);
     });
 } else {
-    console.error('❌ Please set your bot token in the BOT_TOKEN environment variable or update the BOT_TOKEN constant');
+    console.error('❌ Please set your bot token in the BOT_TOKEN variable');
     process.exit(1);
 }
