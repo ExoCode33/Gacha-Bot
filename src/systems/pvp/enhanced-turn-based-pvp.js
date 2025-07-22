@@ -1,4 +1,4 @@
-// src/systems/pvp/enhanced-turn-based-pvp.js - COMPLETE FIXED VERSION with Ephemeral Messages and Pings
+// src/systems/pvp/enhanced-turn-based-pvp.js - COMPLETELY FIXED VERSION
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 const DatabaseManager = require('../../database/manager');
 const { getRarityEmoji, getRarityColor } = require('../../data/devil-fruits');
@@ -234,7 +234,7 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // NEW METHOD: Send ephemeral accept/decline message with ping - DIRECT FIX
+    // NEW METHOD: Send ephemeral accept/decline message with ping - COMPLETELY FIXED
     async sendEphemeralAcceptDecline(interaction, battleId, player, opponent, playerRole) {
         try {
             console.log(`📨 Sending ephemeral to ${player.username} (${player.id}) as ${playerRole}`);
@@ -257,7 +257,7 @@ class EnhancedTurnBasedPvP {
 
             let buttons;
             if (playerRole === 'target') {
-                // Only the target gets accept/decline buttons with THEIR user ID
+                // FIXED: Target gets buttons with THEIR user ID
                 buttons = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
@@ -283,9 +283,10 @@ class EnhancedTurnBasedPvP {
                     );
             }
 
-            // Use interaction.client to send DM instead of ephemeral followUp
+            // FIXED: Try to get user from client and send DM properly
             try {
-                const dmChannel = await player.createDM();
+                const clientUser = await interaction.client.users.fetch(player.id);
+                const dmChannel = await clientUser.createDM();
                 await dmChannel.send({
                     content: `<@${player.id}> ${playerRole === 'target' ? '⚔️ You have been challenged!' : '✅ Challenge sent!'}`,
                     embeds: [embed],
@@ -347,8 +348,7 @@ class EnhancedTurnBasedPvP {
             }
             
             const action = parts[1]; // accept or decline
-            // For battle_accept_challengerId_targetId_timestamp_userId format
-            // battleId should be: challengerId_targetId_timestamp
+            // FIXED: For battle_accept_battleId_userId format, extract properly
             const battleId = parts.slice(2, -1).join('_'); // everything except last part
             const expectedUserId = parts[parts.length - 1]; // last part is userId
             const actualUserId = interaction.user.id;
