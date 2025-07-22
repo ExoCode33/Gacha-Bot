@@ -1,13 +1,13 @@
-// UPDATED BUTTON HANDLER for index.js - FIXED VERSION for Simple Button Format
+// UPDATED BUTTON HANDLER for index.js - Add this to your existing handleButtonInteraction function
 
 async function handleButtonInteraction(interaction) {
     const { customId, user } = interaction;
 
     console.log(`🔘 Button: ${customId} by ${user.username}`);
 
-    // PRIORITY 1: Handle NEW Simple PvP Accept/Decline buttons (accept_userId / decline_userId format)
+    // PRIORITY 1: Handle NEW Enhanced PvP Accept/Decline buttons (accept_battleId_userId format)
     if (customId.startsWith('accept_') || customId.startsWith('decline_')) {
-        console.log('🎯 Simple PvP accept/decline button detected!');
+        console.log('🎯 NEW Enhanced PvP accept/decline button detected!');
         
         // Check if enhanced PvP system is available
         if (!pvpSystem || !pvpSystem.handleBattleResponse) {
@@ -31,11 +31,37 @@ async function handleButtonInteraction(interaction) {
         }
     }
 
-    // PRIORITY 2: Handle Enhanced PvP Challenge Accept/Decline buttons (pvp_challenge_ format - LEGACY)
+    // PRIORITY 2: Handle OLD Enhanced PvP Battle Accept/Decline buttons (backwards compatibility)
+    if (customId.startsWith('battle_accept_') || customId.startsWith('battle_decline_')) {
+        console.log('🎯 OLD Enhanced PvP battle button detected!');
+        
+        // Check if enhanced PvP system is available
+        if (!pvpSystem || !pvpSystem.handleBattleResponse) {
+            console.error('❌ Enhanced PvP system not available');
+            return await interaction.reply({
+                content: '❌ Enhanced PvP system is not available.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        try {
+            console.log('✅ Calling enhanced PvP system handleBattleResponse (OLD format)');
+            await pvpSystem.handleBattleResponse(interaction);
+            return;
+        } catch (error) {
+            console.error('❌ Error in enhanced PvP battle response (OLD):', error);
+            return await interaction.reply({
+                content: '❌ An error occurred while processing the battle response.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+    }
+
+    // PRIORITY 3: Handle Enhanced PvP Challenge Accept/Decline buttons (pvp_challenge_ format)
     if (customId.startsWith('pvp_challenge_accept_') || customId.startsWith('pvp_challenge_decline_')) {
         const enhancedPvpCommand = client.commands.get('pvp');
         if (enhancedPvpCommand && typeof enhancedPvpCommand.handleChallengeButtons === 'function') {
-            console.log('🎯 Handling legacy PvP challenge button');
+            console.log('🎯 Handling PvP challenge button');
             await enhancedPvpCommand.handleChallengeButtons(interaction);
             return;
         } else {
@@ -47,7 +73,22 @@ async function handleButtonInteraction(interaction) {
         }
     }
 
-    // PRIORITY 3: Handle Enhanced PvP System buttons (battle, fruit selection, etc.)
+    // PRIORITY 4: Handle Enhanced PvP System buttons (battle, fruit selection, etc.)
+    if (customId.startsWith('accept_enhanced_battle_') || customId.startsWith('decline_enhanced_battle_')) {
+        try {
+            console.log('🎮 Handling legacy enhanced battle response');
+            if (pvpSystem && pvpSystem.handleBattleResponse) {
+                await pvpSystem.handleBattleResponse(interaction);
+                return;
+            } else {
+                throw new Error('Enhanced PvP system not available');
+            }
+        } catch (error) {
+            console.log('❌ Enhanced PvP system not available for legacy battle response:', error.message);
+        }
+    }
+
+    // PRIORITY 5: Handle other Enhanced PvP interactions
     if (customId.includes('enhanced') || customId.includes('fruit_selection') || 
         customId.includes('confirm_selection') || customId.includes('clear_selection') ||
         customId.includes('page_switch') || customId.includes('use_skill') ||
@@ -138,33 +179,7 @@ async function handleButtonInteraction(interaction) {
         }
     }
 
-    // PRIORITY 4: Handle OLD Enhanced PvP Battle Accept/Decline buttons (backwards compatibility)
-    if (customId.startsWith('battle_accept_') || customId.startsWith('battle_decline_')) {
-        console.log('🎯 OLD Enhanced PvP battle button detected!');
-        
-        // Check if enhanced PvP system is available
-        if (!pvpSystem || !pvpSystem.handleBattleResponse) {
-            console.error('❌ Enhanced PvP system not available');
-            return await interaction.reply({
-                content: '❌ Enhanced PvP system is not available.',
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        try {
-            console.log('✅ Calling enhanced PvP system handleBattleResponse (OLD format)');
-            await pvpSystem.handleBattleResponse(interaction);
-            return;
-        } catch (error) {
-            console.error('❌ Error in enhanced PvP battle response (OLD):', error);
-            return await interaction.reply({
-                content: '❌ An error occurred while processing the battle response.',
-                flags: MessageFlags.Ephemeral
-            });
-        }
-    }
-
-    // PRIORITY 5: Handle legacy PvP queue buttons (if any old ones exist)
+    // PRIORITY 6: Handle legacy PvP queue buttons (if any old ones exist)
     if (customId === 'join_pvp_queue') {
         if (client.pvpQueue.has(user.id)) {
             return await interaction.reply({ content: '❌ You are already in the PvP queue!', flags: MessageFlags.Ephemeral });
@@ -208,7 +223,7 @@ async function handleButtonInteraction(interaction) {
         client.pvpQueue.delete(user.id);
         await interaction.reply({ content: '✅ Left the PvP queue.', flags: MessageFlags.Ephemeral });
     }
-    // PRIORITY 6: Handle legacy battle buttons
+    // PRIORITY 7: Handle legacy battle buttons
     else if (['attack', 'special_attack', 'defend', 'ultimate'].includes(customId)) {
         const session = client.pvpSessions.get(user.id);
         if (!session) {
@@ -221,16 +236,6 @@ async function handleButtonInteraction(interaction) {
         }
 
         await session.processAction(customId, interaction);
-    }
-    // PRIORITY 7: Pull command buttons (if you have them)
-    else if (customId === 'pull_again' || customId === 'pull_10x') {
-        // Handle pull again buttons if they exist
-        console.log(`🎲 Pull button interaction: ${customId}`);
-        // Add your pull button handler here if needed
-        await interaction.reply({
-            content: '🎲 Pull system buttons not implemented in this handler.',
-            flags: MessageFlags.Ephemeral
-        });
     }
     // PRIORITY 8: Unknown button
     else {
