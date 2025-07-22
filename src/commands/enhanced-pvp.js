@@ -1,4 +1,4 @@
-// src/commands/enhanced-pvp.js - FIXED VERSION
+// src/commands/enhanced-pvp.js - FIXED VERSION with Personal Accept/Decline Messages
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 // Import PvP systems with proper error handling
@@ -21,6 +21,9 @@ try {
 }
 
 const DatabaseManager = require('../database/manager');
+
+// Store active match invitations
+const activeMatchInvitations = new Map();
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -204,8 +207,314 @@ async function handleChallenge(interaction, userId, userName) {
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // Initiate the enhanced turn-based battle
-    await EnhancedTurnBasedPvP.initiateBattle(interaction, opponent);
+    // Create match invitation with personal accept/decline
+    await createPersonalMatchInvitation(interaction, opponent);
+}
+
+async function createPersonalMatchInvitation(interaction, targetUser) {
+    try {
+        const challenger = interaction.user;
+        
+        // Generate unique invitation ID
+        const invitationId = `challenge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Store invitation data
+        activeMatchInvitations.set(invitationId, {
+            challenger: {
+                id: challenger.id,
+                username: challenger.username,
+                user: challenger
+            },
+            target: {
+                id: targetUser.id,
+                username: targetUser.username,
+                user: targetUser
+            },
+            createdAt: Date.now(),
+            channelId: interaction.channel.id,
+            guildId: interaction.guild?.id
+        });
+
+        // Create public announcement (NO BUTTONS - just information)
+        const publicEmbed = new EmbedBuilder()
+            .setColor(0x3498DB)
+            .setTitle('⚔️ Enhanced PvP Challenge Sent!')
+            .setDescription(`**${challenger.username}** has challenged **${targetUser.username}** to an enhanced turn-based battle!`)
+            .addFields([
+                { 
+                    name: `🏴‍☠️ Challenger`, 
+                    value: `${challenger.username}`, 
+                    inline: true 
+                },
+                { 
+                    name: '⚔️ VS ⚔️', 
+                    value: 'CHALLENGE', 
+                    inline: true 
+                },
+                { 
+                    name: `🎯 Target`, 
+                    value: `${targetUser.username}`, 
+                    inline: true 
+                },
+                {
+                    name: '🔒 Private Messages Sent',
+                    value: 'Both players have been sent **private messages** to accept or decline this challenge.',
+                    inline: false
+                },
+                {
+                    name: '⏰ Time Limit',
+                    value: '60 seconds to respond',
+                    inline: false
+                }
+            ])
+            .setFooter({ text: `Challenge ID: ${invitationId}` })
+            .setTimestamp();
+
+        // Send public announcement
+        await interaction.reply({ embeds: [publicEmbed] });
+
+        // Send PRIVATE messages to both players
+        await sendPrivateChallengeMessage(challenger, targetUser, invitationId, interaction.client, 'challenger');
+        await sendPrivateChallengeMessage(targetUser, challenger, invitationId, interaction.client, 'target');
+
+        // Set timeout to auto-expire after 60 seconds
+        setTimeout(() => {
+            if (activeMatchInvitations.has(invitationId)) {
+                const invitationData = activeMatchInvitations.get(invitationId);
+                activeMatchInvitations.delete(invitationId);
+                sendChallengeTimeoutMessage(interaction, invitationData);
+            }
+        }, 60000);
+
+    } catch (error) {
+        console.error('Error creating personal match invitation:', error);
+    }
+}
+
+async function sendPrivateChallengeMessage(player, opponent, invitationId, client, playerRole) {
+    try {
+        const embed = new EmbedBuilder()
+            .setColor(0x3498DB)
+            .setTitle(playerRole === 'challenger' ? '⚔️ Challenge Sent!' : '⚔️ Challenge Received!')
+            .setDescription(
+                playerRole === 'challenger' 
+                    ? `You have challenged **${opponent.username}** to an enhanced turn-based PvP battle!`
+                    : `**${opponent.username}** has challenged you to an enhanced turn-based PvP battle!`
+            )
+            .addFields([
+                { name: '🎯 Opponent', value: opponent.username, inline: true },
+                { name: '⏰ Time Limit', value: '60 seconds to respond', inline: true },
+                { name: '🔥 Battle Type', value: 'Enhanced Turn-Based PvP', inline: true },
+                { name: '🎮 What Happens Next?', value: 'If both players accept, you\'ll enter fruit selection phase, then strategic turn-based combat!', inline: false }
+            ])
+            .setFooter({ text: `Challenge ID: ${invitationId}` })
+            .setTimestamp();
+
+        let buttons;
+        if (playerRole === 'target') {
+            // Only the target gets accept/decline buttons
+            buttons = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`pvp_challenge_accept_${invitationId}_${player.id}`)
+                        .setLabel('✅ Accept Challenge')
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId(`pvp_challenge_decline_${invitationId}_${player.id}`)
+                        .setLabel('❌ Decline')
+                        .setStyle(ButtonStyle.Danger)
+                );
+        } else {
+            // Challenger gets a status button (disabled)
+            buttons = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('waiting_response')
+                        .setLabel('⏳ Waiting for Response...')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(true)
+                );
+        }
+
+        await player.send({
+            embeds: [embed],
+            components: [buttons]
+        });
+
+        console.log(`✅ Private challenge message sent to ${player.username} (${playerRole})`);
+
+    } catch (error) {
+        console.error(`❌ Error sending private challenge message to ${player.username}:`, error);
+        
+        // If DM fails, try to notify in the original channel
+        try {
+            const channel = client.channels.cache.get(interaction.channelId);
+            if (channel) {
+                await channel.send(`⚠️ Could not send DM to ${player.username}. Please make sure your DMs are open.`);
+            }
+        } catch (channelError) {
+            console.error('Could not send fallback message:', channelError);
+        }
+    }
+}
+
+async function sendChallengeTimeoutMessage(interaction, invitationData) {
+    try {
+        const timeoutEmbed = new EmbedBuilder()
+            .setColor(0xFF8000)
+            .setTitle('⏰ Challenge Expired')
+            .setDescription(`The challenge from **${invitationData.challenger.username}** to **${invitationData.target.username}** has expired due to no response within 60 seconds.`)
+            .addFields([
+                { name: '🔄 What Now?', value: 'The challenger can send a new challenge using `/pvp challenge`', inline: false }
+            ])
+            .setTimestamp();
+
+        await interaction.followUp({ embeds: [timeoutEmbed] });
+        console.log(`⏰ Challenge ${invitationData.challenger.username} vs ${invitationData.target.username} expired`);
+    } catch (error) {
+        console.error('Error sending challenge timeout message:', error);
+    }
+}
+
+// Button interaction handler for challenge accept/decline
+async function handleChallengeButtons(interaction) {
+    const customId = interaction.customId;
+    
+    console.log(`🔘 Challenge button interaction: ${customId} from ${interaction.user.username}`);
+    
+    if (customId.startsWith('pvp_challenge_accept_') || customId.startsWith('pvp_challenge_decline_')) {
+        const parts = customId.split('_');
+        const action = parts[2]; // accept or decline
+        const invitationId = parts[3];
+        const userId = parts[4];
+
+        // Verify this is the correct user
+        if (userId !== interaction.user.id) {
+            return await interaction.reply({
+                content: '❌ This button is not for you!',
+                ephemeral: true
+            });
+        }
+
+        const invitationData = activeMatchInvitations.get(invitationId);
+        if (!invitationData) {
+            return await interaction.reply({
+                content: '❌ This challenge has expired or is no longer valid.',
+                ephemeral: true
+            });
+        }
+
+        if (action === 'decline') {
+            // Handle decline
+            activeMatchInvitations.delete(invitationId);
+            
+            await interaction.update({
+                content: '❌ You declined the challenge.',
+                embeds: [],
+                components: []
+            });
+
+            // Notify the channel
+            try {
+                const channel = interaction.client.channels.cache.get(invitationData.channelId);
+                if (channel) {
+                    const declineEmbed = new EmbedBuilder()
+                        .setColor(0xFF0000)
+                        .setTitle('❌ Challenge Declined')
+                        .setDescription(`**${interaction.user.username}** declined the challenge from **${invitationData.challenger.username}**.`)
+                        .setTimestamp();
+
+                    await channel.send({ embeds: [declineEmbed] });
+                }
+            } catch (error) {
+                console.error('Error sending decline notification:', error);
+            }
+
+            console.log(`❌ ${interaction.user.username} declined challenge ${invitationId}`);
+
+        } else if (action === 'accept') {
+            // Handle accept
+            activeMatchInvitations.delete(invitationId);
+            
+            await interaction.update({
+                content: '✅ You accepted the challenge! Starting enhanced turn-based battle...',
+                embeds: [],
+                components: []
+            });
+
+            console.log(`✅ ${interaction.user.username} accepted challenge ${invitationId}. Starting battle...`);
+            
+            // Start the enhanced turn-based battle
+            await startEnhancedBattleFromChallenge(interaction, invitationData);
+        }
+    }
+}
+
+async function startEnhancedBattleFromChallenge(interaction, invitationData) {
+    try {
+        const { challenger, target } = invitationData;
+        
+        console.log(`⚔️ Starting enhanced battle: ${challenger.username} vs ${target.username}`);
+        
+        // Find the channel to send the battle start message
+        const channel = interaction.client.channels.cache.get(invitationData.channelId);
+        if (!channel) {
+            console.error('Could not find channel for battle');
+            return;
+        }
+
+        const battleEmbed = new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle('⚔️ Enhanced Turn-Based Battle Starting!')
+            .setDescription(`**${challenger.username}** vs **${target.username}**\n\n🔥 Challenge accepted! Enhanced Turn-Based Combat is beginning!`)
+            .addFields([
+                { 
+                    name: `🏴‍☠️ ${challenger.username}`, 
+                    value: `✅ Ready for battle`, 
+                    inline: true 
+                },
+                { 
+                    name: '⚔️ BATTLE ⚔️', 
+                    value: '🔥\n**STARTING**\n🔥', 
+                    inline: true 
+                },
+                { 
+                    name: `🏴‍☠️ ${target.username}`, 
+                    value: `✅ Ready for battle`, 
+                    inline: true 
+                }
+            ])
+            .setFooter({ text: 'Enhanced Turn-Based PvP System • Good luck!' })
+            .setTimestamp();
+
+        await channel.send({ embeds: [battleEmbed] });
+
+        // Start the enhanced PvP battle using the existing system
+        // Create a mock interaction for the battle system
+        const mockInteraction = {
+            user: challenger.user,
+            channel: channel,
+            guild: interaction.guild,
+            channelId: channel.id,
+            replied: false,
+            deferred: false,
+            reply: async (data) => {
+                mockInteraction.replied = true;
+                return await channel.send(data);
+            },
+            followUp: async (data) => await channel.send(data),
+            editReply: async (data) => await channel.send(data),
+            update: async (data) => await channel.send(data)
+        };
+        
+        // Use the existing enhanced turn-based PvP system
+        await EnhancedTurnBasedPvP.initiateBattle(mockInteraction, target.user);
+        
+        console.log(`✅ Enhanced PvP battle started successfully`);
+
+    } catch (error) {
+        console.error('Error starting enhanced PvP battle from challenge:', error);
+    }
 }
 
 async function handleQueue(interaction, userId, userName) {
@@ -486,8 +795,8 @@ async function handleSystemInfo(interaction) {
                 name: '📋 How It Works',
                 value: [
                     '1️⃣ Challenge a player or join queue',
-                    '2️⃣ Both players select 5 battle fruits',
-                    '3️⃣ Turn-based combat begins',
+                    '2️⃣ Both players receive private accept/decline messages',
+                    '3️⃣ Turn-based combat begins with fruit selection',
                     '4️⃣ Use fruit abilities strategically',
                     '5️⃣ Winner takes victory!'
                 ].join('\n'),
@@ -552,3 +861,6 @@ function getCurrentBattleStatus(userId) {
     
     return '💤 Available';
 }
+
+// Export the challenge button handler for use in main interaction handler
+module.exports.handleChallengeButtons = handleChallengeButtons;
