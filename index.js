@@ -11,7 +11,7 @@ const client = new Client({
 });
 
 // Bot configuration
-const BOT_TOKEN = process.env.DISCORD_TOKEN;
+const BOT_TOKEN = process.env.BOT_TOKEN || 'YOUR_BOT_TOKEN_HERE';
 const DEBUG_BOT_IDS = ['DEBUG_BOT_ID_1', 'DEBUG_BOT_ID_2']; // Add your debug bot IDs here
 
 client.commands = new Collection();
@@ -630,12 +630,12 @@ process.on('SIGTERM', () => {
 });
 
 // Login to Discord
-if (BOT_TOKEN) {
+if (BOT_TOKEN && BOT_TOKEN !== 'YOUR_BOT_TOKEN_HERE') {
     client.login(BOT_TOKEN).catch(error => {
         console.error('❌ Failed to login to Discord:', error);
         process.exit(1);
     });
 } else {
-    console.error('❌ Please set your bot token in the DISCORD_TOKEN environment variable');
+    console.error('❌ Please set your bot token in the BOT_TOKEN environment variable or update the BOT_TOKEN constant');
     process.exit(1);
 }
