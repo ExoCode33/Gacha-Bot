@@ -234,15 +234,10 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // NEW METHOD: Send ephemeral accept/decline message with ping - FINAL FIX
+    // NEW METHOD: Send ephemeral accept/decline message with ping - DIRECT FIX
     async sendEphemeralAcceptDecline(interaction, battleId, player, opponent, playerRole) {
         try {
-            console.log(`📨 === EPHEMERAL MESSAGE DEBUG ===`);
-            console.log(`📨 Sending to: ${player.username} (ID: ${player.id})`);
-            console.log(`📨 About opponent: ${opponent.username} (ID: ${opponent.id})`);
-            console.log(`📨 Role: ${playerRole}`);
-            console.log(`📨 This message will ONLY be visible to: ${player.username}`);
-            console.log(`📨 This message will PING: ${player.username}`);
+            console.log(`📨 Sending ephemeral to ${player.username} (${player.id}) as ${playerRole}`);
             
             const embed = new EmbedBuilder()
                 .setColor(0x3498DB)
@@ -255,19 +250,14 @@ class EnhancedTurnBasedPvP {
                 .addFields([
                     { name: '🎯 Opponent', value: opponent.username, inline: true },
                     { name: '⏰ Time Limit', value: '60 seconds to respond', inline: true },
-                    { name: '🔥 Battle Type', value: 'Enhanced Turn-Based PvP', inline: true },
-                    { 
-                        name: '🆔 Debug Info', 
-                        value: `Message for: ${player.username} (${player.id})\nRole: ${playerRole}\nButtons work for: ${player.id}`, 
-                        inline: false 
-                    }
+                    { name: '🔥 Battle Type', value: 'Enhanced Turn-Based PvP', inline: true }
                 ])
                 .setFooter({ text: `Battle ID: ${battleId}` })
                 .setTimestamp();
 
             let buttons;
             if (playerRole === 'target') {
-                // TARGET gets accept/decline buttons - buttons have THEIR user ID
+                // Only the target gets accept/decline buttons with THEIR user ID
                 buttons = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
@@ -280,10 +270,9 @@ class EnhancedTurnBasedPvP {
                             .setStyle(ButtonStyle.Danger)
                     );
                 
-                console.log(`🔘 TARGET buttons created for ${player.username} with THEIR ID: ${player.id}`);
-                console.log(`🔘 Button ID will be: battle_accept_${battleId}_${player.id}`);
+                console.log(`🔘 Created buttons for ${player.username} with ID: ${player.id}`);
             } else {
-                // CHALLENGER gets waiting button (disabled)
+                // Challenger gets a waiting button
                 buttons = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
@@ -292,24 +281,32 @@ class EnhancedTurnBasedPvP {
                             .setStyle(ButtonStyle.Secondary)
                             .setDisabled(true)
                     );
-                
-                console.log(`⏳ CHALLENGER waiting button created for ${player.username}`);
             }
 
-            // Send ephemeral message - ONLY visible to the specified player
-            const message = await interaction.followUp({
-                content: `<@${player.id}> ${playerRole === 'target' ? '⚔️ You have been challenged!' : '✅ Challenge sent!'}`,
-                embeds: [embed],
-                components: [buttons],
-                flags: MessageFlags.Ephemeral
-            });
-
-            console.log(`✅ Ephemeral message sent successfully to ${player.username}`);
-            console.log(`✅ Only ${player.username} can see this message and use these buttons`);
-            console.log(`✅ Message ID: ${message?.id || 'unknown'}`);
+            // Use interaction.client to send DM instead of ephemeral followUp
+            try {
+                const dmChannel = await player.createDM();
+                await dmChannel.send({
+                    content: `<@${player.id}> ${playerRole === 'target' ? '⚔️ You have been challenged!' : '✅ Challenge sent!'}`,
+                    embeds: [embed],
+                    components: [buttons]
+                });
+                console.log(`✅ DM sent successfully to ${player.username}`);
+            } catch (dmError) {
+                console.log(`❌ DM failed, trying ephemeral: ${dmError.message}`);
+                
+                // Fallback to ephemeral
+                await interaction.followUp({
+                    content: `<@${player.id}> ${playerRole === 'target' ? '⚔️ You have been challenged!' : '✅ Challenge sent!'}`,
+                    embeds: [embed],
+                    components: [buttons],
+                    flags: MessageFlags.Ephemeral
+                });
+                console.log(`✅ Ephemeral fallback sent to ${player.username}`);
+            }
 
         } catch (error) {
-            console.error(`❌ Error sending ephemeral message to ${player.username}:`, error);
+            console.error(`❌ Error sending message to ${player.username}:`, error);
         }
     }
 
