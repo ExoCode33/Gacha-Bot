@@ -25,31 +25,41 @@ const commands = [
         description: '⚔️ Enhanced turn-based PvP battle system',
         options: [
             {
-                name: 'challenge',
-                description: 'Challenge a specific user to turn-based battle',
-                type: 1, // SUB_COMMAND
-                options: [
-                    {
-                        name: 'opponent',
-                        description: 'The user to challenge',
-                        type: 6, // USER type
-                        required: true
-                    }
-                ]
-            },
-            {
                 name: 'queue',
-                description: 'Join the PvP matchmaking queue for instant battles',
+                description: 'Join the PvP matchmaking queue for battles',
                 type: 1 // SUB_COMMAND
             },
             {
                 name: 'quick',
-                description: 'Quick match - join queue for fast battles',
+                description: 'Quick match - find any available opponent',
                 type: 1 // SUB_COMMAND
             },
             {
                 name: 'queue-status',
                 description: 'Check current PvP queue status and active battles',
+                type: 1 // SUB_COMMAND
+            },
+            {
+                name: 'leave-queue',
+                description: 'Leave the matchmaking queue',
+                type: 1 // SUB_COMMAND
+            },
+            {
+                name: 'stats',
+                description: 'View your PvP battle statistics',
+                type: 1, // SUB_COMMAND
+                options: [
+                    {
+                        name: 'user',
+                        description: 'View another user\'s PvP stats',
+                        type: 6, // USER
+                        required: false
+                    }
+                ]
+            },
+            {
+                name: 'system-info',
+                description: 'View PvP system information and status',
                 type: 1 // SUB_COMMAND
             }
         ]
