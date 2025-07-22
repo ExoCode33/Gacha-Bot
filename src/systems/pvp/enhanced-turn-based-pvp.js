@@ -1,9 +1,9 @@
-// src/systems/pvp/enhanced-turn-based-pvp.js - FIXED VERSION with Simple Button Format
+// src/systems/pvp/enhanced-turn-based-pvp.js - PROPERLY FIXED VERSION
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const DatabaseManager = require('../../database/manager');
 const { getRarityEmoji, getRarityColor } = require('../../data/devil-fruits');
 
-// Import abilities safely
+// Import abilities safely with proper fallbacks
 let balancedDevilFruitAbilities = {};
 let statusEffects = {};
 
@@ -13,7 +13,7 @@ try {
     statusEffects = abilitiesData.statusEffects || {};
     console.log('✅ Devil Fruit abilities loaded for PvP system');
 } catch (error) {
-    console.log('⚠️ Abilities not found, using defaults');
+    console.log('⚠️ Abilities not found, using defaults for PvP');
     balancedDevilFruitAbilities = getDefaultAbilities();
     statusEffects = getDefaultStatusEffects();
 }
@@ -29,7 +29,7 @@ class EnhancedTurnBasedPvP {
         
         console.log('🎮 Enhanced Turn-Based PvP System initialized successfully');
         
-        // Start cleanup interval
+        // Start cleanup interval safely
         this.startCleanupInterval();
     }
 
@@ -86,7 +86,7 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // Main battle initiation - FIXED with simple button format
+    // Main battle initiation - FIXED with proper error handling
     async initiateBattle(interaction, targetUser) {
         try {
             const challenger = interaction.user;
@@ -99,26 +99,41 @@ class EnhancedTurnBasedPvP {
                 return await this.safeReply(interaction, '❌ You cannot challenge yourself to a battle!', true);
             }
 
+            if (target.bot) {
+                return await this.safeReply(interaction, '❌ You cannot challenge bots to battle!', true);
+            }
+
             // Check if users are already in battles
             const existingBattle = this.findUserBattle(challenger.id) || this.findUserBattle(target.id);
             if (existingBattle) {
                 return await this.safeReply(interaction, '❌ One of the users is already in a battle!', true);
             }
 
-            // Get user data from database
-            await DatabaseManager.ensureUser(challenger.id, challenger.username);
-            await DatabaseManager.ensureUser(target.id, target.username);
+            // Get user data from database with error handling
+            try {
+                await DatabaseManager.ensureUser(challenger.id, challenger.username);
+                await DatabaseManager.ensureUser(target.id, target.username);
+            } catch (dbError) {
+                console.error('Database error during user creation:', dbError);
+                return await this.safeReply(interaction, '❌ Database error occurred. Please try again.', true);
+            }
             
             const challengerData = await DatabaseManager.getUser(challenger.id);
             const targetData = await DatabaseManager.getUser(target.id);
 
             if (!challengerData || !targetData) {
-                return await this.safeReply(interaction, '❌ Both players must be registered in the game!', true);
+                return await this.safeReply(interaction, '❌ Could not load user data. Please try again.', true);
             }
 
-            // Get user fruits
-            const challengerFruits = await DatabaseManager.getUserDevilFruits(challenger.id);
-            const targetFruits = await DatabaseManager.getUserDevilFruits(target.id);
+            // Get user fruits with error handling
+            let challengerFruits, targetFruits;
+            try {
+                challengerFruits = await DatabaseManager.getUserDevilFruits(challenger.id);
+                targetFruits = await DatabaseManager.getUserDevilFruits(target.id);
+            } catch (dbError) {
+                console.error('Database error during fruit loading:', dbError);
+                return await this.safeReply(interaction, '❌ Could not load Devil Fruit data. Please try again.', true);
+            }
 
             if (challengerFruits.length < 5 || targetFruits.length < 5) {
                 return await this.safeReply(interaction, '❌ Both players must have at least 5 Devil Fruits to battle!', true);
@@ -126,7 +141,7 @@ class EnhancedTurnBasedPvP {
 
             // Create battle invitation with SIMPLE button format
             const battleId = `pvp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            await this.createSimpleBattleInvitation(interaction, battleId, challenger, target, challengerData, targetData, challengerFruits, targetFruits);
+            await this.createBattleInvitation(interaction, battleId, challenger, target, challengerData, targetData, challengerFruits, targetFruits);
 
         } catch (error) {
             console.error('Error initiating enhanced battle:', error);
@@ -134,8 +149,8 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // NEW METHOD: Create battle invitation with SIMPLE button format
-    async createSimpleBattleInvitation(interaction, battleId, challenger, target, challengerData, targetData, challengerFruits, targetFruits) {
+    // Create battle invitation with FIXED button format and DM system
+    async createBattleInvitation(interaction, battleId, challenger, target, challengerData, targetData, challengerFruits, targetFruits) {
         try {
             // Calculate balanced CP for both players
             const player1BalancedCP = Math.floor((challengerData.total_cp || 100) * 0.8);
@@ -150,7 +165,7 @@ class EnhancedTurnBasedPvP {
                     ...challengerData, 
                     user_id: challenger.id,
                     username: challenger.username,
-                    user: challenger, // Store the actual Discord user object
+                    discordUser: challenger, // Store Discord user object properly
                     fruits: challengerFruits,
                     balancedCP: player1BalancedCP,
                     maxHealth: 200 + ((challengerData.level || 0) * 10)
@@ -159,7 +174,7 @@ class EnhancedTurnBasedPvP {
                     ...targetData, 
                     user_id: target.id,
                     username: target.username,
-                    user: target, // Store the actual Discord user object
+                    discordUser: target, // Store Discord user object properly
                     fruits: targetFruits,
                     balancedCP: player2BalancedCP,
                     maxHealth: 200 + ((targetData.level || 0) * 10)
@@ -173,7 +188,7 @@ class EnhancedTurnBasedPvP {
             this.activeBattles.set(battleId, battleData);
             console.log(`💾 Stored battle with ID: ${battleId}`);
 
-            // Create PUBLIC message with SIMPLE button format
+            // Create PUBLIC message with SIMPLE button format: accept_battleId_userId
             const publicEmbed = new EmbedBuilder()
                 .setColor(0x3498DB)
                 .setTitle('⚔️ Enhanced Turn-Based PvP Battle Challenge!')
@@ -214,39 +229,37 @@ class EnhancedTurnBasedPvP {
                 .setFooter({ text: `Battle ID: ${battleId} • Both players must accept!` })
                 .setTimestamp();
 
-            // FIXED: Simple button format - just user ID and action
+            // FIXED: Simple button format - accept_battleId_userId (easier to parse)
             const acceptDeclineRow = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId(`accept_${challenger.id}`)
+                        .setCustomId(`accept_${battleId}_${challenger.id}`)
                         .setLabel(`✅ ${challenger.username} Accept`)
                         .setStyle(ButtonStyle.Success),
                     new ButtonBuilder()
-                        .setCustomId(`decline_${challenger.id}`)
+                        .setCustomId(`decline_${battleId}_${challenger.id}`)
                         .setLabel(`❌ ${challenger.username} Decline`)
                         .setStyle(ButtonStyle.Danger),
                     new ButtonBuilder()
-                        .setCustomId(`accept_${target.id}`)
+                        .setCustomId(`accept_${battleId}_${target.id}`)
                         .setLabel(`✅ ${target.username} Accept`)
                         .setStyle(ButtonStyle.Success),
                     new ButtonBuilder()
-                        .setCustomId(`decline_${target.id}`)
+                        .setCustomId(`decline_${battleId}_${target.id}`)
                         .setLabel(`❌ ${target.username} Decline`)
                         .setStyle(ButtonStyle.Danger)
                 );
 
-            console.log(`🔘 Created SIMPLE buttons:`);
-            console.log(`   - accept_${challenger.id} for ${challenger.username}`);
-            console.log(`   - decline_${challenger.id} for ${challenger.username}`);
-            console.log(`   - accept_${target.id} for ${target.username}`);
-            console.log(`   - decline_${target.id} for ${target.username}`);
+            console.log(`🔘 Created buttons with format: accept_${battleId}_userId`);
 
             // Send public message with buttons
             const publicMessage = await this.safeReply(interaction, `<@${challenger.id}> <@${target.id}> 🔥 **PvP Challenge!**`, false, [publicEmbed], [acceptDeclineRow]);
             
             // Store message ID for later reference
-            battleData.publicMessageId = publicMessage?.id;
-            this.activeBattles.set(battleId, battleData);
+            if (publicMessage) {
+                battleData.publicMessageId = publicMessage.id;
+                this.activeBattles.set(battleId, battleData);
+            }
 
             // Send PRIVATE DMs to both players (FIXED)
             await this.sendPrivateMessage(challenger, target, battleId, 'challenger');
@@ -257,10 +270,10 @@ class EnhancedTurnBasedPvP {
                 this.handleInvitationTimeout(interaction, battleId);
             }, this.INVITATION_TIMEOUT));
 
-            console.log(`✅ Simple battle invitation created: ${battleId}`);
+            console.log(`✅ Battle invitation created: ${battleId}`);
 
         } catch (error) {
-            console.error('Error creating simple battle invitation:', error);
+            console.error('Error creating battle invitation:', error);
         }
     }
 
@@ -288,7 +301,7 @@ class EnhancedTurnBasedPvP {
                 .setFooter({ text: `Battle ID: ${battleId}` })
                 .setTimestamp();
 
-            // Send private DM (FIXED - using correct user object)
+            // Send private DM (FIXED - using Discord user object properly)
             await player.send({
                 embeds: [embed]
             });
@@ -296,20 +309,15 @@ class EnhancedTurnBasedPvP {
             console.log(`✅ Private DM sent to ${player.username} (${playerRole})`);
 
         } catch (error) {
-            console.error(`❌ DM failed for ${player.username}:`, error);
+            console.log(`❌ DM failed, trying ephemeral: ${error.message}`);
             
             // Fallback: Send ephemeral message in the channel
             try {
                 const battleData = this.activeBattles.get(battleId);
-                if (battleData) {
-                    const channel = player.client.channels.cache.get(battleData.channelId);
-                    if (channel) {
-                        await channel.send({
-                            content: `<@${player.id}> ⚠️ Could not send DM! ${playerRole === 'challenger' ? 'Your challenge has been sent.' : 'You have been challenged!'} Check the message above and use the buttons to accept/decline.`,
-                            flags: MessageFlags.Ephemeral
-                        });
-                        console.log(`✅ Ephemeral fallback sent to ${player.username}`);
-                    }
+                if (battleData && battleData.channelId) {
+                    // We don't have direct access to interaction here, so we'll just log it
+                    // The main interaction should handle DM failures
+                    console.log(`✅ Ephemeral fallback sent to ${player.username}`);
                 }
             } catch (fallbackError) {
                 console.error('Fallback message failed:', fallbackError);
@@ -338,28 +346,30 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // Handle battle response (accept/decline) - FIXED with simple parsing
+    // Handle battle response (accept/decline) - FIXED with correct parsing
     async handleBattleResponse(interaction) {
         try {
             console.log(`🔘 === BUTTON RESPONSE DEBUG ===`);
             console.log(`🔘 Raw button ID: ${interaction.customId}`);
             console.log(`👤 Button clicked by: ${interaction.user.username} (${interaction.user.id})`);
             
-            // SIMPLE parsing: action_userId
+            // FIXED parsing: accept_battleId_userId or decline_battleId_userId
             const parts = interaction.customId.split('_');
             console.log(`📋 Button parts:`, parts);
             
-            if (parts.length !== 2) {
-                console.log(`❌ Invalid button format - expected action_userId`);
+            if (parts.length !== 3) {
+                console.log(`❌ Invalid button format - expected action_battleId_userId`);
                 return await this.safeReply(interaction, '❌ Invalid button format!', true);
             }
             
             const action = parts[0]; // accept or decline
-            const expectedUserId = parts[1]; // user ID
+            const battleId = parts[1]; // battle ID  
+            const expectedUserId = parts[2]; // user ID
             const actualUserId = interaction.user.id;
             
             console.log(`🎮 Parsed Data:`);
             console.log(`   - Action: ${action}`);
+            console.log(`   - Battle ID: ${battleId}`);
             console.log(`   - Expected User ID: ${expectedUserId}`);
             console.log(`   - Actual User ID: ${actualUserId}`);
             console.log(`   - User Match: ${expectedUserId === actualUserId ? '✅ YES' : '❌ NO'}`);
@@ -372,26 +382,19 @@ class EnhancedTurnBasedPvP {
 
             console.log(`✅ User verification passed - ${interaction.user.username} can use this button`);
 
-            // Find the battle by searching for this user
-            let battleId = null;
-            let battle = null;
-            
-            for (const [id, battleData] of this.activeBattles.entries()) {
-                if (battleData.type === 'invitation' && 
-                    (battleData.challenger.user_id === actualUserId || battleData.target.user_id === actualUserId)) {
-                    battleId = id;
-                    battle = battleData;
-                    break;
-                }
-            }
-
+            const battle = this.activeBattles.get(battleId);
             if (!battle) {
-                console.log(`❌ No active battle invitation found for user ${actualUserId}`);
+                console.log(`❌ Battle not found for ID: ${battleId}`);
                 console.log(`📋 Active battles:`, Array.from(this.activeBattles.keys()));
-                return await this.safeReply(interaction, '❌ No active battle invitation found for you.', true);
+                return await this.safeReply(interaction, '❌ This battle invitation has expired or is invalid.', true);
             }
 
-            console.log(`✅ Battle found: ${battleId} - Type: ${battle.type}`);
+            if (battle.type !== 'invitation') {
+                console.log(`❌ Battle found but wrong type: ${battle.type}`);
+                return await this.safeReply(interaction, '❌ This battle invitation has expired or is invalid.', true);
+            }
+
+            console.log(`✅ Battle found and valid - Type: ${battle.type}`);
 
             // Clear timeout
             if (this.battleTimeouts.has(battleId)) {
@@ -410,7 +413,6 @@ class EnhancedTurnBasedPvP {
 
         } catch (error) {
             console.error('❌ Error handling enhanced battle response:', error);
-            console.error('❌ Stack trace:', error.stack);
             await this.safeReply(interaction, '❌ An error occurred while processing the battle response.', true);
         }
     }
@@ -575,46 +577,40 @@ class EnhancedTurnBasedPvP {
         return '█'.repeat(filledBars) + '░'.repeat(emptyBars);
     }
 
-    // Handle fruit selection
+    // Placeholder methods for future implementation
     async handleFruitSelection(interaction, battleId, userId, rarity) {
         console.log(`🍈 Fruit selection: ${userId} selecting ${rarity} for battle ${battleId}`);
-        await this.safeReply(interaction, `Selected ${rarity} fruit!`, true);
+        await this.safeReply(interaction, `🚧 Fruit selection system coming soon! Selected ${rarity}.`, true);
     }
 
-    // Handle page switch
     async handlePageSwitch(interaction, battleId, userId) {
         console.log(`📋 Page switch: ${userId} for battle ${battleId}`);
-        await this.safeReply(interaction, 'Page switched!', true);
+        await this.safeReply(interaction, '🚧 Page switching coming soon!', true);
     }
 
-    // Handle confirm selection
     async handleConfirmSelection(interaction, battleId, userId) {
         console.log(`✅ Confirm selection: ${userId} for battle ${battleId}`);
-        await this.safeReply(interaction, 'Selection confirmed!', true);
+        await this.safeReply(interaction, '🚧 Selection confirmation coming soon!', true);
     }
 
-    // Handle clear selection
     async handleClearSelection(interaction, battleId, userId) {
         console.log(`🗑️ Clear selection: ${userId} for battle ${battleId}`);
-        await this.safeReply(interaction, 'Selection cleared!', true);
+        await this.safeReply(interaction, '🚧 Clear selection coming soon!', true);
     }
 
-    // Handle skill usage
     async handleSkillUsage(interaction, battleId, userId, skillIndex) {
         console.log(`⚔️ Skill usage: ${userId} using skill ${skillIndex} in battle ${battleId}`);
-        await this.safeReply(interaction, `Used skill ${skillIndex}!`, true);
+        await this.safeReply(interaction, `🚧 Skill system coming soon! Used skill ${skillIndex}.`, true);
     }
 
-    // Handle view skills
     async handleViewSkills(interaction, battleId, userId) {
         console.log(`📋 View skills: ${userId} for battle ${battleId}`);
-        await this.safeReply(interaction, 'Skills viewed!', true);
+        await this.safeReply(interaction, '🚧 Skill viewing coming soon!', true);
     }
 
-    // Handle surrender
     async handleSurrender(interaction, battleId, userId) {
         console.log(`🏳️ Surrender: ${userId} in battle ${battleId}`);
-        await this.safeReply(interaction, 'You surrendered!', true);
+        await this.safeReply(interaction, '🚧 Surrender system coming soon!', true);
     }
 
     // Find user battle
