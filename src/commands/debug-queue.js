@@ -201,36 +201,44 @@ module.exports = {
             // Create user entry
             await DatabaseManager.ensureUser(botData.userId, botData.username, botData.guildId);
             
-            // Update user stats
+            // Update user stats (only fields that exist in your users table)
             await DatabaseManager.updateUser(botData.userId, {
                 level: botData.level,
                 total_cp: botData.totalCP,
                 base_cp: botData.balancedCP,
-                berries: 50000, // Give bot some berries
-                health: botData.maxHealth,
-                attack: botData.attack,
-                defense: botData.defense,
-                speed: botData.speed
+                berries: 50000 // Give bot some berries
             });
 
-            // Add some fruits to the bot's collection
+            // Add some fruits to the bot's collection with enhanced stats
             for (const fruit of botData.fruits) {
                 await DatabaseManager.query(`
                     INSERT INTO user_devil_fruits (
                         user_id, fruit_id, fruit_name, fruit_type, fruit_rarity, 
-                        fruit_element, fruit_power, base_cp, total_cp, obtained_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                        fruit_element, fruit_fruit_type, fruit_power, fruit_description,
+                        base_cp, total_cp, hp, mp, attack, defense, speed, power_level,
+                        level, experience, obtained_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
                     ON CONFLICT DO NOTHING
                 `, [
                     botData.userId,
-                    `${fruit.fruit_name.replace(/\s/g, '_')}_${Date.now()}`,
+                    `${fruit.fruit_name.replace(/\s/g, '_')}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
                     fruit.fruit_name,
                     fruit.fruit_type,
                     fruit.fruit_rarity,
                     fruit.fruit_element,
+                    fruit.fruit_type, // fruit_fruit_type column
                     `Powerful ${fruit.fruit_type} ability`,
+                    `A ${fruit.fruit_rarity} Devil Fruit with ${fruit.fruit_element} powers`,
                     fruit.base_cp,
                     fruit.base_cp,
+                    Math.floor(botData.maxHealth / botData.fruits.length) + 100, // hp per fruit
+                    Math.floor(botData.maxHealth / botData.fruits.length) + 50,  // mp per fruit
+                    Math.floor(botData.attack / botData.fruits.length) + 20,      // attack per fruit
+                    Math.floor(botData.defense / botData.fruits.length) + 15,    // defense per fruit
+                    Math.floor(botData.speed / botData.fruits.length) + 10,      // speed per fruit
+                    fruit.base_cp, // power_level
+                    1, // level
+                    0, // experience
                     fruit.obtained_at
                 ]);
             }
