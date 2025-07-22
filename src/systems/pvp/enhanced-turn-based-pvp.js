@@ -211,7 +211,8 @@ class EnhancedTurnBasedPvP {
             // Send public announcement
             await this.safeReply(interaction, null, false, [publicEmbed]);
 
-            // Send EPHEMERAL ping messages to each player
+            // Send EPHEMERAL ping messages to each player - FIXED order
+            console.log(`📧 Sending ephemeral messages...`);
             await this.sendEphemeralAcceptDecline(interaction, battleId, challenger, target, 'challenger');
             await this.sendEphemeralAcceptDecline(interaction, battleId, target, challenger, 'target');
 
@@ -227,9 +228,11 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // NEW METHOD: Send ephemeral accept/decline message with ping
+    // NEW METHOD: Send ephemeral accept/decline message with ping - FIXED ping logic
     async sendEphemeralAcceptDecline(interaction, battleId, player, opponent, playerRole) {
         try {
+            console.log(`📨 Sending ephemeral to ${player.username} (${playerRole}) about opponent ${opponent.username}`);
+            
             const embed = new EmbedBuilder()
                 .setColor(0x3498DB)
                 .setTitle(playerRole === 'challenger' ? '⚔️ Challenge Sent!' : '⚔️ Challenge Received!')
@@ -272,15 +275,15 @@ class EnhancedTurnBasedPvP {
                     );
             }
 
-            // Send ephemeral message with ping
+            // Send ephemeral message with ping to the CORRECT player
             await interaction.followUp({
-                content: `<@${player.id}>`, // PING THE PLAYER
+                content: `<@${player.id}>`, // PING THE PLAYER who will receive this message
                 embeds: [embed],
                 components: [buttons],
                 flags: MessageFlags.Ephemeral // EPHEMERAL - only visible to this user
             });
 
-            console.log(`✅ Ephemeral message sent to ${player.username} (${playerRole})`);
+            console.log(`✅ Ephemeral message sent to ${player.username} (${playerRole}) - they will be pinged`);
 
         } catch (error) {
             console.error(`❌ Error sending ephemeral message to ${player.username}:`, error);
@@ -308,23 +311,37 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // Handle battle response (accept/decline) - UPDATED for new button IDs
+    // Handle battle response (accept/decline) - FIXED for correct button ID parsing
     async handleBattleResponse(interaction) {
         try {
+            console.log(`🔘 Raw button ID: ${interaction.customId}`);
+            console.log(`👤 Button clicked by: ${interaction.user.username} (${interaction.user.id})`);
+            
             const parts = interaction.customId.split('_');
+            console.log(`📋 Button parts:`, parts);
+            
+            if (parts.length < 4) {
+                return await this.safeReply(interaction, '❌ Invalid button format!', true);
+            }
+            
             const action = parts[1]; // accept or decline
-            const battleId = parts.slice(2, -1).join('_'); // everything between action and userId
+            // For battle_accept_challengerId_targetId_timestamp_userId format
+            // battleId should be: challengerId_targetId_timestamp
+            const battleId = parts.slice(2, -1).join('_'); // everything except last part
             const userId = parts[parts.length - 1]; // last part is userId
             
-            console.log(`🎮 Handling battle response: ${action} for battle ${battleId} by user ${userId}`);
+            console.log(`🎮 Parsed - Action: ${action}, BattleID: ${battleId}, UserID: ${userId}`);
+            console.log(`🔍 Actual user clicking: ${interaction.user.id}`);
             
             // Verify this is the correct user
             if (interaction.user.id !== userId) {
+                console.log(`❌ User mismatch: ${interaction.user.id} vs ${userId}`);
                 return await this.safeReply(interaction, '❌ This button is not for you!', true);
             }
 
             const battle = this.activeBattles.get(battleId);
             if (!battle || battle.type !== 'invitation') {
+                console.log(`❌ Battle not found or invalid type: ${battle?.type}`);
                 return await this.safeReply(interaction, '❌ This battle invitation has expired or is invalid.', true);
             }
 
