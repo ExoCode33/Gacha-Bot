@@ -211,9 +211,15 @@ class EnhancedTurnBasedPvP {
             // Send public announcement
             await this.safeReply(interaction, null, false, [publicEmbed]);
 
-            // Send EPHEMERAL ping messages to each player - FIXED order
+            // Send EPHEMERAL ping messages to each player - COMPLETELY FIXED
             console.log(`📧 Sending ephemeral messages...`);
+            console.log(`👤 Challenger: ${challenger.username} (ID: ${challenger.id})`);
+            console.log(`🎯 Target: ${target.username} (ID: ${target.id})`);
+            
+            // Send to challenger - they get the "Challenge Sent" message
             await this.sendEphemeralAcceptDecline(interaction, battleId, challenger, target, 'challenger');
+            
+            // Send to target - they get the "Challenge Received" message with buttons
             await this.sendEphemeralAcceptDecline(interaction, battleId, target, challenger, 'target');
 
             // Set timeout for invitation
@@ -228,10 +234,15 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // NEW METHOD: Send ephemeral accept/decline message with ping - FIXED ping logic
+    // NEW METHOD: Send ephemeral accept/decline message with ping - FINAL FIX
     async sendEphemeralAcceptDecline(interaction, battleId, player, opponent, playerRole) {
         try {
-            console.log(`📨 Sending ephemeral to ${player.username} (${playerRole}) about opponent ${opponent.username}`);
+            console.log(`📨 === EPHEMERAL MESSAGE DEBUG ===`);
+            console.log(`📨 Sending to: ${player.username} (ID: ${player.id})`);
+            console.log(`📨 About opponent: ${opponent.username} (ID: ${opponent.id})`);
+            console.log(`📨 Role: ${playerRole}`);
+            console.log(`📨 This message will ONLY be visible to: ${player.username}`);
+            console.log(`📨 This message will PING: ${player.username}`);
             
             const embed = new EmbedBuilder()
                 .setColor(0x3498DB)
@@ -244,14 +255,19 @@ class EnhancedTurnBasedPvP {
                 .addFields([
                     { name: '🎯 Opponent', value: opponent.username, inline: true },
                     { name: '⏰ Time Limit', value: '60 seconds to respond', inline: true },
-                    { name: '🔥 Battle Type', value: 'Enhanced Turn-Based PvP', inline: true }
+                    { name: '🔥 Battle Type', value: 'Enhanced Turn-Based PvP', inline: true },
+                    { 
+                        name: '🆔 Debug Info', 
+                        value: `Message for: ${player.username} (${player.id})\nRole: ${playerRole}\nButtons work for: ${player.id}`, 
+                        inline: false 
+                    }
                 ])
                 .setFooter({ text: `Battle ID: ${battleId}` })
                 .setTimestamp();
 
             let buttons;
             if (playerRole === 'target') {
-                // Only the target gets accept/decline buttons
+                // TARGET gets accept/decline buttons - buttons have THEIR user ID
                 buttons = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
@@ -263,8 +279,11 @@ class EnhancedTurnBasedPvP {
                             .setLabel('❌ Decline')
                             .setStyle(ButtonStyle.Danger)
                     );
+                
+                console.log(`🔘 TARGET buttons created for ${player.username} with THEIR ID: ${player.id}`);
+                console.log(`🔘 Button ID will be: battle_accept_${battleId}_${player.id}`);
             } else {
-                // Challenger gets a waiting button (disabled)
+                // CHALLENGER gets waiting button (disabled)
                 buttons = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
@@ -273,17 +292,21 @@ class EnhancedTurnBasedPvP {
                             .setStyle(ButtonStyle.Secondary)
                             .setDisabled(true)
                     );
+                
+                console.log(`⏳ CHALLENGER waiting button created for ${player.username}`);
             }
 
-            // Send ephemeral message with ping to the CORRECT player
-            await interaction.followUp({
-                content: `<@${player.id}>`, // PING THE PLAYER who will receive this message
+            // Send ephemeral message - ONLY visible to the specified player
+            const message = await interaction.followUp({
+                content: `<@${player.id}> ${playerRole === 'target' ? '⚔️ You have been challenged!' : '✅ Challenge sent!'}`,
                 embeds: [embed],
                 components: [buttons],
-                flags: MessageFlags.Ephemeral // EPHEMERAL - only visible to this user
+                flags: MessageFlags.Ephemeral
             });
 
-            console.log(`✅ Ephemeral message sent to ${player.username} (${playerRole}) - they will be pinged`);
+            console.log(`✅ Ephemeral message sent successfully to ${player.username}`);
+            console.log(`✅ Only ${player.username} can see this message and use these buttons`);
+            console.log(`✅ Message ID: ${message?.id || 'unknown'}`);
 
         } catch (error) {
             console.error(`❌ Error sending ephemeral message to ${player.username}:`, error);
@@ -311,9 +334,10 @@ class EnhancedTurnBasedPvP {
         }
     }
 
-    // Handle battle response (accept/decline) - FIXED for correct button ID parsing
+    // Handle battle response (accept/decline) - FIXED with enhanced debugging
     async handleBattleResponse(interaction) {
         try {
+            console.log(`🔘 === BUTTON RESPONSE DEBUG ===`);
             console.log(`🔘 Raw button ID: ${interaction.customId}`);
             console.log(`👤 Button clicked by: ${interaction.user.username} (${interaction.user.id})`);
             
@@ -321,6 +345,7 @@ class EnhancedTurnBasedPvP {
             console.log(`📋 Button parts:`, parts);
             
             if (parts.length < 4) {
+                console.log(`❌ Invalid button format - not enough parts`);
                 return await this.safeReply(interaction, '❌ Invalid button format!', true);
             }
             
@@ -328,37 +353,56 @@ class EnhancedTurnBasedPvP {
             // For battle_accept_challengerId_targetId_timestamp_userId format
             // battleId should be: challengerId_targetId_timestamp
             const battleId = parts.slice(2, -1).join('_'); // everything except last part
-            const userId = parts[parts.length - 1]; // last part is userId
+            const expectedUserId = parts[parts.length - 1]; // last part is userId
+            const actualUserId = interaction.user.id;
             
-            console.log(`🎮 Parsed - Action: ${action}, BattleID: ${battleId}, UserID: ${userId}`);
-            console.log(`🔍 Actual user clicking: ${interaction.user.id}`);
+            console.log(`🎮 Parsed Data:`);
+            console.log(`   - Action: ${action}`);
+            console.log(`   - Battle ID: ${battleId}`);
+            console.log(`   - Expected User ID: ${expectedUserId}`);
+            console.log(`   - Actual User ID: ${actualUserId}`);
+            console.log(`   - User Match: ${expectedUserId === actualUserId ? '✅ YES' : '❌ NO'}`);
             
             // Verify this is the correct user
-            if (interaction.user.id !== userId) {
-                console.log(`❌ User mismatch: ${interaction.user.id} vs ${userId}`);
+            if (actualUserId !== expectedUserId) {
+                console.log(`❌ USER MISMATCH! Button was meant for user ${expectedUserId} but clicked by ${actualUserId}`);
                 return await this.safeReply(interaction, '❌ This button is not for you!', true);
             }
 
+            console.log(`✅ User verification passed - ${interaction.user.username} can use this button`);
+
             const battle = this.activeBattles.get(battleId);
-            if (!battle || battle.type !== 'invitation') {
-                console.log(`❌ Battle not found or invalid type: ${battle?.type}`);
+            if (!battle) {
+                console.log(`❌ Battle not found for ID: ${battleId}`);
+                console.log(`📋 Active battles:`, Array.from(this.activeBattles.keys()));
                 return await this.safeReply(interaction, '❌ This battle invitation has expired or is invalid.', true);
             }
+
+            if (battle.type !== 'invitation') {
+                console.log(`❌ Battle found but wrong type: ${battle.type}`);
+                return await this.safeReply(interaction, '❌ This battle invitation has expired or is invalid.', true);
+            }
+
+            console.log(`✅ Battle found and valid - Type: ${battle.type}`);
 
             // Clear timeout
             if (this.battleTimeouts.has(battleId)) {
                 clearTimeout(this.battleTimeouts.get(battleId));
                 this.battleTimeouts.delete(battleId);
+                console.log(`🕐 Cleared timeout for battle ${battleId}`);
             }
 
             if (action === 'decline') {
+                console.log(`❌ ${interaction.user.username} is declining the battle`);
                 await this.handleDecline(interaction, battleId, battle);
             } else if (action === 'accept') {
-                await this.handleAccept(interaction, battleId, battle, userId);
+                console.log(`✅ ${interaction.user.username} is accepting the battle`);
+                await this.handleAccept(interaction, battleId, battle, actualUserId);
             }
 
         } catch (error) {
-            console.error('Error handling enhanced battle response:', error);
+            console.error('❌ Error handling enhanced battle response:', error);
+            console.error('❌ Stack trace:', error.stack);
             await this.safeReply(interaction, '❌ An error occurred while processing the battle response.', true);
         }
     }
