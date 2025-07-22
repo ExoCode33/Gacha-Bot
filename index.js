@@ -1,642 +1,908 @@
-// Enhanced PvP Challenge System - Complete Bot File
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, Collection } = require('discord.js');
+// index.js - Fixed Main Bot File with Proper Enhanced PvP Integration
+const { Client, GatewayIntentBits, Events, Collection, MessageFlags } = require('discord.js');
+const fs = require('node:fs');
+const path = require('node:path');
+require('dotenv').config();
 
+console.log('🔍 Starting One Piece Gacha Bot initialization...');
+
+// Validate environment variables
+if (!process.env.DISCORD_TOKEN) {
+    console.error('❌ DISCORD_TOKEN is required in environment variables');
+    process.exit(1);
+}
+
+// Create Discord client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.DirectMessages
     ]
 });
 
-// Bot configuration
-const BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE';
-const DEBUG_BOT_IDS = ['DEBUG_BOT_ID_1', 'DEBUG_BOT_ID_2']; // Add your debug bot IDs here
-
+// Initialize commands collection
 client.commands = new Collection();
 
-class EnhancedPvPSystem {
-    constructor() {
-        this.pendingChallenges = new Map(); // battleId -> challenge data
-        this.acceptedPlayers = new Map(); // battleId -> Set of userId
-        this.battleTimeout = 60000; // 60 seconds
-    }
+// Initialize systems
+let DatabaseManager;
+let EconomySystem;
+let LevelSystem;
+let AutoIncomeSystem;
+let EnhancedTurnBasedPvP;
+let pvpSystem;
 
-    async createPvPChallenge(interaction, targetUser, battleType = 'enhanced') {
-        const challenger = interaction.user;
-        const target = targetUser;
-        
-        // Generate unique battle ID
-        const battleId = `pvp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        // Get player data (you'll need to implement getUserData function)
-        const challengerData = await this.getUserData(challenger.id);
-        const targetData = await this.getUserData(target.id);
-        
-        // Store challenge data
-        const challengeData = {
-            battleId,
-            challenger: {
-                user: challenger,
-                data: challengerData,
-                accepted: false
-            },
-            target: {
-                user: target,
-                data: targetData,
-                accepted: false
-            },
-            battleType,
-            timestamp: Date.now(),
-            channel: interaction.channel
-        };
-        
-        this.pendingChallenges.set(battleId, challengeData);
-        this.acceptedPlayers.set(battleId, new Set());
-        
-        // Create individual messages for each player
-        await this.sendChallengerMessage(interaction, challengeData);
-        await this.sendTargetMessage(interaction, challengeData);
-        
-        // Auto-accept for debug bot
-        if (this.isDebugBot(target)) {
-            setTimeout(() => {
-                this.autoAcceptDebugBot(battleId, target.id);
-            }, 1000);
-        }
-        
-        // Set timeout for challenge expiration
-        setTimeout(() => {
-            this.expireChallenge(battleId);
-        }, this.battleTimeout);
-        
-        return battleId;
-    }
+// Load systems safely
+try {
+    console.log('📦 Loading database manager...');
+    DatabaseManager = require('./src/database/manager');
+    console.log('✅ Database manager loaded');
+} catch (error) {
+    console.error('❌ Failed to load database manager:', error.message);
+}
 
-    async sendChallengerMessage(interaction, challengeData) {
-        const { challenger, target, battleId } = challengeData;
-        
-        const embed = new EmbedBuilder()
-            .setColor('#FF6B35')
-            .setTitle('⚔️ Enhanced Turn-Based PvP Battle Challenge!')
-            .setDescription(`${challenger.user.username} has challenged ${target.user.displayName}!`)
-            .addFields([
-                {
-                    name: '🔥 Challenger',
-                    value: `**${challenger.user.username}**\nLevel: ${challenger.data.level}\nTotal CP: ${challenger.data.totalCP.toLocaleString()}\nFruits: ${challenger.data.fruits}`,
-                    inline: true
-                },
-                {
-                    name: '🎯 Target',
-                    value: `**${target.user.displayName}**\nLevel: ${target.data.level}\nTotal CP: ${target.data.totalCP.toLocaleString()}\nFruits: ${target.data.fruits}`,
-                    inline: true
-                },
-                {
-                    name: '\u200B',
-                    value: '\u200B',
-                    inline: true
-                },
-                {
-                    name: '⚔️ Battle System',
-                    value: '🎯 Enhanced Turn-Based Combat\n🍎 Choose 5 fruits for battle\n⚡ Turn-based skill combat\n🧠 Strategic depth and timing',
-                    inline: false
-                },
-                {
-                    name: '⏰ Time Limit',
-                    value: '🚨 60 seconds to accept!',
-                    inline: false
-                }
-            ])
-            .setFooter({ text: `Battle ID: ${battleId} • Both players must accept! • ${new Date().toLocaleTimeString()}` })
-            .setTimestamp();
+try {
+    console.log('💰 Loading economy system...');
+    EconomySystem = require('./src/systems/economy');
+    console.log('✅ Economy system loaded');
+} catch (error) {
+    console.error('❌ Failed to load economy system:', error.message);
+}
 
-        const challengerButton = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`pvp_accept_${battleId}_${challenger.user.id}`)
-                    .setLabel(`${challenger.user.username} Accept`)
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('✅'),
-                new ButtonBuilder()
-                    .setCustomId(`pvp_decline_${battleId}_${challenger.user.id}`)
-                    .setLabel(`${challenger.user.username} Decline`)
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌')
-            );
+try {
+    console.log('⭐ Loading level system...');
+    LevelSystem = require('./src/systems/levels');
+    console.log('✅ Level system loaded');
+} catch (error) {
+    console.error('❌ Failed to load level system:', error.message);
+}
 
-        await interaction.followUp({
-            embeds: [embed],
-            components: [challengerButton],
-            ephemeral: false
-        });
-    }
+try {
+    console.log('⏰ Loading auto income system...');
+    AutoIncomeSystem = require('./src/systems/auto-income');
+    console.log('✅ Auto income system loaded');
+} catch (error) {
+    console.error('❌ Failed to load auto income system:', error.message);
+}
 
-    async sendTargetMessage(interaction, challengeData) {
-        const { challenger, target, battleId } = challengeData;
-        
-        const embed = new EmbedBuilder()
-            .setColor('#4ECDC4')
-            .setTitle('⚔️ You\'ve Been Challenged!')
-            .setDescription(`${target.user.displayName}, you've been challenged to an enhanced PvP battle!`)
-            .addFields([
-                {
-                    name: '🔥 Challenger',
-                    value: `**${challenger.user.username}**\nLevel: ${challenger.data.level}\nTotal CP: ${challenger.data.totalCP.toLocaleString()}\nFruits: ${challenger.data.fruits}`,
-                    inline: true
-                },
-                {
-                    name: '🎯 You',
-                    value: `**${target.user.displayName}**\nLevel: ${target.data.level}\nTotal CP: ${target.data.totalCP.toLocaleString()}\nFruits: ${target.data.fruits}`,
-                    inline: true
-                },
-                {
-                    name: '\u200B',
-                    value: '\u200B',
-                    inline: true
-                },
-                {
-                    name: '⚔️ Battle System',
-                    value: '🎯 Enhanced Turn-Based Combat\n🍎 Choose 5 fruits for battle\n⚡ Turn-based skill combat\n🧠 Strategic depth and timing',
-                    inline: false
-                }
-            ])
-            .setFooter({ text: `Battle ID: ${battleId} • Both players must accept!` })
-            .setTimestamp();
+// FIXED: Enhanced PvP System Loading and Storage
+try {
+    console.log('⚔️ Loading enhanced PvP system...');
+    const EnhancedTurnBasedPvPClass = require('./src/systems/pvp/enhanced-turn-based-pvp');
+    pvpSystem = new EnhancedTurnBasedPvPClass();
+    
+    // CRITICAL: Store PvP system on client for access by commands
+    client.pvpSystem = pvpSystem;
+    
+    console.log('✅ Enhanced PvP system loaded and stored on client');
+    console.log('📊 PvP system type:', typeof pvpSystem);
+    console.log('🔧 PvP methods available:', Object.getOwnPropertyNames(Object.getPrototypeOf(pvpSystem)));
+} catch (error) {
+    console.error('❌ Failed to load PvP system:', error.message);
+    pvpSystem = null;
+    client.pvpSystem = null;
+}
 
-        const targetButton = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`pvp_accept_${battleId}_${target.user.id}`)
-                    .setLabel(`${target.user.displayName} Accept`)
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('✅'),
-                new ButtonBuilder()
-                    .setCustomId(`pvp_decline_${battleId}_${target.user.id}`)
-                    .setLabel(`${target.user.displayName} Decline`)
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌')
-            );
-
-        await interaction.followUp({
-            content: `<@${target.user.id}>`,
-            embeds: [embed],
-            components: [targetButton],
-            ephemeral: false
-        });
-    }
-
-    async handleButtonInteraction(interaction) {
-        const [action, type, battleId, userId] = interaction.customId.split('_');
-        
-        if (action !== 'pvp' || !['accept', 'decline'].includes(type)) return;
-        
-        const challengeData = this.pendingChallenges.get(battleId);
-        if (!challengeData) {
-            return await interaction.reply({
-                content: '❌ This challenge has expired or no longer exists.',
-                ephemeral: true
-            });
-        }
-
-        // Check if user is part of this challenge
-        const isChallenger = challengeData.challenger.user.id === userId;
-        const isTarget = challengeData.target.user.id === userId;
-        
-        if (!isChallenger && !isTarget) {
-            return await interaction.reply({
-                content: '❌ You are not part of this challenge.',
-                ephemeral: true
-            });
-        }
-
-        if (type === 'decline') {
-            await this.declineChallenge(interaction, battleId, userId);
-        } else if (type === 'accept') {
-            await this.acceptChallenge(interaction, battleId, userId);
-        }
-    }
-
-    async acceptChallenge(interaction, battleId, userId) {
-        const challengeData = this.pendingChallenges.get(battleId);
-        const acceptedSet = this.acceptedPlayers.get(battleId);
-        
-        if (acceptedSet.has(userId)) {
-            return await interaction.reply({
-                content: '✅ You have already accepted this challenge!',
-                ephemeral: true
-            });
-        }
-
-        acceptedSet.add(userId);
-        
-        // Update challenge data
-        if (challengeData.challenger.user.id === userId) {
-            challengeData.challenger.accepted = true;
-        } else if (challengeData.target.user.id === userId) {
-            challengeData.target.accepted = true;
-        }
-
-        await interaction.reply({
-            content: '✅ Challenge accepted! Waiting for the other player...',
-            ephemeral: true
-        });
-
-        // Check if both players accepted
-        if (acceptedSet.size === 2) {
-            await this.startBattle(challengeData);
-        }
-    }
-
-    async declineChallenge(interaction, battleId, userId) {
-        const challengeData = this.pendingChallenges.get(battleId);
-        
-        await interaction.reply({
-            content: '❌ Challenge declined.',
-            ephemeral: true
-        });
-
-        // Send decline notification to channel
-        const declineEmbed = new EmbedBuilder()
-            .setColor('#FF4757')
-            .setTitle('❌ Challenge Declined')
-            .setDescription(`The PvP challenge has been declined by ${interaction.user.displayName}.`)
-            .setTimestamp();
-
-        await challengeData.channel.send({ embeds: [declineEmbed] });
-        
-        // Clean up
-        this.pendingChallenges.delete(battleId);
-        this.acceptedPlayers.delete(battleId);
-    }
-
-    async autoAcceptDebugBot(battleId, debugBotId) {
-        const challengeData = this.pendingChallenges.get(battleId);
-        if (!challengeData) return;
-
-        const acceptedSet = this.acceptedPlayers.get(battleId);
-        if (acceptedSet.has(debugBotId)) return;
-
-        acceptedSet.add(debugBotId);
-        
-        // Update challenge data
-        if (challengeData.target.user.id === debugBotId) {
-            challengeData.target.accepted = true;
-        }
-
-        // Send auto-accept message
-        const autoAcceptEmbed = new EmbedBuilder()
-            .setColor('#00D2D3')
-            .setTitle('🤖 Debug Bot Auto-Accept')
-            .setDescription(`Debug bot has automatically accepted the challenge!`)
-            .setTimestamp();
-
-        await challengeData.channel.send({ embeds: [autoAcceptEmbed] });
-
-        // Check if both players accepted
-        if (acceptedSet.size === 2) {
-            await this.startBattle(challengeData);
-        }
-    }
-
-    async startBattle(challengeData) {
-        const { battleId, challenger, target, channel } = challengeData;
-        
-        // Send battle start confirmation
-        const startEmbed = new EmbedBuilder()
-            .setColor('#FFD93D')
-            .setTitle('🔥 Battle Starting!')
-            .setDescription(`Both players have accepted! The enhanced PvP battle is about to begin!`)
-            .addFields([
-                {
-                    name: '⚔️ Combatants',
-                    value: `${challenger.user.username} vs ${target.user.displayName}`,
-                    inline: false
-                },
-                {
-                    name: '🎯 Battle Type',
-                    value: 'Enhanced Turn-Based Combat',
-                    inline: true
-                },
-                {
-                    name: '🍎 Fruit Selection',
-                    value: 'Choose your 5 battle fruits!',
-                    inline: true
-                }
-            ])
-            .setTimestamp();
-
-        await channel.send({ embeds: [startEmbed] });
-        
-        // Clean up challenge data
-        this.pendingChallenges.delete(battleId);
-        this.acceptedPlayers.delete(battleId);
-        
-        // Initialize the actual battle system
-        await this.initializeBattle(challenger, target, channel, battleId);
-    }
-
-    async expireChallenge(battleId) {
-        const challengeData = this.pendingChallenges.get(battleId);
-        if (!challengeData) return;
-
-        const acceptedSet = this.acceptedPlayers.get(battleId);
-        if (acceptedSet.size < 2) {
-            const expireEmbed = new EmbedBuilder()
-                .setColor('#95A5A6')
-                .setTitle('⏰ Challenge Expired')
-                .setDescription('The PvP challenge has expired due to timeout.')
-                .setTimestamp();
-
-            await challengeData.channel.send({ embeds: [expireEmbed] });
-            
-            // Clean up
-            this.pendingChallenges.delete(battleId);
-            this.acceptedPlayers.delete(battleId);
-        }
-    }
-
-    async initializeBattle(challenger, target, channel, battleId) {
-        // This is where you would initialize your actual battle system
-        // For now, sending a placeholder message
-        const battleEmbed = new EmbedBuilder()
-            .setColor('#E74C3C')
-            .setTitle('⚔️ Battle System Initialized')
-            .setDescription(`Battle ${battleId} has started between ${challenger.user.username} and ${target.user.displayName}!`)
-            .addFields([
-                {
-                    name: '📝 Next Steps',
-                    value: '• Select your battle fruits\n• Prepare your strategy\n• Battle begins in 10 seconds!',
-                    inline: false
-                }
-            ])
-            .setTimestamp();
-
-        await channel.send({ embeds: [battleEmbed] });
-        
-        // Here you would call your existing battle initialization code
-        // Example: await this.battleManager.startEnhancedBattle(challenger, target, channel, battleId);
-    }
-
-    isDebugBot(user) {
-        return user.username.toLowerCase().includes('debug') || 
-               user.username.toLowerCase().includes('bot') ||
-               DEBUG_BOT_IDS.includes(user.id) ||
-               user.bot === true;
-    }
-
-    async getUserData(userId) {
-    async getUserData(userId) {
-        // Replace this with your actual database/user data retrieval system
-        // This is a placeholder that returns mock data
+// Load command files
+const commandsPath = path.join(__dirname, 'src', 'commands');
+if (fs.existsSync(commandsPath)) {
+    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+    
+    for (const file of commandFiles) {
+        const filePath = path.join(commandsPath, file);
         try {
-            // Example: const userData = await database.getUser(userId);
-            return {
-                level: Math.floor(Math.random() * 50) + 1,
-                totalCP: Math.floor(Math.random() * 10000) + 1000,
-                fruits: Math.floor(Math.random() * 100) + 10,
-                wins: Math.floor(Math.random() * 20),
-                losses: Math.floor(Math.random() * 15)
-            };
+            const command = require(filePath);
+            if ('data' in command && 'execute' in command) {
+                client.commands.set(command.data.name, command);
+                console.log(`✅ Loaded command: ${command.data.name}`);
+            } else {
+                console.log(`⚠️ Command at ${filePath} is missing required "data" or "execute" property.`);
+            }
         } catch (error) {
-            console.error(`Error fetching user data for ${userId}:`, error);
-            return {
-                level: 1,
-                totalCP: 1000,
-                fruits: 10,
-                wins: 0,
-                losses: 0
-            };
+            console.error(`❌ Error loading command ${file}:`, error.message);
         }
     }
+} else {
+    console.log('⚠️ Commands directory not found, using inline commands only');
 }
 
-// Initialize PvP System
-const pvpSystem = new EnhancedPvPSystem();
-
-// Slash Commands Setup
-const commands = [
-    new SlashCommandBuilder()
-        .setName('debug-queue')
-        .setDescription('Challenge another player to an enhanced PvP battle')
-        .addUserOption(option =>
-            option.setName('target')
-                .setDescription('The player you want to challenge')
-                .setRequired(true)
-        ),
-    new SlashCommandBuilder()
-        .setName('pvp-challenge')
-        .setDescription('Challenge another player to PvP')
-        .addUserOption(option =>
-            option.setName('target')
-                .setDescription('The player you want to challenge')
-                .setRequired(true)
-        ),
-    new SlashCommandBuilder()
-        .setName('pvp-stats')
-        .setDescription('View PvP statistics')
-        .addUserOption(option =>
-            option.setName('user')
-                .setDescription('User to view stats for (defaults to yourself)')
-                .setRequired(false)
-        )
-];
-
-// Command Handlers
-async function handleDebugQueueCommand(interaction) {
-    const targetUser = interaction.options.getUser('target');
+// Bot ready event
+client.once(Events.Ready, async () => {
+    console.log(`🏴‍☠️ ${client.user.tag} is ready to sail the Grand Line!`);
+    console.log(`📊 Serving ${client.guilds.cache.size} guilds`);
+    console.log(`👥 Serving ${client.users.cache.size} users`);
     
-    if (targetUser.id === interaction.user.id) {
-        return await interaction.reply({
-            content: '❌ You cannot challenge yourself!',
-            ephemeral: true
-        });
-    }
-
-    await interaction.deferReply();
-    
-    try {
-        const battleId = await pvpSystem.createPvPChallenge(interaction, targetUser, 'enhanced');
-        console.log(`Created enhanced PvP challenge: ${battleId}`);
-    } catch (error) {
-        console.error('Error creating PvP challenge:', error);
-        await interaction.followUp({
-            content: '❌ An error occurred while creating the challenge. Please try again.',
-            ephemeral: true
-        });
-    }
-}
-
-async function handlePvPChallengeCommand(interaction) {
-    const targetUser = interaction.options.getUser('target');
-    
-    if (targetUser.id === interaction.user.id) {
-        return await interaction.reply({
-            content: '❌ You cannot challenge yourself!',
-            ephemeral: true
-        });
-    }
-
-    await interaction.deferReply();
-    
-    try {
-        const battleId = await pvpSystem.createPvPChallenge(interaction, targetUser, 'standard');
-        console.log(`Created PvP challenge: ${battleId}`);
-    } catch (error) {
-        console.error('Error creating PvP challenge:', error);
-        await interaction.followUp({
-            content: '❌ An error occurred while creating the challenge. Please try again.',
-            ephemeral: true
-        });
-    }
-}
-
-async function handlePvPStatsCommand(interaction) {
-    const targetUser = interaction.options.getUser('user') || interaction.user;
-    
-    try {
-        const userData = await pvpSystem.getUserData(targetUser.id);
-        
-        const statsEmbed = new EmbedBuilder()
-            .setColor('#9B59B6')
-            .setTitle(`📊 PvP Stats for ${targetUser.displayName}`)
-            .setThumbnail(targetUser.displayAvatarURL())
-            .addFields([
-                {
-                    name: '👤 Player Info',
-                    value: `Level: ${userData.level}\nTotal CP: ${userData.totalCP.toLocaleString()}\nFruits: ${userData.fruits}`,
-                    inline: true
-                },
-                {
-                    name: '⚔️ Battle Record',
-                    value: `Wins: ${userData.wins}\nLosses: ${userData.losses}\nRatio: ${userData.losses > 0 ? (userData.wins / userData.losses).toFixed(2) : userData.wins}`,
-                    inline: true
-                },
-                {
-                    name: '🏆 Rank',
-                    value: `${userData.wins > 50 ? 'Master' : userData.wins > 25 ? 'Expert' : userData.wins > 10 ? 'Advanced' : 'Beginner'}`,
-                    inline: true
-                }
-            ])
-            .setTimestamp();
-
-        await interaction.reply({ embeds: [statsEmbed] });
-    } catch (error) {
-        console.error('Error fetching PvP stats:', error);
-        await interaction.reply({
-            content: '❌ An error occurred while fetching stats.',
-            ephemeral: true
-        });
-    }
-}
-
-// Button Interaction Handler
-async function handleButtonInteraction(interaction) {
-    if (interaction.customId.startsWith('pvp_')) {
+    // Initialize database
+    if (DatabaseManager) {
         try {
-            await pvpSystem.handleButtonInteraction(interaction);
+            await DatabaseManager.initialize();
+            console.log('📦 Database initialized successfully');
         } catch (error) {
-            console.error('Error handling button interaction:', error);
+            console.error('❌ Database initialization failed:', error.message);
+        }
+    }
+    
+    // Initialize systems
+    if (EconomySystem) {
+        try {
+            await EconomySystem.initialize();
+            console.log('💰 Economy system initialized');
+        } catch (error) {
+            console.error('❌ Economy system initialization failed:', error.message);
+        }
+    }
+    
+    if (LevelSystem) {
+        try {
+            await LevelSystem.initialize(client);
+            console.log('⭐ Level system initialized');
+        } catch (error) {
+            console.error('❌ Level system initialization failed:', error.message);
+        }
+    }
+    
+    if (AutoIncomeSystem) {
+        try {
+            await AutoIncomeSystem.initialize(client);
+            console.log('⏰ Auto income system initialized');
+        } catch (error) {
+            console.error('❌ Auto income system initialization failed:', error.message);
+        }
+    }
+    
+    // Set bot presence
+    try {
+        client.user.setPresence({
+            activities: [{ name: 'the Grand Line for Devil Fruits! 🍈', type: 0 }],
+            status: 'online'
+        });
+        console.log('✅ Bot presence set successfully');
+    } catch (error) {
+        console.error('❌ Error setting bot presence:', error.message);
+    }
+    
+    console.log('🎉 One Piece Gacha Bot is fully ready!');
+    console.log(`🎮 Enhanced PvP System Status: ${client.pvpSystem ? 'Available' : 'Not Available'}`);
+});
+
+// Handle slash command interactions
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isChatInputCommand()) {
+        await handleSlashCommand(interaction);
+    } else if (interaction.isButton()) {
+        await handleButtonInteraction(interaction);
+    } else if (interaction.isStringSelectMenu()) {
+        await handleSelectMenuInteraction(interaction);
+    }
+});
+
+// Handle slash commands
+async function handleSlashCommand(interaction) {
+    const { commandName } = interaction;
+    
+    console.log(`📝 Slash command: /${commandName} from ${interaction.user.username}`);
+    
+    try {
+        // Check for loaded commands first
+        const command = client.commands.get(commandName);
+        if (command) {
+            await command.execute(interaction);
+            return;
+        }
+        
+        // Handle built-in commands
+        switch (commandName) {
+            case 'pvp':
+                await handlePvPCommand(interaction);
+                break;
+                
+            case 'pull':
+                await handlePullCommand(interaction);
+                break;
+                
+            case 'collection':
+                await handleCollectionCommand(interaction);
+                break;
+                
+            case 'balance':
+                await handleBalanceCommand(interaction);
+                break;
+                
+            case 'stats':
+                await handleStatsCommand(interaction);
+                break;
+                
+            case 'income':
+                await handleIncomeCommand(interaction);
+                break;
+                
+            case 'leaderboard':
+                await handleLeaderboardCommand(interaction);
+                break;
+                
+            case 'info':
+                await handleInfoCommand(interaction);
+                break;
+                
+            case 'help':
+                await handleHelpCommand(interaction);
+                break;
+                
+            default:
+                await interaction.reply({
+                    content: '❌ Unknown command! Use `/help` to see available commands.',
+                    ephemeral: true
+                });
+        }
+        
+    } catch (error) {
+        console.error(`❌ Error handling command /${commandName}:`, error);
+        
+        try {
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({
-                    content: '❌ An error occurred while processing your action.',
+                    content: '❌ An error occurred while processing this command. Please try again later.',
                     ephemeral: true
                 });
             }
+        } catch (replyError) {
+            console.error('Failed to send error reply:', replyError);
         }
     }
 }
 
-// Bot Event Handlers
-client.once('ready', async () => {
-    console.log(`✅ ${client.user.tag} is online and ready!`);
-    console.log(`📊 Serving ${client.guilds.cache.size} guilds with ${client.users.cache.size} users`);
-    
-    // Register slash commands
-    try {
-        console.log('🔄 Started refreshing application (/) commands.');
-        await client.application.commands.set(commands);
-        console.log('✅ Successfully reloaded application (/) commands.');
-    } catch (error) {
-        console.error('❌ Error registering slash commands:', error);
+// Handle PvP command
+async function handlePvPCommand(interaction) {
+    if (!client.pvpSystem) {
+        await interaction.reply({
+            content: `❌ Enhanced PvP system is not available. Please contact an administrator.`,
+            flags: MessageFlags.Ephemeral
+        });
     }
     
-    // Set bot status
-    client.user.setActivity('Enhanced PvP Battles', { type: 'WATCHING' });
-});
-
-client.on('interactionCreate', async (interaction) => {
-    try {
-        if (interaction.isChatInputCommand()) {
-            const { commandName } = interaction;
+    const subcommand = interaction.options.getSubcommand();
+    
+    switch (subcommand) {
+        case 'challenge':
+            const targetUser = interaction.options.getUser('opponent');
             
-            switch (commandName) {
-                case 'debug-queue':
-                    await handleDebugQueueCommand(interaction);
+            if (!targetUser) {
+                return await interaction.reply({
+                    content: '❌ Please specify a valid user to challenge.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+            
+            if (targetUser.bot) {
+                return await interaction.reply({
+                    content: '❌ You cannot challenge a bot to battle.',
+                    ephemeral: true
+                });
+            }
+            
+            if (targetUser.id === interaction.user.id) {
+                return await interaction.reply({
+                    content: '❌ You cannot challenge yourself to a battle.',
+                    ephemeral: true
+                });
+            }
+            
+            console.log(`🎯 PvP Challenge: ${interaction.user.username} challenging ${targetUser.username}`);
+            await client.pvpSystem.initiateBattle(interaction, targetUser);
+            break;
+            
+        case 'queue':
+            await handleQueueJoin(interaction);
+            break;
+            
+        case 'leave-queue':
+            await handleQueueLeave(interaction);
+            break;
+            
+        case 'queue-status':
+            await handleQueueStatus(interaction);
+            break;
+            
+        case 'stats':
+            await handlePvPStats(interaction);
+            break;
+            
+        case 'system-info':
+            await handleSystemInfo(interaction);
+            break;
+            
+        default:
+            await interaction.reply({
+                content: '❌ Unknown PvP subcommand!',
+                ephemeral: true
+            });
+    }
+}
+
+// Handle queue operations
+async function handleQueueJoin(interaction) {
+    try {
+        // Load PvP queue system
+        const PvPQueueSystem = require('./src/systems/pvp/pvp-queue-system');
+        
+        // Check if user has enough fruits
+        if (!DatabaseManager) {
+            return await interaction.reply({
+                content: '❌ Database system is not available.',
+                ephemeral: true
+            });
+        }
+        
+        await DatabaseManager.ensureUser(interaction.user.id, interaction.user.username, interaction.guild?.id);
+        const userFruits = await DatabaseManager.getUserDevilFruits(interaction.user.id);
+        
+        if (userFruits.length < 5) {
+            return await interaction.reply({
+                content: `❌ You need at least 5 Devil Fruits to join the PvP queue! You have ${userFruits.length}.`,
+                ephemeral: true
+            });
+        }
+        
+        // Join queue
+        const result = PvPQueueSystem.joinQueue(interaction.user.id, interaction.user.username);
+        
+        if (result.success) {
+            if (result.matched) {
+                await interaction.reply({
+                    content: `⚔️ **Match Found!** Battle starting between **${result.player1.username}** and **${result.player2.username}**!`
+                });
+                
+                // Start enhanced battle if both players are human
+                if (client.pvpSystem && !result.player2.username.includes('Bot')) {
+                    // Create mock user object for player 2
+                    const player2User = {
+                        id: result.player2.userId,
+                        username: result.player2.username
+                    };
+                    
+                    setTimeout(async () => {
+                        try {
+                            await client.pvpSystem.initiateBattle(interaction, player2User);
+                        } catch (error) {
+                            console.error('Error starting queue battle:', error);
+                        }
+                    }, 2000);
+                }
+            } else {
+                await interaction.reply({
+                    content: `🔍 **Joined PvP Queue!**\n\n**Position:** #${result.position}\n**Players in Queue:** ${result.queueSize}\n**Estimated Wait:** ${Math.max(1, result.position * 30)} seconds`,
+                    ephemeral: true
+                });
+            }
+        } else {
+            await interaction.reply({
+                content: `❌ Failed to join queue: ${result.message}`,
+                ephemeral: true
+            });
+        }
+    } catch (error) {
+        console.error('Error handling queue join:', error);
+        await interaction.reply({
+            content: '❌ PvP queue system is not available.',
+            ephemeral: true
+        });
+    }
+}
+
+async function handleQueueLeave(interaction) {
+    try {
+        const PvPQueueSystem = require('./src/systems/pvp/pvp-queue-system');
+        const result = PvPQueueSystem.leaveQueue(interaction.user.id);
+        
+        await interaction.reply({
+            content: result.success ? '✅ Left PvP queue successfully.' : '❌ You are not in the PvP queue.',
+            ephemeral: true
+        });
+    } catch (error) {
+        await interaction.reply({
+            content: '❌ PvP queue system is not available.',
+            ephemeral: true
+        });
+    }
+}
+
+async function handleQueueStatus(interaction) {
+    try {
+        const PvPQueueSystem = require('./src/systems/pvp/pvp-queue-system');
+        const status = PvPQueueSystem.getQueueStatus();
+        
+        let queueList = 'No players in queue';
+        if (status.queuedPlayers.length > 0) {
+            queueList = status.queuedPlayers
+                .slice(0, 10)
+                .map((player, index) => `${index + 1}. ${player.username}`)
+                .join('\n');
+        }
+        
+        await interaction.reply({
+            content: `📊 **PvP Queue Status**\n\n**Players in Queue:** ${status.queueSize}\n**Active Matches:** ${status.activeMatches}\n\n**Queue List:**\n${queueList}`,
+            ephemeral: true
+        });
+    } catch (error) {
+        await interaction.reply({
+            content: '❌ PvP queue system is not available.',
+            ephemeral: true
+        });
+    }
+}
+
+async function handlePvPStats(interaction) {
+    if (!DatabaseManager) {
+        return await interaction.reply({
+            content: '❌ Database system is not available.',
+            ephemeral: true
+        });
+    }
+    
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    const userData = await DatabaseManager.getUser(targetUser.id);
+    
+    if (!userData) {
+        return await interaction.reply({
+            content: `${targetUser.username} hasn't started their pirate journey yet!`,
+            ephemeral: true
+        });
+    }
+    
+    const userFruits = await DatabaseManager.getUserDevilFruits(targetUser.id);
+    const battleReady = userFruits.length >= 5 ? '✅ Ready' : '❌ Need more fruits';
+    
+    await interaction.reply({
+        content: `⚔️ **${targetUser.username}'s PvP Stats**\n\n` +
+               `**PvP Wins:** ${userData.pvp_wins || 0}\n` +
+               `**PvP Losses:** ${userData.pvp_losses || 0}\n` +
+               `**Level:** ${userData.level || 0}\n` +
+               `**Total CP:** ${userData.total_cp?.toLocaleString() || 0}\n` +
+               `**Devil Fruits:** ${userFruits.length}\n` +
+               `**Battle Ready:** ${battleReady}`,
+        ephemeral: true
+    });
+}
+
+async function handleSystemInfo(interaction) {
+    const battleStats = client.pvpSystem ? client.pvpSystem.getBattleStats() : { activeBattles: 0, battles: [] };
+    
+    await interaction.reply({
+        content: `🎮 **Enhanced PvP System Information**\n\n` +
+               `**System Status:** ${client.pvpSystem ? '✅ Available' : '❌ Not Available'}\n` +
+               `**Active Battles:** ${battleStats.activeBattles}\n` +
+               `**Battle Type:** Enhanced Turn-Based Combat\n` +
+               `**Features:** Fruit Selection, Strategic Combat, Real-time Updates\n\n` +
+               `**Commands:**\n` +
+               `• \`/pvp challenge @user\` - Challenge specific user\n` +
+               `• \`/pvp queue\` - Join matchmaking queue\n` +
+               `• \`/pvp stats\` - View PvP statistics\n` +
+               `• \`/debug-challenge\` - Test with bot (Admin only)`,
+        ephemeral: true
+    });
+}
+
+// Handle pull command
+async function handlePullCommand(interaction) {
+    try {
+        await interaction.reply({
+            content: '🎰 **Gacha Pull System**\n\nThe gacha system is currently being implemented! Check back soon for Devil Fruit pulls.',
+            ephemeral: true
+        });
+    } catch (error) {
+        console.error('Error in pull command:', error);
+    }
+}
+
+// Handle collection command
+async function handleCollectionCommand(interaction) {
+    try {
+        if (!DatabaseManager) {
+            return await interaction.reply({
+                content: '❌ Database system is not available.',
+                ephemeral: true
+            });
+        }
+        
+        const targetUser = interaction.options.getUser('user') || interaction.user;
+        const userData = await DatabaseManager.getUser(targetUser.id);
+        
+        if (!userData) {
+            return await interaction.reply({
+                content: `${targetUser.username} hasn't started their pirate journey yet! Use \`/pull\` to get your first Devil Fruit.`,
+                ephemeral: true
+            });
+        }
+        
+        const userFruits = await DatabaseManager.getUserDevilFruits(targetUser.id);
+        
+        await interaction.reply({
+            content: `🍈 **${targetUser.username}'s Collection**\n\n` +
+                   `**Total Fruits**: ${userFruits.length}\n` +
+                   `**Total CP**: ${userData.total_cp?.toLocaleString() || 0}\n` +
+                   `**Level**: ${userData.level || 0}\n\n` +
+                   `Collection viewer is being enhanced! Full collection interface coming soon.`,
+            ephemeral: true
+        });
+        
+    } catch (error) {
+        console.error('Error in collection command:', error);
+        await interaction.reply({
+            content: '❌ Error retrieving collection information.',
+            ephemeral: true
+        });
+    }
+}
+
+// Handle balance command
+async function handleBalanceCommand(interaction) {
+    try {
+        if (!DatabaseManager) {
+            return await interaction.reply({
+                content: '❌ Database system is not available.',
+                ephemeral: true
+            });
+        }
+        
+        await DatabaseManager.ensureUser(interaction.user.id, interaction.user.username);
+        const userData = await DatabaseManager.getUser(interaction.user.id);
+        
+        if (!userData) {
+            return await interaction.reply({
+                content: '❌ Could not retrieve your account information.',
+                ephemeral: true
+            });
+        }
+        
+        await interaction.reply({
+            content: `💰 **${interaction.user.username}'s Balance**\n\n` +
+                   `🪙 **Berries**: ${userData.berries?.toLocaleString() || 0}\n` +
+                   `⭐ **Level**: ${userData.level || 0}\n` +
+                   `💎 **Total CP**: ${userData.total_cp?.toLocaleString() || 0}\n` +
+                   `🍈 **Devil Fruits**: Use \`/collection\` to view`,
+            ephemeral: true
+        });
+        
+    } catch (error) {
+        console.error('Error in balance command:', error);
+        await interaction.reply({
+            content: '❌ Error retrieving balance information.',
+            ephemeral: true
+        });
+    }
+}
+
+// Handle stats command
+async function handleStatsCommand(interaction) {
+    try {
+        const targetUser = interaction.options.getUser('user') || interaction.user;
+        
+        if (!DatabaseManager) {
+            return await interaction.reply({
+                content: '❌ Database system is not available.',
+                ephemeral: true
+            });
+        }
+        
+        const userData = await DatabaseManager.getUser(targetUser.id);
+        
+        if (!userData) {
+            return await interaction.reply({
+                content: `${targetUser.username} hasn't started their pirate journey yet!`,
+                ephemeral: true
+            });
+        }
+        
+        await interaction.reply({
+            content: `📊 **${targetUser.username}'s Pirate Stats**\n\n` +
+                   `⭐ **Level**: ${userData.level || 0}\n` +
+                   `💎 **Total CP**: ${userData.total_cp?.toLocaleString() || 0}\n` +
+                   `💪 **Base CP**: ${userData.base_cp?.toLocaleString() || 0}\n` +
+                   `💰 **Berries**: ${userData.berries?.toLocaleString() || 0}\n` +
+                   `📅 **Joined**: ${userData.created_at ? new Date(userData.created_at).toLocaleDateString() : 'Unknown'}`,
+            ephemeral: true
+        });
+        
+    } catch (error) {
+        console.error('Error in stats command:', error);
+        await interaction.reply({
+            content: '❌ Error retrieving stats information.',
+            ephemeral: true
+        });
+    }
+}
+
+// Handle income command
+async function handleIncomeCommand(interaction) {
+    try {
+        if (!EconomySystem || !DatabaseManager) {
+            return await interaction.reply({
+                content: '❌ Economy system is not available.',
+                ephemeral: true
+            });
+        }
+        
+        await DatabaseManager.ensureUser(interaction.user.id, interaction.user.username);
+        const result = await EconomySystem.processManualIncome(interaction.user.id, interaction.user.username);
+        
+        if (!result.success) {
+            return await interaction.reply({
+                content: `⏰ ${result.message}`,
+                ephemeral: true
+            });
+        }
+        
+        await interaction.reply({
+            content: `💰 **Income Collected!**\n\n` +
+                   `**Amount**: ${result.amount.toLocaleString()} berries\n` +
+                   `**New Balance**: ${result.newBalance.toLocaleString()} berries\n` +
+                   `**Next Collection**: ${result.cooldownMinutes} minutes`,
+            ephemeral: true
+        });
+        
+    } catch (error) {
+        console.error('Error in income command:', error);
+        await interaction.reply({
+            content: '❌ Error processing income collection.',
+            ephemeral: true
+        });
+    }
+}
+
+// Handle leaderboard command
+async function handleLeaderboardCommand(interaction) {
+    try {
+        if (!DatabaseManager) {
+            return await interaction.reply({
+                content: '❌ Database system is not available.',
+                ephemeral: true
+            });
+        }
+        
+        const type = interaction.options.getString('type') || 'cp';
+        const leaderboard = await DatabaseManager.getLeaderboard(type, 10);
+        
+        if (!leaderboard || leaderboard.length === 0) {
+            return await interaction.reply({
+                content: '📊 **Empty Leaderboard**\n\nNo data available yet! Be the first to make your mark!',
+                ephemeral: true
+            });
+        }
+        
+        const leaderboardText = leaderboard.map((user, index) => {
+            const position = index + 1;
+            const positionEmoji = position === 1 ? '🥇' : position === 2 ? '🥈' : position === 3 ? '🥉' : `${position}.`;
+            
+            let value = '';
+            switch (type) {
+                case 'cp':
+                    value = `${user.total_cp?.toLocaleString() || 0} CP`;
                     break;
-                case 'pvp-challenge':
-                    await handlePvPChallengeCommand(interaction);
+                case 'berries':
+                    value = `${user.berries?.toLocaleString() || 0} berries`;
                     break;
-                case 'pvp-stats':
-                    await handlePvPStatsCommand(interaction);
+                case 'level':
+                    value = `Level ${user.level || 0}`;
                     break;
                 default:
-                    await interaction.reply({
-                        content: '❌ Unknown command.',
-                        ephemeral: true
-                    });
+                    value = 'Unknown';
             }
-        } else if (interaction.isButton()) {
-            await handleButtonInteraction(interaction);
-        }
-    } catch (error) {
-        console.error('Error handling interaction:', error);
+            
+            return `${positionEmoji} ${user.username} - ${value}`;
+        }).join('\n');
         
-        const errorMessage = {
-            content: '❌ An error occurred while processing your request.',
-            ephemeral: true
+        const typeNames = {
+            cp: 'Combat Power',
+            berries: 'Berry Wealth',
+            level: 'Level Rankings'
         };
         
-        try {
-            if (interaction.deferred) {
-                await interaction.followUp(errorMessage);
-            } else if (!interaction.replied) {
-                await interaction.reply(errorMessage);
+        await interaction.reply({
+            content: `🏆 **${typeNames[type] || 'Leaderboard'}**\n\n${leaderboardText}`,
+            ephemeral: true
+        });
+        
+    } catch (error) {
+        console.error('Error in leaderboard command:', error);
+        await interaction.reply({
+            content: '❌ Error retrieving leaderboard information.',
+            ephemeral: true
+        });
+    }
+}
+
+// Handle info command
+async function handleInfoCommand(interaction) {
+    await interaction.reply({
+        content: `ℹ️ **One Piece Devil Fruit Gacha Bot**\n\n` +
+               `🏴‍☠️ **Welcome to the Grand Line!**\n` +
+               `Collect Devil Fruits, build your power, and become the Pirate King!\n\n` +
+               `**🎯 Key Features:**\n` +
+               `• 🍈 150+ unique Devil Fruits across 7 rarity tiers\n` +
+               `• ⚔️ Enhanced turn-based PvP battles\n` +
+               `• 💰 Automated economy with berry income\n` +
+               `• ⭐ Role-based leveling system\n` +
+               `• 🎮 Animated gacha pulls (coming soon!)\n\n` +
+               `**📋 Commands:**\n` +
+               `• \`/pull\` - Get Devil Fruits (coming soon)\n` +
+               `• \`/pvp challenge @user\` - Challenge to battle\n` +
+               `• \`/collection\` - View your fruits\n` +
+               `• \`/balance\` - Check your berries\n` +
+               `• \`/income\` - Collect berry income\n` +
+               `• \`/stats\` - View your pirate stats\n` +
+               `• \`/leaderboard\` - Server rankings\n\n` +
+               `Start your adventure today! 🌊`,
+        ephemeral: true
+    });
+}
+
+// Handle help command
+async function handleHelpCommand(interaction) {
+    await interaction.reply({
+        content: `📖 **One Piece Gacha Bot - Command Help**\n\n` +
+               `**🎮 Core Commands:**\n` +
+               `• \`/pull\` - Pull Devil Fruits from gacha\n` +
+               `• \`/collection [user]\` - View Devil Fruit collection\n` +
+               `• \`/balance\` - Check your berry balance\n` +
+               `• \`/stats [user]\` - View pirate statistics\n` +
+               `• \`/income\` - Collect berry income\n\n` +
+               `**⚔️ Battle System:**\n` +
+               `• \`/pvp challenge @user\` - Challenge someone to PvP\n` +
+               `• \`/pvp queue\` - Join matchmaking queue\n` +
+               `• \`/pvp stats\` - View PvP statistics\n\n` +
+               `**📊 Information:**\n` +
+               `• \`/leaderboard [type]\` - View server rankings\n` +
+               `• \`/info\` - Game information and mechanics\n` +
+               `• \`/help\` - This help menu\n\n` +
+               `**💡 Tips:**\n` +
+               `• Use \`/income\` regularly to collect berries\n` +
+               `• Higher levels give better base CP\n` +
+               `• Collect multiple fruits to boost your power!\n\n` +
+               `🏴‍☠️ **Set sail for adventure!**`,
+        ephemeral: true
+    });
+}
+
+// FIXED: Enhanced Button Interaction Handler
+async function handleButtonInteraction(interaction) {
+    const { customId } = interaction;
+    
+    console.log(`🔘 Button: ${customId} by ${interaction.user.username}`);
+    
+    try {
+        // Handle Enhanced PvP system buttons (PRIORITY HANDLING)
+        if (client.pvpSystem && (
+            customId.startsWith('accept_') || 
+            customId.startsWith('decline_') ||
+            customId.startsWith('battle_') ||
+            customId.includes('enhanced') ||
+            customId.includes('fruit_selection') ||
+            customId.includes('confirm_selection') ||
+            customId.includes('clear_selection') ||
+            customId.includes('page_switch') ||
+            customId.includes('use_skill') ||
+            customId.includes('surrender') ||
+            customId.includes('show_skills')
+        )) {
+            console.log('🎮 Handling Enhanced PvP button interaction...');
+            await client.pvpSystem.handleBattleResponse(interaction);
+            return;
+        }
+        
+        // Handle other button types here
+        await interaction.reply({
+            content: '❌ Unknown button interaction.',
+            ephemeral: true
+        });
+        
+    } catch (error) {
+        console.error('❌ Error handling button interaction:', error);
+        
+        if (!interaction.replied && !interaction.deferred) {
+            try {
+                await interaction.reply({
+                    content: '❌ An error occurred while processing this action.',
+                    ephemeral: true
+                });
+            } catch (replyError) {
+                console.error('Failed to send button error reply:', replyError);
             }
-        } catch (e) {
-            console.error('Error sending error message:', e);
+        }
+    }
+}
+
+// Handle select menu interactions
+async function handleSelectMenuInteraction(interaction) {
+    console.log(`📋 Select menu: ${interaction.customId}`);
+    
+    try {
+        // Handle Enhanced PvP select menus
+        if (client.pvpSystem && interaction.customId.includes('fruit_selection')) {
+            console.log('🍈 Handling PvP fruit selection menu...');
+            await client.pvpSystem.handleBattleResponse(interaction);
+            return;
+        }
+        
+        await interaction.reply({
+            content: '📋 Select menu interactions are being implemented!',
+            ephemeral: true
+        });
+    } catch (error) {
+        console.error('Error handling select menu:', error);
+        
+        if (!interaction.replied && !interaction.deferred) {
+            try {
+                await interaction.reply({
+                    content: '❌ An error occurred while processing this selection.',
+                    ephemeral: true
+                });
+            } catch (replyError) {
+                console.error('Failed to send select menu error reply:', replyError);
+            }
+        }
+    }
+}
+
+// Handle guild member updates (role changes)
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    if (LevelSystem) {
+        try {
+            await LevelSystem.handleRoleChange(oldMember, newMember);
+        } catch (error) {
+            console.error('Error handling role change:', error);
         }
     }
 });
 
+// Error handling
 client.on('error', error => {
-    console.error('Discord client error:', error);
+    console.error('❌ Discord client error:', error);
 });
 
 client.on('warn', warning => {
-    console.warn('Discord client warning:', warning);
+    console.warn('⚠️ Discord client warning:', warning);
+});
+
+// Process error handling
+process.on('unhandledRejection', error => {
+    console.error('❌ Unhandled promise rejection:', error);
+});
+
+process.on('uncaughtException', error => {
+    console.error('❌ Uncaught exception:', error);
+    process.exit(1);
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-    console.log('\n🔄 Shutting down gracefully...');
+    console.log('🔄 Received SIGINT, shutting down gracefully...');
     client.destroy();
+    if (AutoIncomeSystem && AutoIncomeSystem.stop) {
+        AutoIncomeSystem.stop();
+    }
+    if (DatabaseManager && DatabaseManager.close) {
+        DatabaseManager.close();
+    }
     process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-    console.log('\n🔄 Shutting down gracefully...');
+    console.log('🔄 Received SIGTERM, shutting down gracefully...');
     client.destroy();
+    if (AutoIncomeSystem && AutoIncomeSystem.stop) {
+        AutoIncomeSystem.stop();
+    }
+    if (DatabaseManager && DatabaseManager.close) {
+        DatabaseManager.close();
+    }
     process.exit(0);
 });
 
 // Login to Discord
-if (BOT_TOKEN && BOT_TOKEN !== 'YOUR_BOT_TOKEN_HERE') {
-    client.login(BOT_TOKEN).catch(error => {
-        console.error('❌ Failed to login to Discord:', error);
-        process.exit(1);
-    });
-} else {
-    console.error('❌ Please set your bot token in the BOT_TOKEN variable');
+console.log('🔐 Attempting to login to Discord...');
+client.login(process.env.DISCORD_TOKEN).catch(error => {
+    console.error('❌ Failed to login:', error);
     process.exit(1);
-}
+});
