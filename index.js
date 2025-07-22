@@ -256,9 +256,9 @@ async function handleSlashCommand(interaction) {
 // Handle PvP command
 async function handlePvPCommand(interaction) {
     if (!client.pvpSystem) {
-        return await interaction.reply({
-            content: '❌ Enhanced PvP system is not available. Please contact an administrator.',
-            ephemeral: true
+        await interaction.reply({
+            content: `❌ Enhanced PvP system is not available. Please contact an administrator.`,
+            flags: MessageFlags.Ephemeral
         });
     }
     
@@ -271,7 +271,7 @@ async function handlePvPCommand(interaction) {
             if (!targetUser) {
                 return await interaction.reply({
                     content: '❌ Please specify a valid user to challenge.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
             
