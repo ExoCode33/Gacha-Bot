@@ -265,6 +265,18 @@ module.exports = {
 
             // Add some fruits to the bot's collection with enhanced stats
             for (const fruit of botData.fruits) {
+                // Truncate strings to fit database constraints
+                const fruitName = fruit.fruit_name.length > 45 ? fruit.fruit_name.substring(0, 45) : fruit.fruit_name;
+                const fruitType = fruit.fruit_type.length > 45 ? fruit.fruit_type.substring(0, 45) : fruit.fruit_type;
+                const fruitElement = fruit.fruit_element.length > 45 ? fruit.fruit_element.substring(0, 45) : fruit.fruit_element;
+                const fruitPower = `${fruitType} Power`.length > 45 ? `${fruitType} Power`.substring(0, 45) : `${fruitType} Power`;
+                const fruitDescription = `A ${fruit.fruit_rarity} Devil Fruit`.length > 100 ? 
+                    `A ${fruit.fruit_rarity} Devil Fruit`.substring(0, 100) : 
+                    `A ${fruit.fruit_rarity} Devil Fruit`;
+                
+                // Create shorter, unique fruit ID
+                const shortFruitId = `bot_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+
                 await DatabaseManager.query(`
                     INSERT INTO user_devil_fruits (
                         user_id, fruit_id, fruit_name, fruit_type, fruit_rarity, 
@@ -275,14 +287,14 @@ module.exports = {
                     ON CONFLICT DO NOTHING
                 `, [
                     botData.userId,
-                    `${fruit.fruit_name.replace(/\s/g, '_')}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-                    fruit.fruit_name,
-                    fruit.fruit_type,
+                    shortFruitId, // Shortened ID
+                    fruitName, // Truncated name
+                    fruitType, // Truncated type
                     fruit.fruit_rarity,
-                    fruit.fruit_element,
-                    fruit.fruit_type, // fruit_fruit_type column
-                    `Powerful ${fruit.fruit_type} ability`,
-                    `A ${fruit.fruit_rarity} Devil Fruit with ${fruit.fruit_element} powers`,
+                    fruitElement, // Truncated element
+                    fruitType, // fruit_fruit_type column (truncated)
+                    fruitPower, // Truncated power description
+                    fruitDescription, // Truncated description
                     fruit.base_cp,
                     fruit.base_cp,
                     Math.floor(botData.maxHealth / botData.fruits.length) + 100, // hp per fruit
