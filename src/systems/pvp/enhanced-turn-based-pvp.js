@@ -1,778 +1,642 @@
-// src/systems/pvp/enhanced-turn-based-pvp.js - FIXED VERSION with Individual Accept Messages
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
-const DatabaseManager = require('../../database/manager');
-const { getRarityEmoji, getRarityColor } = require('../../data/devil-fruits');
+// Enhanced PvP Challenge System - Complete Bot File
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, Collection } = require('discord.js');
 
-// Import abilities safely
-let balancedDevilFruitAbilities = {};
-let statusEffects = {};
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers
+    ]
+});
 
-try {
-    const abilitiesData = require('../../data/balanced-devil-fruit-abilities');
-    balancedDevilFruitAbilities = abilitiesData.balancedDevilFruitAbilities || {};
-    statusEffects = abilitiesData.statusEffects || {};
-    console.log('✅ Devil Fruit abilities loaded for PvP system');
-} catch (error) {
-    console.log('⚠️ Abilities not found, using defaults');
-    balancedDevilFruitAbilities = getDefaultAbilities();
-    statusEffects = getDefaultStatusEffects();
-}
+// Bot configuration
+const BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE';
+const DEBUG_BOT_IDS = ['DEBUG_BOT_ID_1', 'DEBUG_BOT_ID_2']; // Add your debug bot IDs here
 
-class EnhancedTurnBasedPvP {
+client.commands = new Collection();
+
+class EnhancedPvPSystem {
     constructor() {
-        this.activeBattles = new Map();
-        this.battleTimeouts = new Map();
-        this.pendingInvitations = new Map(); // Track pending invitations
-        this.BATTLE_TIMEOUT = 10 * 60 * 1000; // 10 minutes
-        this.TURN_TIMEOUT = 60 * 1000; // 1 minute per turn
-        this.SELECTION_TIMEOUT = 5 * 60 * 1000; // 5 minutes for fruit selection
-        this.INVITATION_TIMEOUT = 60 * 1000; // 1 minute for accept/decline
+        this.pendingChallenges = new Map(); // battleId -> challenge data
+        this.acceptedPlayers = new Map(); // battleId -> Set of userId
+        this.battleTimeout = 60000; // 60 seconds
+    }
+
+    async createPvPChallenge(interaction, targetUser, battleType = 'enhanced') {
+        const challenger = interaction.user;
+        const target = targetUser;
         
-        console.log('🎮 Enhanced Turn-Based PvP System initialized successfully');
+        // Generate unique battle ID
+        const battleId = `pvp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        // Start cleanup interval
-        this.startCleanupInterval();
-    }
-
-    startCleanupInterval() {
-        setInterval(() => {
-            try {
-                this.cleanupExpiredBattles();
-                this.cleanupExpiredInvitations();
-            } catch (error) {
-                console.error('Error in PvP cleanup:', error);
-            }
-        }, 60000); // Check every minute
-    }
-
-    cleanupExpiredBattles() {
-        const now = Date.now();
-        for (const [battleId, battle] of this.activeBattles.entries()) {
-            if (battle.lastActivity && (now - battle.lastActivity) > this.BATTLE_TIMEOUT) {
-                this.endBattle(battleId, 'timeout');
-                console.log(`🧹 Cleaned up expired battle: ${battleId}`);
-            }
-        }
-    }
-
-    cleanupExpiredInvitations() {
-        const now = Date.now();
-        for (const [invitationId, invitation] of this.pendingInvitations.entries()) {
-            if (invitation.createdAt && (now - invitation.createdAt) > this.INVITATION_TIMEOUT) {
-                this.pendingInvitations.delete(invitationId);
-                console.log(`🧹 Cleaned up expired invitation: ${invitationId}`);
-            }
-        }
-    }
-
-    // Safe interaction helpers
-    async safeReply(interaction, content, ephemeral = false, embeds = [], components = []) {
-        try {
-            const payload = {};
-            if (content) payload.content = content;
-            if (embeds.length > 0) payload.embeds = embeds;
-            if (components.length > 0) payload.components = components;
-            if (ephemeral) payload.flags = MessageFlags.Ephemeral;
-
-            if (interaction.replied || interaction.deferred) {
-                return await interaction.followUp(payload);
-            } else {
-                return await interaction.reply(payload);
-            }
-        } catch (error) {
-            console.error('Error in safeReply:', error);
-            return null;
-        }
-    }
-
-    async safeUpdate(interaction, payload) {
-        try {
-            if (interaction.deferred || interaction.replied) {
-                return await interaction.editReply(payload);
-            } else {
-                return await interaction.update(payload);
-            }
-        } catch (error) {
-            console.error('Error in safeUpdate:', error);
-            return null;
-        }
-    }
-
-    // Main battle initiation - FIXED to use individual accept messages
-    async initiateBattle(interaction, targetUser) {
-        try {
-            const challenger = interaction.user;
-            const target = targetUser;
-
-            console.log(`🎯 Initiating battle: ${challenger.username} vs ${target.username}`);
-
-            // Validation checks
-            if (challenger.id === target.id) {
-                return await this.safeReply(interaction, '❌ You cannot challenge yourself to a battle!', true);
-            }
-
-            // Check if users are already in battles
-            const existingBattle = this.findUserBattle(challenger.id) || this.findUserBattle(target.id);
-            if (existingBattle) {
-                return await this.safeReply(interaction, '❌ One of the users is already in a battle!', true);
-            }
-
-            // Get user data from database
-            await DatabaseManager.ensureUser(challenger.id, challenger.username);
-            await DatabaseManager.ensureUser(target.id, target.username);
-            
-            const challengerData = await DatabaseManager.getUser(challenger.id);
-            const targetData = await DatabaseManager.getUser(target.id);
-
-            if (!challengerData || !targetData) {
-                return await this.safeReply(interaction, '❌ Both players must be registered in the game!', true);
-            }
-
-            // Get user fruits
-            const challengerFruits = await DatabaseManager.getUserDevilFruits(challenger.id);
-            const targetFruits = await DatabaseManager.getUserDevilFruits(target.id);
-
-            if (challengerFruits.length < 5 || targetFruits.length < 5) {
-                return await this.safeReply(interaction, '❌ Both players must have at least 5 Devil Fruits to battle!', true);
-            }
-
-            // Create battle invitation with individual accept messages
-            const invitationId = `pvp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            await this.createIndividualInvitationMessages(interaction, invitationId, challenger, target, challengerData, targetData, challengerFruits, targetFruits);
-
-        } catch (error) {
-            console.error('Error initiating enhanced battle:', error);
-            await this.safeReply(interaction, '❌ An error occurred while initiating the battle.', true);
-        }
-    }
-
-    // NEW METHOD: Create individual invitation messages for each player
-    async createIndividualInvitationMessages(interaction, invitationId, challenger, target, challengerData, targetData, challengerFruits, targetFruits) {
-        try {
-            // Calculate balanced CP for both players
-            const player1BalancedCP = Math.floor((challengerData.total_cp || 100) * 0.8);
-            const player2BalancedCP = Math.floor((targetData.total_cp || 100) * 0.8);
-            
-            // Store invitation data
-            const invitationData = {
-                id: invitationId,
-                challenger: { 
-                    ...challengerData, 
-                    user_id: challenger.id,
-                    username: challenger.username,
-                    fruits: challengerFruits,
-                    balancedCP: player1BalancedCP,
-                    maxHealth: 200 + ((challengerData.level || 0) * 10),
-                    accepted: false
-                },
-                target: { 
-                    ...targetData, 
-                    user_id: target.id,
-                    username: target.username,
-                    fruits: targetFruits,
-                    balancedCP: player2BalancedCP,
-                    maxHealth: 200 + ((targetData.level || 0) * 10),
-                    accepted: false
-                },
-                channelId: interaction.channel.id,
-                createdAt: Date.now(),
-                status: 'pending'
-            };
-
-            this.pendingInvitations.set(invitationId, invitationData);
-            console.log(`💾 Stored invitation with ID: ${invitationId}`);
-
-            // Send initial public announcement
-            const publicEmbed = new EmbedBuilder()
-                .setColor(0x3498DB)
-                .setTitle('⚔️ Enhanced Turn-Based PvP Challenge!')
-                .setDescription(`**${challenger.username}** has challenged **${target.username}** to an enhanced turn-based battle!\n\n🔥 **Individual accept messages have been sent to both players!**`)
-                .addFields([
-                    { 
-                        name: `🏴‍☠️ ${challenger.username} (Challenger)`, 
-                        value: [
-                            `**Level**: ${challengerData.level || 0}`,
-                            `**Total CP**: ${challengerData.total_cp?.toLocaleString() || 0}`,
-                            `**Fruits**: ${challengerFruits.length}`,
-                            `**Status**: ⏳ Sending individual message...`
-                        ].join('\n'), 
-                        inline: true 
-                    },
-                    { 
-                        name: `🏴‍☠️ ${target.username} (Target)`, 
-                        value: [
-                            `**Level**: ${targetData.level || 0}`,
-                            `**Total CP**: ${targetData.total_cp?.toLocaleString() || 0}`,
-                            `**Fruits**: ${targetFruits.length}`,
-                            `**Status**: ⏳ Sending individual message...`
-                        ].join('\n'), 
-                        inline: true 
-                    },
-                    {
-                        name: '⚔️ Battle System',
-                        value: [
-                            '🎯 **Enhanced Turn-Based Combat**',
-                            '🍈 Choose 5 fruits for battle',
-                            '⚡ Turn-based skill combat',
-                            '🎮 Strategic depth and timing',
-                            '⏰ **60 seconds to accept**'
-                        ].join('\n'),
-                        inline: false
-                    }
-                ])
-                .setFooter({ text: `Invitation ID: ${invitationId} • Check your individual messages!` })
-                .setTimestamp();
-
-            await this.safeReply(interaction, `<@${challenger.id}> <@${target.id}> 🔥 **PvP Challenge Sent!**`, false, [publicEmbed]);
-
-            // Send individual messages to each player
-            await this.sendIndividualInvitationMessage(challenger, invitationData, 'challenger');
-            await this.sendIndividualInvitationMessage(target, invitationData, 'target');
-
-            // Set timeout for invitation
+        // Get player data (you'll need to implement getUserData function)
+        const challengerData = await this.getUserData(challenger.id);
+        const targetData = await this.getUserData(target.id);
+        
+        // Store challenge data
+        const challengeData = {
+            battleId,
+            challenger: {
+                user: challenger,
+                data: challengerData,
+                accepted: false
+            },
+            target: {
+                user: target,
+                data: targetData,
+                accepted: false
+            },
+            battleType,
+            timestamp: Date.now(),
+            channel: interaction.channel
+        };
+        
+        this.pendingChallenges.set(battleId, challengeData);
+        this.acceptedPlayers.set(battleId, new Set());
+        
+        // Create individual messages for each player
+        await this.sendChallengerMessage(interaction, challengeData);
+        await this.sendTargetMessage(interaction, challengeData);
+        
+        // Auto-accept for debug bot
+        if (this.isDebugBot(target)) {
             setTimeout(() => {
-                this.handleInvitationTimeout(interaction, invitationId);
-            }, this.INVITATION_TIMEOUT);
-
-            console.log(`✅ Individual invitation messages sent for: ${invitationId}`);
-
-        } catch (error) {
-            console.error('Error creating individual invitation messages:', error);
+                this.autoAcceptDebugBot(battleId, target.id);
+            }, 1000);
         }
-    }
-
-    // Send individual invitation message to each player
-    async sendIndividualInvitationMessage(user, invitationData, role) {
-        try {
-            const isChallenger = role === 'challenger';
-            const opponent = isChallenger ? invitationData.target : invitationData.challenger;
-            
-            const embed = new EmbedBuilder()
-                .setColor(isChallenger ? 0x3498DB : 0xE74C3C)
-                .setTitle(isChallenger ? '⚔️ You Challenged Someone!' : '⚔️ You\'ve Been Challenged!')
-                .setDescription(
-                    isChallenger 
-                        ? `You have challenged **${opponent.username}** to an enhanced turn-based PvP battle!`
-                        : `**${opponent.username}** has challenged you to an enhanced turn-based PvP battle!`
-                )
-                .addFields([
-                    { 
-                        name: '🎯 Opponent', 
-                        value: `**${opponent.username}**\nLevel ${opponent.level || 0} | ${opponent.total_cp?.toLocaleString() || 0} CP`, 
-                        inline: true 
-                    },
-                    { 
-                        name: '⏰ Time Limit', 
-                        value: '60 seconds to respond', 
-                        inline: true 
-                    },
-                    { 
-                        name: '🔥 Battle Type', 
-                        value: 'Enhanced Turn-Based PvP', 
-                        inline: true 
-                    },
-                    { 
-                        name: '🎮 What Happens Next?', 
-                        value: isChallenger 
-                            ? 'If both players accept, you\'ll enter fruit selection phase, then strategic turn-based combat!'
-                            : 'Accept to enter fruit selection, then engage in strategic turn-based combat!', 
-                        inline: false 
-                    }
-                ])
-                .setFooter({ text: `Invitation ID: ${invitationData.id}` })
-                .setTimestamp();
-
-            // Create accept/decline buttons for each player individually
-            const buttons = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`accept_invitation_${invitationData.id}_${user.id}`)
-                        .setLabel('✅ Accept Challenge')
-                        .setStyle(ButtonStyle.Success),
-                    new ButtonBuilder()
-                        .setCustomId(`decline_invitation_${invitationData.id}_${user.id}`)
-                        .setLabel('❌ Decline')
-                        .setStyle(ButtonStyle.Danger)
-                );
-
-            // Check if this is a debug bot and auto-accept
-            const isDebugBot = global.debugBots && global.debugBots.has(user.id);
-            if (isDebugBot) {
-                console.log(`🤖 Debug bot ${user.username} detected - will auto-accept`);
-                
-                // Send the message first
-                await user.send({
-                    embeds: [embed],
-                    components: [buttons]
-                });
-
-                // Auto-accept for debug bot after a short delay
-                setTimeout(async () => {
-                    try {
-                        console.log(`🤖 Auto-accepting for debug bot ${user.username}`);
-                        await this.handleBotAutoAccept(invitationData.id, user.id);
-                    } catch (error) {
-                        console.error('Error in bot auto-accept:', error);
-                    }
-                }, 2000);
-            } else {
-                // Send normal message for human players
-                await user.send({
-                    embeds: [embed],
-                    components: [buttons]
-                });
-            }
-
-            console.log(`✅ Individual invitation sent to ${user.username} (${role})`);
-
-        } catch (error) {
-            console.error(`❌ Error sending individual invitation to ${user.username}:`, error);
-            
-            // If DM fails, this is not critical for debug bots
-            if (!(global.debugBots && global.debugBots.has(user.id))) {
-                console.error(`Failed to send DM to ${user.username}. This may cause issues.`);
-            }
-        }
-    }
-
-    // Handle bot auto-accept for debug bots
-    async handleBotAutoAccept(invitationId, botUserId) {
-        try {
-            const invitationData = this.pendingInvitations.get(invitationId);
-            if (!invitationData) {
-                console.log(`⚠️ Invitation ${invitationId} not found for bot auto-accept`);
-                return;
-            }
-
-            console.log(`🤖 Processing auto-accept for bot ${botUserId} in invitation ${invitationId}`);
-
-            // Mark the bot as accepted
-            if (invitationData.challenger.user_id === botUserId) {
-                invitationData.challenger.accepted = true;
-                console.log(`🤖 Bot challenger ${invitationData.challenger.username} auto-accepted`);
-            } else if (invitationData.target.user_id === botUserId) {
-                invitationData.target.accepted = true;
-                console.log(`🤖 Bot target ${invitationData.target.username} auto-accepted`);
-            }
-
-            // Check if both players have now accepted
-            if (invitationData.challenger.accepted && invitationData.target.accepted) {
-                console.log(`🔥 Both players accepted (including bot)! Starting battle...`);
-                await this.startBattleFromInvitation(invitationData);
-            } else {
-                console.log(`⏳ Waiting for other player to accept...`);
-                this.pendingInvitations.set(invitationId, invitationData);
-            }
-
-        } catch (error) {
-            console.error('Error in bot auto-accept:', error);
-        }
-    }
-
-    // Handle invitation timeout
-    async handleInvitationTimeout(interaction, invitationId) {
-        try {
-            const invitationData = this.pendingInvitations.get(invitationId);
-            if (!invitationData) return;
-
-            this.pendingInvitations.delete(invitationId);
-            
-            const timeoutEmbed = new EmbedBuilder()
-                .setColor(0xFF8000)
-                .setTitle('⏰ Battle Invitation Expired')
-                .setDescription(`The battle invitation between **${invitationData.challenger.username}** and **${invitationData.target.username}** has expired due to no response within 60 seconds.`)
-                .setTimestamp();
-
-            await interaction.followUp({ embeds: [timeoutEmbed] });
-            console.log(`⏰ Battle invitation ${invitationId} expired`);
-        } catch (error) {
-            console.error('Error handling invitation timeout:', error);
-        }
-    }
-
-    // Handle battle response (accept/decline) - FIXED with correct parsing
-    async handleBattleResponse(interaction) {
-        try {
-            console.log(`🔘 === BUTTON RESPONSE DEBUG ===`);
-            console.log(`🔘 Raw button ID: ${interaction.customId}`);
-            console.log(`👤 Button clicked by: ${interaction.user.username} (${interaction.user.id})`);
-            
-            const parts = interaction.customId.split('_');
-            console.log(`📋 Button parts:`, parts);
-            
-            // Handle new invitation format: accept_invitation_ID_USER or decline_invitation_ID_USER
-            if (parts[0] === 'accept' && parts[1] === 'invitation') {
-                const invitationId = parts[2];
-                const userId = parts[3];
-                
-                console.log(`✅ Accept invitation: ${invitationId} by user ${userId}`);
-                
-                if (userId !== interaction.user.id) {
-                    return await this.safeReply(interaction, '❌ This invitation is not for you!', true);
-                }
-                
-                await this.handleInvitationAccept(interaction, invitationId, userId);
-                return;
-            }
-            
-            if (parts[0] === 'decline' && parts[1] === 'invitation') {
-                const invitationId = parts[2];
-                const userId = parts[3];
-                
-                console.log(`❌ Decline invitation: ${invitationId} by user ${userId}`);
-                
-                if (userId !== interaction.user.id) {
-                    return await this.safeReply(interaction, '❌ This invitation is not for you!', true);
-                }
-                
-                await this.handleInvitationDecline(interaction, invitationId, userId);
-                return;
-            }
-            
-            // Handle legacy format if needed (for backwards compatibility)
-            if (parts.length >= 3) {
-                const action = parts[0]; // accept or decline
-                const battleId = parts[1]; // battle ID
-                const expectedUserId = parts[2]; // user ID
-                const actualUserId = interaction.user.id;
-                
-                console.log(`🎮 Legacy format - Action: ${action}, Battle: ${battleId}, User: ${expectedUserId}`);
-                
-                if (actualUserId !== expectedUserId) {
-                    return await this.safeReply(interaction, '❌ This button is not for you!', true);
-                }
-
-                const battle = this.activeBattles.get(battleId);
-                if (!battle) {
-                    return await this.safeReply(interaction, '❌ This battle invitation has expired.', true);
-                }
-
-                if (action === 'decline') {
-                    await this.handleDecline(interaction, battleId, battle);
-                } else if (action === 'accept') {
-                    await this.handleAccept(interaction, battleId, battle, actualUserId);
-                }
-                return;
-            }
-
-            console.log(`❓ Unknown button format: ${interaction.customId}`);
-            await this.safeReply(interaction, '❌ Unknown button interaction.', true);
-
-        } catch (error) {
-            console.error('❌ Error handling enhanced battle response:', error);
-            console.error('❌ Stack trace:', error.stack);
-            await this.safeReply(interaction, '❌ An error occurred while processing the battle response.', true);
-        }
-    }
-
-    // Handle invitation accept
-    async handleInvitationAccept(interaction, invitationId, userId) {
-        try {
-            const invitationData = this.pendingInvitations.get(invitationId);
-            if (!invitationData) {
-                return await this.safeUpdate(interaction, { 
-                    content: '❌ This invitation has expired.',
-                    embeds: [], 
-                    components: [] 
-                });
-            }
-
-            console.log(`✅ ${interaction.user.username} accepting invitation ${invitationId}`);
-
-            // Mark this player as accepted
-            if (invitationData.challenger.user_id === userId) {
-                invitationData.challenger.accepted = true;
-            } else if (invitationData.target.user_id === userId) {
-                invitationData.target.accepted = true;
-            }
-
-            await this.safeUpdate(interaction, {
-                content: `✅ You accepted the challenge! Waiting for the other player...`,
-                embeds: [],
-                components: []
-            });
-
-            // Check if both players have accepted
-            if (invitationData.challenger.accepted && invitationData.target.accepted) {
-                console.log(`🔥 Both players accepted! Starting battle...`);
-                await this.startBattleFromInvitation(invitationData);
-            } else {
-                console.log(`⏳ Waiting for other player to accept...`);
-                this.pendingInvitations.set(invitationId, invitationData);
-            }
-
-        } catch (error) {
-            console.error('Error handling invitation accept:', error);
-        }
-    }
-
-    // Handle invitation decline  
-    async handleInvitationDecline(interaction, invitationId, userId) {
-        try {
-            const invitationData = this.pendingInvitations.get(invitationId);
-            if (!invitationData) {
-                return await this.safeUpdate(interaction, { 
-                    content: '❌ This invitation has expired.',
-                    embeds: [], 
-                    components: [] 
-                });
-            }
-
-            this.pendingInvitations.delete(invitationId);
-            
-            await this.safeUpdate(interaction, { 
-                content: `❌ You declined the battle challenge.`,
-                embeds: [], 
-                components: [] 
-            });
-
-            console.log(`❌ ${interaction.user.username} declined invitation ${invitationId}`);
-
-        } catch (error) {
-            console.error('Error handling invitation decline:', error);
-        }
-    }
-
-    // Start battle from accepted invitation
-    async startBattleFromInvitation(invitationData) {
-        try {
-            console.log(`🔥 Starting battle from accepted invitation ${invitationData.id}`);
-
-            // Create battle data
-            const battleData = {
-                id: invitationData.id,
-                type: 'fruit_selection',
-                status: 'fruit_selection',
-                player1: {
-                    userId: invitationData.challenger.user_id,
-                    username: invitationData.challenger.username,
-                    level: invitationData.challenger.level || 0,
-                    fruits: invitationData.challenger.fruits || [],
-                    balancedCP: invitationData.challenger.balancedCP,
-                    maxHealth: invitationData.challenger.maxHealth,
-                    selectedFruits: []
-                },
-                player2: {
-                    userId: invitationData.target.user_id,
-                    username: invitationData.target.username,
-                    level: invitationData.target.level || 0,
-                    fruits: invitationData.target.fruits || [],
-                    balancedCP: invitationData.target.balancedCP,
-                    maxHealth: invitationData.target.maxHealth,
-                    selectedFruits: []
-                },
-                selectionData: {
-                    player1: { selectedFruits: [], selectionComplete: false, lastUpdate: Date.now(), currentPage: 'high' },
-                    player2: { selectedFruits: [], selectionComplete: false, lastUpdate: Date.now(), currentPage: 'high' }
-                },
-                isVsNPC: false,
-                channelId: invitationData.channelId,
-                createdAt: Date.now(),
-                lastActivity: Date.now()
-            };
-
-            this.activeBattles.set(invitationData.id, battleData);
-            this.pendingInvitations.delete(invitationData.id);
-
-            console.log(`✅ Battle ${invitationData.id} started - entering fruit selection phase`);
-
-        } catch (error) {
-            console.error('Error starting battle from invitation:', error);
-        }
-    }
-
-    // Handle decline (legacy)
-    async handleDecline(interaction, battleId, battle) {
-        this.activeBattles.delete(battleId);
         
-        await this.safeUpdate(interaction, { 
-            content: `❌ **${interaction.user.username}** declined the battle challenge.`,
-            embeds: [], 
-            components: [] 
+        // Set timeout for challenge expiration
+        setTimeout(() => {
+            this.expireChallenge(battleId);
+        }, this.battleTimeout);
+        
+        return battleId;
+    }
+
+    async sendChallengerMessage(interaction, challengeData) {
+        const { challenger, target, battleId } = challengeData;
+        
+        const embed = new EmbedBuilder()
+            .setColor('#FF6B35')
+            .setTitle('⚔️ Enhanced Turn-Based PvP Battle Challenge!')
+            .setDescription(`${challenger.user.username} has challenged ${target.user.displayName}!`)
+            .addFields([
+                {
+                    name: '🔥 Challenger',
+                    value: `**${challenger.user.username}**\nLevel: ${challenger.data.level}\nTotal CP: ${challenger.data.totalCP.toLocaleString()}\nFruits: ${challenger.data.fruits}`,
+                    inline: true
+                },
+                {
+                    name: '🎯 Target',
+                    value: `**${target.user.displayName}**\nLevel: ${target.data.level}\nTotal CP: ${target.data.totalCP.toLocaleString()}\nFruits: ${target.data.fruits}`,
+                    inline: true
+                },
+                {
+                    name: '\u200B',
+                    value: '\u200B',
+                    inline: true
+                },
+                {
+                    name: '⚔️ Battle System',
+                    value: '🎯 Enhanced Turn-Based Combat\n🍎 Choose 5 fruits for battle\n⚡ Turn-based skill combat\n🧠 Strategic depth and timing',
+                    inline: false
+                },
+                {
+                    name: '⏰ Time Limit',
+                    value: '🚨 60 seconds to accept!',
+                    inline: false
+                }
+            ])
+            .setFooter({ text: `Battle ID: ${battleId} • Both players must accept! • ${new Date().toLocaleTimeString()}` })
+            .setTimestamp();
+
+        const challengerButton = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`pvp_accept_${battleId}_${challenger.user.id}`)
+                    .setLabel(`${challenger.user.username} Accept`)
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji('✅'),
+                new ButtonBuilder()
+                    .setCustomId(`pvp_decline_${battleId}_${challenger.user.id}`)
+                    .setLabel(`${challenger.user.username} Decline`)
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('❌')
+            );
+
+        await interaction.followUp({
+            embeds: [embed],
+            components: [challengerButton],
+            ephemeral: false
+        });
+    }
+
+    async sendTargetMessage(interaction, challengeData) {
+        const { challenger, target, battleId } = challengeData;
+        
+        const embed = new EmbedBuilder()
+            .setColor('#4ECDC4')
+            .setTitle('⚔️ You\'ve Been Challenged!')
+            .setDescription(`${target.user.displayName}, you've been challenged to an enhanced PvP battle!`)
+            .addFields([
+                {
+                    name: '🔥 Challenger',
+                    value: `**${challenger.user.username}**\nLevel: ${challenger.data.level}\nTotal CP: ${challenger.data.totalCP.toLocaleString()}\nFruits: ${challenger.data.fruits}`,
+                    inline: true
+                },
+                {
+                    name: '🎯 You',
+                    value: `**${target.user.displayName}**\nLevel: ${target.data.level}\nTotal CP: ${target.data.totalCP.toLocaleString()}\nFruits: ${target.data.fruits}`,
+                    inline: true
+                },
+                {
+                    name: '\u200B',
+                    value: '\u200B',
+                    inline: true
+                },
+                {
+                    name: '⚔️ Battle System',
+                    value: '🎯 Enhanced Turn-Based Combat\n🍎 Choose 5 fruits for battle\n⚡ Turn-based skill combat\n🧠 Strategic depth and timing',
+                    inline: false
+                }
+            ])
+            .setFooter({ text: `Battle ID: ${battleId} • Both players must accept!` })
+            .setTimestamp();
+
+        const targetButton = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`pvp_accept_${battleId}_${target.user.id}`)
+                    .setLabel(`${target.user.displayName} Accept`)
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji('✅'),
+                new ButtonBuilder()
+                    .setCustomId(`pvp_decline_${battleId}_${target.user.id}`)
+                    .setLabel(`${target.user.displayName} Decline`)
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('❌')
+            );
+
+        await interaction.followUp({
+            content: `<@${target.user.id}>`,
+            embeds: [embed],
+            components: [targetButton],
+            ephemeral: false
+        });
+    }
+
+    async handleButtonInteraction(interaction) {
+        const [action, type, battleId, userId] = interaction.customId.split('_');
+        
+        if (action !== 'pvp' || !['accept', 'decline'].includes(type)) return;
+        
+        const challengeData = this.pendingChallenges.get(battleId);
+        if (!challengeData) {
+            return await interaction.reply({
+                content: '❌ This challenge has expired or no longer exists.',
+                ephemeral: true
+            });
+        }
+
+        // Check if user is part of this challenge
+        const isChallenger = challengeData.challenger.user.id === userId;
+        const isTarget = challengeData.target.user.id === userId;
+        
+        if (!isChallenger && !isTarget) {
+            return await interaction.reply({
+                content: '❌ You are not part of this challenge.',
+                ephemeral: true
+            });
+        }
+
+        if (type === 'decline') {
+            await this.declineChallenge(interaction, battleId, userId);
+        } else if (type === 'accept') {
+            await this.acceptChallenge(interaction, battleId, userId);
+        }
+    }
+
+    async acceptChallenge(interaction, battleId, userId) {
+        const challengeData = this.pendingChallenges.get(battleId);
+        const acceptedSet = this.acceptedPlayers.get(battleId);
+        
+        if (acceptedSet.has(userId)) {
+            return await interaction.reply({
+                content: '✅ You have already accepted this challenge!',
+                ephemeral: true
+            });
+        }
+
+        acceptedSet.add(userId);
+        
+        // Update challenge data
+        if (challengeData.challenger.user.id === userId) {
+            challengeData.challenger.accepted = true;
+        } else if (challengeData.target.user.id === userId) {
+            challengeData.target.accepted = true;
+        }
+
+        await interaction.reply({
+            content: '✅ Challenge accepted! Waiting for the other player...',
+            ephemeral: true
         });
 
-        console.log(`❌ Battle ${battleId} declined by ${interaction.user.username}`);
+        // Check if both players accepted
+        if (acceptedSet.size === 2) {
+            await this.startBattle(challengeData);
+        }
     }
 
-    // Handle accept (legacy)
-    async handleAccept(interaction, battleId, battle, userId) {
-        battle.acceptedBy.add(userId);
-        battle.lastActivity = Date.now();
+    async declineChallenge(interaction, battleId, userId) {
+        const challengeData = this.pendingChallenges.get(battleId);
         
-        console.log(`✅ ${interaction.user.username} accepted battle ${battleId}`);
+        await interaction.reply({
+            content: '❌ Challenge declined.',
+            ephemeral: true
+        });
 
-        const challengerAccepted = battle.acceptedBy.has(battle.challenger.user_id);
-        const targetAccepted = battle.acceptedBy.has(battle.target.user_id);
+        // Send decline notification to channel
+        const declineEmbed = new EmbedBuilder()
+            .setColor('#FF4757')
+            .setTitle('❌ Challenge Declined')
+            .setDescription(`The PvP challenge has been declined by ${interaction.user.displayName}.`)
+            .setTimestamp();
 
-        if (challengerAccepted && targetAccepted) {
-            await this.safeUpdate(interaction, {
-                content: `🔥 **BOTH PLAYERS ACCEPTED!** Starting enhanced turn-based battle!`,
-                embeds: [],
-                components: []
-            });
-
-            await this.startFruitSelection(interaction, battleId);
-        } else {
-            const statusText = `✅ **${interaction.user.username}** accepted the challenge!\n\n` +
-                `**${battle.challenger.username}**: ${challengerAccepted ? '✅ Ready' : '⏳ Waiting...'}\n` +
-                `**${battle.target.username}**: ${targetAccepted ? '✅ Ready' : '⏳ Waiting...'}`;
-
-            await this.safeUpdate(interaction, {
-                content: statusText,
-                embeds: [],
-                components: []
-            });
-        }
-    }
-
-    // Start fruit selection phase (placeholder)
-    async startFruitSelection(interaction, battleId) {
-        try {
-            console.log(`🍈 Starting fruit selection for battle ${battleId}`);
-            // Fruit selection implementation would go here
-            await interaction.followUp({
-                content: `🍈 **Fruit Selection Phase**\nFruit selection system is being implemented!`
-            });
-        } catch (error) {
-            console.error('Error starting fruit selection:', error);
-        }
-    }
-
-    // Placeholder methods for other interactions
-    async handleFruitSelection(interaction, battleId, userId, rarity) {
-        console.log(`🍈 Fruit selection: ${userId} selecting ${rarity} for battle ${battleId}`);
-        await this.safeReply(interaction, `Selected ${rarity} fruit!`, true);
-    }
-
-    async handlePageSwitch(interaction, battleId, userId) {
-        console.log(`📋 Page switch: ${userId} for battle ${battleId}`);
-        await this.safeReply(interaction, 'Page switched!', true);
-    }
-
-    async handleConfirmSelection(interaction, battleId, userId) {
-        console.log(`✅ Confirm selection: ${userId} for battle ${battleId}`);
-        await this.safeReply(interaction, 'Selection confirmed!', true);
-    }
-
-    async handleClearSelection(interaction, battleId, userId) {
-        console.log(`🗑️ Clear selection: ${userId} for battle ${battleId}`);
-        await this.safeReply(interaction, 'Selection cleared!', true);
-    }
-
-    async handleSkillUsage(interaction, battleId, userId, skillIndex) {
-        console.log(`⚔️ Skill usage: ${userId} using skill ${skillIndex} in battle ${battleId}`);
-        await this.safeReply(interaction, `Used skill ${skillIndex}!`, true);
-    }
-
-    async handleViewSkills(interaction, battleId, userId) {
-        console.log(`📋 View skills: ${userId} for battle ${battleId}`);
-        await this.safeReply(interaction, 'Skills viewed!', true);
-    }
-
-    async handleSurrender(interaction, battleId, userId) {
-        console.log(`🏳️ Surrender: ${userId} in battle ${battleId}`);
-        await this.safeReply(interaction, 'You surrendered!', true);
-    }
-
-    // Find user battle
-    findUserBattle(userId) {
-        for (const [battleId, battle] of this.activeBattles.entries()) {
-            if ((battle.player1 && battle.player1.userId === userId) ||
-                (battle.player2 && battle.player2.userId === userId) ||
-                (battle.challenger && battle.challenger.user_id === userId) ||
-                (battle.target && battle.target.user_id === userId)) {
-                return battleId;
-            }
-        }
+        await challengeData.channel.send({ embeds: [declineEmbed] });
         
-        // Also check pending invitations
-        for (const [invitationId, invitation] of this.pendingInvitations.entries()) {
-            if (invitation.challenger.user_id === userId || invitation.target.user_id === userId) {
-                return invitationId;
-            }
-        }
-        
-        return null;
+        // Clean up
+        this.pendingChallenges.delete(battleId);
+        this.acceptedPlayers.delete(battleId);
     }
 
-    // End battle cleanup
-    endBattle(battleId, reason) {
-        try {
-            const battle = this.activeBattles.get(battleId);
-            if (battle) {
-                console.log(`🧹 Ending battle ${battleId} due to ${reason}`);
-                this.activeBattles.delete(battleId);
-            }
+    async autoAcceptDebugBot(battleId, debugBotId) {
+        const challengeData = this.pendingChallenges.get(battleId);
+        if (!challengeData) return;
+
+        const acceptedSet = this.acceptedPlayers.get(battleId);
+        if (acceptedSet.has(debugBotId)) return;
+
+        acceptedSet.add(debugBotId);
+        
+        // Update challenge data
+        if (challengeData.target.user.id === debugBotId) {
+            challengeData.target.accepted = true;
+        }
+
+        // Send auto-accept message
+        const autoAcceptEmbed = new EmbedBuilder()
+            .setColor('#00D2D3')
+            .setTitle('🤖 Debug Bot Auto-Accept')
+            .setDescription(`Debug bot has automatically accepted the challenge!`)
+            .setTimestamp();
+
+        await challengeData.channel.send({ embeds: [autoAcceptEmbed] });
+
+        // Check if both players accepted
+        if (acceptedSet.size === 2) {
+            await this.startBattle(challengeData);
+        }
+    }
+
+    async startBattle(challengeData) {
+        const { battleId, challenger, target, channel } = challengeData;
+        
+        // Send battle start confirmation
+        const startEmbed = new EmbedBuilder()
+            .setColor('#FFD93D')
+            .setTitle('🔥 Battle Starting!')
+            .setDescription(`Both players have accepted! The enhanced PvP battle is about to begin!`)
+            .addFields([
+                {
+                    name: '⚔️ Combatants',
+                    value: `${challenger.user.username} vs ${target.user.displayName}`,
+                    inline: false
+                },
+                {
+                    name: '🎯 Battle Type',
+                    value: 'Enhanced Turn-Based Combat',
+                    inline: true
+                },
+                {
+                    name: '🍎 Fruit Selection',
+                    value: 'Choose your 5 battle fruits!',
+                    inline: true
+                }
+            ])
+            .setTimestamp();
+
+        await channel.send({ embeds: [startEmbed] });
+        
+        // Clean up challenge data
+        this.pendingChallenges.delete(battleId);
+        this.acceptedPlayers.delete(battleId);
+        
+        // Initialize the actual battle system
+        await this.initializeBattle(challenger, target, channel, battleId);
+    }
+
+    async expireChallenge(battleId) {
+        const challengeData = this.pendingChallenges.get(battleId);
+        if (!challengeData) return;
+
+        const acceptedSet = this.acceptedPlayers.get(battleId);
+        if (acceptedSet.size < 2) {
+            const expireEmbed = new EmbedBuilder()
+                .setColor('#95A5A6')
+                .setTitle('⏰ Challenge Expired')
+                .setDescription('The PvP challenge has expired due to timeout.')
+                .setTimestamp();
+
+            await challengeData.channel.send({ embeds: [expireEmbed] });
             
-            if (this.battleTimeouts.has(battleId)) {
-                clearTimeout(this.battleTimeouts.get(battleId));
-                this.battleTimeouts.delete(battleId);
-            }
-            
-            // Also clean up from pending invitations
-            this.pendingInvitations.delete(battleId);
-        } catch (error) {
-            console.error('Error ending battle:', error);
+            // Clean up
+            this.pendingChallenges.delete(battleId);
+            this.acceptedPlayers.delete(battleId);
         }
     }
 
-    // Get battle stats
-    getBattleStats() {
-        const activeBattles = this.activeBattles.size;
-        const pendingInvitations = this.pendingInvitations.size;
+    async initializeBattle(challenger, target, channel, battleId) {
+        // This is where you would initialize your actual battle system
+        // For now, sending a placeholder message
+        const battleEmbed = new EmbedBuilder()
+            .setColor('#E74C3C')
+            .setTitle('⚔️ Battle System Initialized')
+            .setDescription(`Battle ${battleId} has started between ${challenger.user.username} and ${target.user.displayName}!`)
+            .addFields([
+                {
+                    name: '📝 Next Steps',
+                    value: '• Select your battle fruits\n• Prepare your strategy\n• Battle begins in 10 seconds!',
+                    inline: false
+                }
+            ])
+            .setTimestamp();
+
+        await channel.send({ embeds: [battleEmbed] });
         
-        const battles = Array.from(this.activeBattles.values()).map(battle => ({
-            players: [
-                battle.player1?.username || battle.challenger?.username || 'Unknown',
-                battle.player2?.username || battle.target?.username || 'Unknown'
-            ],
-            status: battle.status || battle.type || 'unknown'
-        }));
+        // Here you would call your existing battle initialization code
+        // Example: await this.battleManager.startEnhancedBattle(challenger, target, channel, battleId);
+    }
 
-        const invitations = Array.from(this.pendingInvitations.values()).map(invitation => ({
-            players: [invitation.challenger.username, invitation.target.username],
-            status: 'pending_invitation'
-        }));
+    isDebugBot(user) {
+        return user.username.toLowerCase().includes('debug') || 
+               user.username.toLowerCase().includes('bot') ||
+               DEBUG_BOT_IDS.includes(user.id) ||
+               user.bot === true;
+    }
 
-        return {
-            activeBattles,
-            pendingInvitations,
-            battles: [...battles, ...invitations]
+    async getUserData(userId) {
+    async getUserData(userId) {
+        // Replace this with your actual database/user data retrieval system
+        // This is a placeholder that returns mock data
+        try {
+            // Example: const userData = await database.getUser(userId);
+            return {
+                level: Math.floor(Math.random() * 50) + 1,
+                totalCP: Math.floor(Math.random() * 10000) + 1000,
+                fruits: Math.floor(Math.random() * 100) + 10,
+                wins: Math.floor(Math.random() * 20),
+                losses: Math.floor(Math.random() * 15)
+            };
+        } catch (error) {
+            console.error(`Error fetching user data for ${userId}:`, error);
+            return {
+                level: 1,
+                totalCP: 1000,
+                fruits: 10,
+                wins: 0,
+                losses: 0
+            };
+        }
+    }
+}
+
+// Initialize PvP System
+const pvpSystem = new EnhancedPvPSystem();
+
+// Slash Commands Setup
+const commands = [
+    new SlashCommandBuilder()
+        .setName('debug-queue')
+        .setDescription('Challenge another player to an enhanced PvP battle')
+        .addUserOption(option =>
+            option.setName('target')
+                .setDescription('The player you want to challenge')
+                .setRequired(true)
+        ),
+    new SlashCommandBuilder()
+        .setName('pvp-challenge')
+        .setDescription('Challenge another player to PvP')
+        .addUserOption(option =>
+            option.setName('target')
+                .setDescription('The player you want to challenge')
+                .setRequired(true)
+        ),
+    new SlashCommandBuilder()
+        .setName('pvp-stats')
+        .setDescription('View PvP statistics')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('User to view stats for (defaults to yourself)')
+                .setRequired(false)
+        )
+];
+
+// Command Handlers
+async function handleDebugQueueCommand(interaction) {
+    const targetUser = interaction.options.getUser('target');
+    
+    if (targetUser.id === interaction.user.id) {
+        return await interaction.reply({
+            content: '❌ You cannot challenge yourself!',
+            ephemeral: true
+        });
+    }
+
+    await interaction.deferReply();
+    
+    try {
+        const battleId = await pvpSystem.createPvPChallenge(interaction, targetUser, 'enhanced');
+        console.log(`Created enhanced PvP challenge: ${battleId}`);
+    } catch (error) {
+        console.error('Error creating PvP challenge:', error);
+        await interaction.followUp({
+            content: '❌ An error occurred while creating the challenge. Please try again.',
+            ephemeral: true
+        });
+    }
+}
+
+async function handlePvPChallengeCommand(interaction) {
+    const targetUser = interaction.options.getUser('target');
+    
+    if (targetUser.id === interaction.user.id) {
+        return await interaction.reply({
+            content: '❌ You cannot challenge yourself!',
+            ephemeral: true
+        });
+    }
+
+    await interaction.deferReply();
+    
+    try {
+        const battleId = await pvpSystem.createPvPChallenge(interaction, targetUser, 'standard');
+        console.log(`Created PvP challenge: ${battleId}`);
+    } catch (error) {
+        console.error('Error creating PvP challenge:', error);
+        await interaction.followUp({
+            content: '❌ An error occurred while creating the challenge. Please try again.',
+            ephemeral: true
+        });
+    }
+}
+
+async function handlePvPStatsCommand(interaction) {
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    
+    try {
+        const userData = await pvpSystem.getUserData(targetUser.id);
+        
+        const statsEmbed = new EmbedBuilder()
+            .setColor('#9B59B6')
+            .setTitle(`📊 PvP Stats for ${targetUser.displayName}`)
+            .setThumbnail(targetUser.displayAvatarURL())
+            .addFields([
+                {
+                    name: '👤 Player Info',
+                    value: `Level: ${userData.level}\nTotal CP: ${userData.totalCP.toLocaleString()}\nFruits: ${userData.fruits}`,
+                    inline: true
+                },
+                {
+                    name: '⚔️ Battle Record',
+                    value: `Wins: ${userData.wins}\nLosses: ${userData.losses}\nRatio: ${userData.losses > 0 ? (userData.wins / userData.losses).toFixed(2) : userData.wins}`,
+                    inline: true
+                },
+                {
+                    name: '🏆 Rank',
+                    value: `${userData.wins > 50 ? 'Master' : userData.wins > 25 ? 'Expert' : userData.wins > 10 ? 'Advanced' : 'Beginner'}`,
+                    inline: true
+                }
+            ])
+            .setTimestamp();
+
+        await interaction.reply({ embeds: [statsEmbed] });
+    } catch (error) {
+        console.error('Error fetching PvP stats:', error);
+        await interaction.reply({
+            content: '❌ An error occurred while fetching stats.',
+            ephemeral: true
+        });
+    }
+}
+
+// Button Interaction Handler
+async function handleButtonInteraction(interaction) {
+    if (interaction.customId.startsWith('pvp_')) {
+        try {
+            await pvpSystem.handleButtonInteraction(interaction);
+        } catch (error) {
+            console.error('Error handling button interaction:', error);
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ An error occurred while processing your action.',
+                    ephemeral: true
+                });
+            }
+        }
+    }
+}
+
+// Bot Event Handlers
+client.once('ready', async () => {
+    console.log(`✅ ${client.user.tag} is online and ready!`);
+    console.log(`📊 Serving ${client.guilds.cache.size} guilds with ${client.users.cache.size} users`);
+    
+    // Register slash commands
+    try {
+        console.log('🔄 Started refreshing application (/) commands.');
+        await client.application.commands.set(commands);
+        console.log('✅ Successfully reloaded application (/) commands.');
+    } catch (error) {
+        console.error('❌ Error registering slash commands:', error);
+    }
+    
+    // Set bot status
+    client.user.setActivity('Enhanced PvP Battles', { type: 'WATCHING' });
+});
+
+client.on('interactionCreate', async (interaction) => {
+    try {
+        if (interaction.isChatInputCommand()) {
+            const { commandName } = interaction;
+            
+            switch (commandName) {
+                case 'debug-queue':
+                    await handleDebugQueueCommand(interaction);
+                    break;
+                case 'pvp-challenge':
+                    await handlePvPChallengeCommand(interaction);
+                    break;
+                case 'pvp-stats':
+                    await handlePvPStatsCommand(interaction);
+                    break;
+                default:
+                    await interaction.reply({
+                        content: '❌ Unknown command.',
+                        ephemeral: true
+                    });
+            }
+        } else if (interaction.isButton()) {
+            await handleButtonInteraction(interaction);
+        }
+    } catch (error) {
+        console.error('Error handling interaction:', error);
+        
+        const errorMessage = {
+            content: '❌ An error occurred while processing your request.',
+            ephemeral: true
         };
+        
+        try {
+            if (interaction.deferred) {
+                await interaction.followUp(errorMessage);
+            } else if (!interaction.replied) {
+                await interaction.reply(errorMessage);
+            }
+        } catch (e) {
+            console.error('Error sending error message:', e);
+        }
     }
-}
+});
 
-// Default abilities if none are loaded
-function getDefaultAbilities() {
-    return {
-        'Gomu Gomu no Mi': {
-            name: 'Gum-Gum Pistol',
-            damage: 180,
-            cooldown: 4,
-            effect: null,
-            description: 'Rubber fist attack',
-            accuracy: 90
-        },
-        'Mera Mera no Mi': {
-            name: 'Fire Fist',
-            damage: 140,
-            cooldown: 3,
-            effect: 'burn',
-            description: 'Flaming punch attack',
-            accuracy: 85
-        }
-    };
-}
+client.on('error', error => {
+    console.error('Discord client error:', error);
+});
 
-function getDefaultStatusEffects() {
-    return {
-        'burn': {
-            type: 'dot',
-            damage: 15,
-            duration: 3,
-            description: 'Fire damage over time'
-        }
-    };
-}
+client.on('warn', warning => {
+    console.warn('Discord client warning:', warning);
+});
 
-module.exports = EnhancedTurnBasedPvP;
+// Graceful shutdown
+process.on('SIGINT', () => {
+    console.log('\n🔄 Shutting down gracefully...');
+    client.destroy();
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('\n🔄 Shutting down gracefully...');
+    client.destroy();
+    process.exit(0);
+});
+
+// Login to Discord
+if (BOT_TOKEN && BOT_TOKEN !== 'YOUR_BOT_TOKEN_HERE') {
+    client.login(BOT_TOKEN).catch(error => {
+        console.error('❌ Failed to login to Discord:', error);
+        process.exit(1);
+    });
+} else {
+    console.error('❌ Please set your bot token in the BOT_TOKEN variable');
+    process.exit(1);
+}
