@@ -1,13 +1,26 @@
-// Enhanced Turn-Based PvP System
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+// Enhanced PvP Challenge System - Complete Bot File
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, Collection } = require('discord.js');
 
-class EnhancedTurnBasedPvP {
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers
+    ]
+});
+
+// Bot configuration
+const BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE';
+const DEBUG_BOT_IDS = ['DEBUG_BOT_ID_1', 'DEBUG_BOT_ID_2']; // Add your debug bot IDs here
+
+client.commands = new Collection();
+
+class EnhancedPvPSystem {
     constructor() {
         this.pendingChallenges = new Map(); // battleId -> challenge data
         this.acceptedPlayers = new Map(); // battleId -> Set of userId
-        this.activeBattles = new Map(); // battleId -> battle data
         this.battleTimeout = 60000; // 60 seconds
-        this.turnTimeout = 30000; // 30 seconds per turn
     }
 
     async createPvPChallenge(interaction, targetUser, battleType = 'enhanced') {
@@ -328,7 +341,7 @@ class EnhancedTurnBasedPvP {
         if (!challengeData) return;
 
         const acceptedSet = this.acceptedPlayers.get(battleId);
-        if (acceptedSet && acceptedSet.size < 2) {
+        if (acceptedSet.size < 2) {
             const expireEmbed = new EmbedBuilder()
                 .setColor('#95A5A6')
                 .setTitle('⏰ Challenge Expired')
@@ -344,320 +357,38 @@ class EnhancedTurnBasedPvP {
     }
 
     async initializeBattle(challenger, target, channel, battleId) {
-        // Initialize battle data
-        const battleData = {
-            battleId,
-            players: [
-                {
-                    user: challenger.user,
-                    data: challenger.data,
-                    selectedFruits: [],
-                    currentHP: 100,
-                    maxHP: 100,
-                    turnReady: false
-                },
-                {
-                    user: target.user,
-                    data: target.data,
-                    selectedFruits: [],
-                    currentHP: 100,
-                    maxHP: 100,
-                    turnReady: false
-                }
-            ],
-            currentTurn: 0,
-            turnNumber: 1,
-            battlePhase: 'fruit_selection', // fruit_selection, combat, finished
-            channel: channel,
-            timestamp: Date.now()
-        };
-
-        this.activeBattles.set(battleId, battleData);
-
-        // Start fruit selection phase
-        await this.startFruitSelection(battleData);
-    }
-
-    async startFruitSelection(battleData) {
-        const { battleId, players, channel } = battleData;
-
-        const selectionEmbed = new EmbedBuilder()
-            .setColor('#F39C12')
-            .setTitle('🍎 Fruit Selection Phase')
-            .setDescription('Each player must select 5 fruits for battle!')
-            .addFields([
-                {
-                    name: '📋 Instructions',
-                    value: '• Click the button below to select your fruits\n• Choose 5 fruits from your inventory\n• Both players must complete selection\n• Battle will begin once both are ready',
-                    inline: false
-                },
-                {
-                    name: '⏰ Time Limit',
-                    value: '60 seconds to select fruits',
-                    inline: true
-                }
-            ])
-            .setTimestamp();
-
-        const selectionButtons = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`fruit_select_${battleId}_${players[0].user.id}`)
-                    .setLabel(`${players[0].user.username} Select Fruits`)
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🍎'),
-                new ButtonBuilder()
-                    .setCustomId(`fruit_select_${battleId}_${players[1].user.id}`)
-                    .setLabel(`${players[1].user.displayName} Select Fruits`)
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🍊')
-            );
-
-        await channel.send({
-            embeds: [selectionEmbed],
-            components: [selectionButtons]
-        });
-
-        // Set timeout for fruit selection
-        setTimeout(() => {
-            this.timeoutFruitSelection(battleId);
-        }, 60000);
-    }
-
-    async timeoutFruitSelection(battleId) {
-        const battleData = this.activeBattles.get(battleId);
-        if (!battleData || battleData.battlePhase !== 'fruit_selection') return;
-
-        // Auto-select fruits for players who didn't select
-        battleData.players.forEach(player => {
-            if (player.selectedFruits.length === 0) {
-                player.selectedFruits = this.autoSelectFruits(player.data);
-            }
-        });
-
-        // Start combat phase
-        await this.startCombatPhase(battleData);
-    }
-
-    autoSelectFruits(playerData) {
-        // Auto-select 5 random fruits (placeholder logic)
-        const fruits = ['Apple', 'Banana', 'Orange', 'Grape', 'Strawberry'];
-        return fruits.slice(0, 5).map(name => ({
-            name,
-            damage: Math.floor(Math.random() * 20) + 10,
-            accuracy: Math.floor(Math.random() * 30) + 70
-        }));
-    }
-
-    async startCombatPhase(battleData) {
-        battleData.battlePhase = 'combat';
-        battleData.currentTurn = 0; // Player 1 starts
-
-        const combatEmbed = new EmbedBuilder()
+        // This is where you would initialize your actual battle system
+        // For now, sending a placeholder message
+        const battleEmbed = new EmbedBuilder()
             .setColor('#E74C3C')
-            .setTitle('⚔️ Combat Phase Begin!')
-            .setDescription('The battle has started! Take turns attacking each other.')
+            .setTitle('⚔️ Battle System Initialized')
+            .setDescription(`Battle ${battleId} has started between ${challenger.user.username} and ${target.user.displayName}!`)
             .addFields([
                 {
-                    name: `🔥 ${battleData.players[0].user.username}`,
-                    value: `HP: ${battleData.players[0].currentHP}/${battleData.players[0].maxHP}`,
-                    inline: true
-                },
-                {
-                    name: `🎯 ${battleData.players[1].user.displayName}`,
-                    value: `HP: ${battleData.players[1].currentHP}/${battleData.players[1].maxHP}`,
-                    inline: true
-                },
-                {
-                    name: '\u200B',
-                    value: '\u200B',
-                    inline: true
-                },
-                {
-                    name: '🎲 Turn Information',
-                    value: `Turn ${battleData.turnNumber}\n${battleData.players[battleData.currentTurn].user.username}'s turn!`,
+                    name: '📝 Next Steps',
+                    value: '• Select your battle fruits\n• Prepare your strategy\n• Battle begins in 10 seconds!',
                     inline: false
                 }
             ])
             .setTimestamp();
 
-        await battleData.channel.send({ embeds: [combatEmbed] });
+        await channel.send({ embeds: [battleEmbed] });
         
-        // Start the first turn
-        await this.processTurn(battleData);
-    }
-
-    async processTurn(battleData) {
-        const currentPlayer = battleData.players[battleData.currentTurn];
-        const opponent = battleData.players[1 - battleData.currentTurn];
-
-        const turnEmbed = new EmbedBuilder()
-            .setColor('#3498DB')
-            .setTitle(`🎯 ${currentPlayer.user.username}'s Turn`)
-            .setDescription('Choose your attack!')
-            .addFields([
-                {
-                    name: '🍎 Your Fruits',
-                    value: currentPlayer.selectedFruits.map((fruit, index) => 
-                        `${index + 1}. ${fruit.name} (${fruit.damage} dmg, ${fruit.accuracy}% acc)`
-                    ).join('\n') || 'Auto-selected fruits',
-                    inline: false
-                }
-            ])
-            .setTimestamp();
-
-        const attackButtons = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`attack_${battleData.battleId}_${currentPlayer.user.id}_0`)
-                    .setLabel('🍎 Fruit 1')
-                    .setStyle(ButtonStyle.Success),
-                new ButtonBuilder()
-                    .setCustomId(`attack_${battleData.battleId}_${currentPlayer.user.id}_1`)
-                    .setLabel('🍊 Fruit 2')
-                    .setStyle(ButtonStyle.Success),
-                new ButtonBuilder()
-                    .setCustomId(`attack_${battleData.battleId}_${currentPlayer.user.id}_2`)
-                    .setLabel('🍇 Fruit 3')
-                    .setStyle(ButtonStyle.Success),
-                new ButtonBuilder()
-                    .setCustomId(`attack_${battleData.battleId}_${currentPlayer.user.id}_3`)
-                    .setLabel('🥝 Fruit 4')
-                    .setStyle(ButtonStyle.Success),
-                new ButtonBuilder()
-                    .setCustomId(`attack_${battleData.battleId}_${currentPlayer.user.id}_4`)
-                    .setLabel('🍓 Fruit 5')
-                    .setStyle(ButtonStyle.Success)
-            );
-
-        await battleData.channel.send({
-            content: `<@${currentPlayer.user.id}>`,
-            embeds: [turnEmbed],
-            components: [attackButtons]
-        });
-
-        // Set turn timeout
-        setTimeout(() => {
-            this.timeoutTurn(battleData.battleId, currentPlayer.user.id);
-        }, this.turnTimeout);
-    }
-
-    async timeoutTurn(battleId, playerId) {
-        const battleData = this.activeBattles.get(battleId);
-        if (!battleData || battleData.battlePhase !== 'combat') return;
-
-        const currentPlayer = battleData.players[battleData.currentTurn];
-        if (currentPlayer.user.id !== playerId) return;
-
-        // Auto-attack with random fruit
-        const randomFruitIndex = Math.floor(Math.random() * 5);
-        await this.executeAttack(battleData, playerId, randomFruitIndex, true);
-    }
-
-    async executeAttack(battleData, attackerId, fruitIndex, isTimeout = false) {
-        const attacker = battleData.players.find(p => p.user.id === attackerId);
-        const defender = battleData.players.find(p => p.user.id !== attackerId);
-        
-        if (!attacker || !defender) return;
-
-        const selectedFruit = attacker.selectedFruits[fruitIndex] || {
-            name: 'Random Fruit',
-            damage: Math.floor(Math.random() * 15) + 5,
-            accuracy: 75
-        };
-
-        // Calculate hit
-        const hitChance = Math.random() * 100;
-        const isHit = hitChance <= selectedFruit.accuracy;
-        const damage = isHit ? selectedFruit.damage : 0;
-
-        // Apply damage
-        if (isHit) {
-            defender.currentHP = Math.max(0, defender.currentHP - damage);
-        }
-
-        // Create result embed
-        const resultEmbed = new EmbedBuilder()
-            .setColor(isHit ? '#E74C3C' : '#95A5A6')
-            .setTitle(`${isHit ? '💥 Hit!' : '💨 Miss!'}`)
-            .setDescription(`${attacker.user.username} ${isTimeout ? '(auto)' : ''} used ${selectedFruit.name}!`)
-            .addFields([
-                {
-                    name: '📊 Attack Result',
-                    value: isHit ? `${damage} damage dealt!` : 'Attack missed!',
-                    inline: true
-                },
-                {
-                    name: '❤️ HP Status',
-                    value: `${defender.user.displayName}: ${defender.currentHP}/${defender.maxHP} HP`,
-                    inline: true
-                }
-            ])
-            .setTimestamp();
-
-        await battleData.channel.send({ embeds: [resultEmbed] });
-
-        // Check for battle end
-        if (defender.currentHP <= 0) {
-            await this.endBattle(battleData, attacker, defender);
-            return;
-        }
-
-        // Switch turns
-        battleData.currentTurn = 1 - battleData.currentTurn;
-        battleData.turnNumber++;
-
-        // Continue battle
-        setTimeout(() => {
-            this.processTurn(battleData);
-        }, 2000);
-    }
-
-    async endBattle(battleData, winner, loser) {
-        battleData.battlePhase = 'finished';
-
-        const victoryEmbed = new EmbedBuilder()
-            .setColor('#F1C40F')
-            .setTitle('🏆 Victory!')
-            .setDescription(`${winner.user.username} has won the battle!`)
-            .addFields([
-                {
-                    name: '🥇 Winner',
-                    value: `${winner.user.username}\nRemaining HP: ${winner.currentHP}/${winner.maxHP}`,
-                    inline: true
-                },
-                {
-                    name: '🥈 Defeated',
-                    value: `${loser.user.displayName}\nFinal HP: ${loser.currentHP}/${loser.maxHP}`,
-                    inline: true
-                },
-                {
-                    name: '\u200B',
-                    value: '\u200B',
-                    inline: true
-                },
-                {
-                    name: '📊 Battle Stats',
-                    value: `Total Turns: ${battleData.turnNumber}\nBattle Duration: ${Math.round((Date.now() - battleData.timestamp) / 1000)}s`,
-                    inline: false
-                }
-            ])
-            .setTimestamp();
-
-        await battleData.channel.send({ embeds: [victoryEmbed] });
-
-        // Clean up
-        this.activeBattles.delete(battleData.battleId);
+        // Here you would call your existing battle initialization code
+        // Example: await this.battleManager.startEnhancedBattle(challenger, target, channel, battleId);
     }
 
     isDebugBot(user) {
         return user.username.toLowerCase().includes('debug') || 
                user.username.toLowerCase().includes('bot') ||
+               DEBUG_BOT_IDS.includes(user.id) ||
                user.bot === true;
     }
 
     async getUserData(userId) {
+    async getUserData(userId) {
         // Replace this with your actual database/user data retrieval system
+        // This is a placeholder that returns mock data
         try {
             // Example: const userData = await database.getUser(userId);
             return {
@@ -680,4 +411,232 @@ class EnhancedTurnBasedPvP {
     }
 }
 
-module.exports = EnhancedTurnBasedPvP;
+// Initialize PvP System
+const pvpSystem = new EnhancedPvPSystem();
+
+// Slash Commands Setup
+const commands = [
+    new SlashCommandBuilder()
+        .setName('debug-queue')
+        .setDescription('Challenge another player to an enhanced PvP battle')
+        .addUserOption(option =>
+            option.setName('target')
+                .setDescription('The player you want to challenge')
+                .setRequired(true)
+        ),
+    new SlashCommandBuilder()
+        .setName('pvp-challenge')
+        .setDescription('Challenge another player to PvP')
+        .addUserOption(option =>
+            option.setName('target')
+                .setDescription('The player you want to challenge')
+                .setRequired(true)
+        ),
+    new SlashCommandBuilder()
+        .setName('pvp-stats')
+        .setDescription('View PvP statistics')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('User to view stats for (defaults to yourself)')
+                .setRequired(false)
+        )
+];
+
+// Command Handlers
+async function handleDebugQueueCommand(interaction) {
+    const targetUser = interaction.options.getUser('target');
+    
+    if (targetUser.id === interaction.user.id) {
+        return await interaction.reply({
+            content: '❌ You cannot challenge yourself!',
+            ephemeral: true
+        });
+    }
+
+    await interaction.deferReply();
+    
+    try {
+        const battleId = await pvpSystem.createPvPChallenge(interaction, targetUser, 'enhanced');
+        console.log(`Created enhanced PvP challenge: ${battleId}`);
+    } catch (error) {
+        console.error('Error creating PvP challenge:', error);
+        await interaction.followUp({
+            content: '❌ An error occurred while creating the challenge. Please try again.',
+            ephemeral: true
+        });
+    }
+}
+
+async function handlePvPChallengeCommand(interaction) {
+    const targetUser = interaction.options.getUser('target');
+    
+    if (targetUser.id === interaction.user.id) {
+        return await interaction.reply({
+            content: '❌ You cannot challenge yourself!',
+            ephemeral: true
+        });
+    }
+
+    await interaction.deferReply();
+    
+    try {
+        const battleId = await pvpSystem.createPvPChallenge(interaction, targetUser, 'standard');
+        console.log(`Created PvP challenge: ${battleId}`);
+    } catch (error) {
+        console.error('Error creating PvP challenge:', error);
+        await interaction.followUp({
+            content: '❌ An error occurred while creating the challenge. Please try again.',
+            ephemeral: true
+        });
+    }
+}
+
+async function handlePvPStatsCommand(interaction) {
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    
+    try {
+        const userData = await pvpSystem.getUserData(targetUser.id);
+        
+        const statsEmbed = new EmbedBuilder()
+            .setColor('#9B59B6')
+            .setTitle(`📊 PvP Stats for ${targetUser.displayName}`)
+            .setThumbnail(targetUser.displayAvatarURL())
+            .addFields([
+                {
+                    name: '👤 Player Info',
+                    value: `Level: ${userData.level}\nTotal CP: ${userData.totalCP.toLocaleString()}\nFruits: ${userData.fruits}`,
+                    inline: true
+                },
+                {
+                    name: '⚔️ Battle Record',
+                    value: `Wins: ${userData.wins}\nLosses: ${userData.losses}\nRatio: ${userData.losses > 0 ? (userData.wins / userData.losses).toFixed(2) : userData.wins}`,
+                    inline: true
+                },
+                {
+                    name: '🏆 Rank',
+                    value: `${userData.wins > 50 ? 'Master' : userData.wins > 25 ? 'Expert' : userData.wins > 10 ? 'Advanced' : 'Beginner'}`,
+                    inline: true
+                }
+            ])
+            .setTimestamp();
+
+        await interaction.reply({ embeds: [statsEmbed] });
+    } catch (error) {
+        console.error('Error fetching PvP stats:', error);
+        await interaction.reply({
+            content: '❌ An error occurred while fetching stats.',
+            ephemeral: true
+        });
+    }
+}
+
+// Button Interaction Handler
+async function handleButtonInteraction(interaction) {
+    if (interaction.customId.startsWith('pvp_')) {
+        try {
+            await pvpSystem.handleButtonInteraction(interaction);
+        } catch (error) {
+            console.error('Error handling button interaction:', error);
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ An error occurred while processing your action.',
+                    ephemeral: true
+                });
+            }
+        }
+    }
+}
+
+// Bot Event Handlers
+client.once('ready', async () => {
+    console.log(`✅ ${client.user.tag} is online and ready!`);
+    console.log(`📊 Serving ${client.guilds.cache.size} guilds with ${client.users.cache.size} users`);
+    
+    // Register slash commands
+    try {
+        console.log('🔄 Started refreshing application (/) commands.');
+        await client.application.commands.set(commands);
+        console.log('✅ Successfully reloaded application (/) commands.');
+    } catch (error) {
+        console.error('❌ Error registering slash commands:', error);
+    }
+    
+    // Set bot status
+    client.user.setActivity('Enhanced PvP Battles', { type: 'WATCHING' });
+});
+
+client.on('interactionCreate', async (interaction) => {
+    try {
+        if (interaction.isChatInputCommand()) {
+            const { commandName } = interaction;
+            
+            switch (commandName) {
+                case 'debug-queue':
+                    await handleDebugQueueCommand(interaction);
+                    break;
+                case 'pvp-challenge':
+                    await handlePvPChallengeCommand(interaction);
+                    break;
+                case 'pvp-stats':
+                    await handlePvPStatsCommand(interaction);
+                    break;
+                default:
+                    await interaction.reply({
+                        content: '❌ Unknown command.',
+                        ephemeral: true
+                    });
+            }
+        } else if (interaction.isButton()) {
+            await handleButtonInteraction(interaction);
+        }
+    } catch (error) {
+        console.error('Error handling interaction:', error);
+        
+        const errorMessage = {
+            content: '❌ An error occurred while processing your request.',
+            ephemeral: true
+        };
+        
+        try {
+            if (interaction.deferred) {
+                await interaction.followUp(errorMessage);
+            } else if (!interaction.replied) {
+                await interaction.reply(errorMessage);
+            }
+        } catch (e) {
+            console.error('Error sending error message:', e);
+        }
+    }
+});
+
+client.on('error', error => {
+    console.error('Discord client error:', error);
+});
+
+client.on('warn', warning => {
+    console.warn('Discord client warning:', warning);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+    console.log('\n🔄 Shutting down gracefully...');
+    client.destroy();
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('\n🔄 Shutting down gracefully...');
+    client.destroy();
+    process.exit(0);
+});
+
+// Login to Discord
+if (BOT_TOKEN && BOT_TOKEN !== 'YOUR_BOT_TOKEN_HERE') {
+    client.login(BOT_TOKEN).catch(error => {
+        console.error('❌ Failed to login to Discord:', error);
+        process.exit(1);
+    });
+} else {
+    console.error('❌ Please set your bot token in the BOT_TOKEN variable');
+    process.exit(1);
+}
