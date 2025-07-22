@@ -1,10 +1,10 @@
-// deploy-commands.js - Fixed command deployment with proper PvP subcommands
+// deploy-commands.js - FIXED to match enhanced-pvp.js structure
 const { REST, Routes } = require('discord.js');
 require('dotenv').config();
 
 // Your bot's client ID and token from Discord Developer Portal
-const clientId = process.env.CLIENT_ID; // Your bot's Application ID from Discord Developer Portal
-const token = process.env.DISCORD_TOKEN; // Your bot token
+const clientId = process.env.CLIENT_ID;
+const token = process.env.DISCORD_TOKEN;
 
 console.log('🔍 Environment check:');
 console.log('- CLIENT_ID exists:', !!clientId);
@@ -12,13 +12,10 @@ console.log('- DISCORD_TOKEN exists:', !!token);
 
 if (!clientId || !token) {
     console.error('❌ Missing CLIENT_ID or DISCORD_TOKEN in environment variables');
-    console.log('Make sure your .env file has:');
-    console.log('CLIENT_ID=your_application_id_here');
-    console.log('DISCORD_TOKEN=your_bot_token_here');
     process.exit(1);
 }
 
-// Define your commands with FIXED PvP subcommands
+// FIXED: Commands matching your enhanced-pvp.js file (NO CHALLENGE SUBCOMMAND)
 const commands = [
     {
         name: 'pvp',
@@ -170,50 +167,41 @@ const commands = [
         name: 'help',
         description: '📖 Show all available commands and how to use them'
     },
-    // Admin commands (if you have them)
     {
-        name: 'admin',
-        description: '🔧 Administrator commands for server management',
-        default_member_permissions: '8', // Administrator permission
+        name: 'debug-queue',
+        description: '🤖 Debug PvP system and create test opponents',
+        default_member_permissions: '8', // Administrator only
         options: [
             {
-                name: 'add-berries',
-                description: 'Add berries to a user',
-                type: 1,
-                options: [
-                    {
-                        name: 'user',
-                        description: 'The user to give berries to',
-                        type: 6,
-                        required: true
-                    },
-                    {
-                        name: 'amount',
-                        description: 'Amount of berries to add',
-                        type: 4,
-                        required: true,
-                        min_value: 1,
-                        max_value: 10000000
-                    }
+                name: 'action',
+                description: 'Debug action to perform',
+                type: 3,
+                required: false,
+                choices: [
+                    { name: '🤖 Create Test Bot', value: 'create-bot' },
+                    { name: '📊 System Status', value: 'status' },
+                    { name: '🧹 Clear Queue', value: 'clear-queue' },
+                    { name: '🍈 Add Test Fruits', value: 'add-fruits' },
+                    { name: '👥 Show User Data', value: 'user-data' }
                 ]
             },
             {
-                name: 'server-stats',
-                description: 'View server statistics',
-                type: 1
+                name: 'bot-type',
+                description: 'Type of bot to create',
+                type: 3,
+                required: false,
+                choices: [
+                    { name: '🤖 Easy Bot', value: 'easy' },
+                    { name: '⚔️ Medium Bot', value: 'medium' },
+                    { name: '🔥 Hard Bot', value: 'hard' },
+                    { name: '💀 Boss Bot', value: 'boss' }
+                ]
             },
             {
-                name: 'user-info',
-                description: 'View detailed user information',
-                type: 1,
-                options: [
-                    {
-                        name: 'user',
-                        description: 'The user to inspect',
-                        type: 6,
-                        required: true
-                    }
-                ]
+                name: 'user',
+                description: 'Target user for debug actions',
+                type: 6,
+                required: false
             }
         ]
     }
@@ -247,21 +235,22 @@ const rest = new REST().setToken(token);
         });
         
         console.log('\n🎉 Command deployment complete!');
-        console.log('💡 You can now use these commands in Discord.');
-        console.log('🔧 Make sure to restart your bot to use the new commands.');
+        console.log('✅ IMPORTANT: No /pvp challenge command - only queue commands available');
+        console.log('🔧 Available PvP commands:');
+        console.log('   - /pvp queue');
+        console.log('   - /pvp queue-status'); 
+        console.log('   - /pvp leave-queue');
+        console.log('   - /pvp stats');
+        console.log('   - /pvp system-info');
+        console.log('🤖 Debug: /debug-queue action:Create Test Bot');
         
     } catch (error) {
         console.error('❌ Error deploying commands:', error);
         
         if (error.code === 50001) {
             console.log('💡 This error usually means the CLIENT_ID is incorrect.');
-            console.log('📝 Get your CLIENT_ID from Discord Developer Portal > General Information > Application ID');
         } else if (error.code === 40001) {
             console.log('💡 This error usually means the DISCORD_TOKEN is incorrect.');
-            console.log('📝 Get your token from Discord Developer Portal > Bot > Token');
-        } else if (error.status === 400) {
-            console.log('💡 Bad Request - Check your command structure and option types.');
-            console.log('📝 Common issues: Invalid option types, missing required fields, or malformed command structure.');
         }
     }
 })();
