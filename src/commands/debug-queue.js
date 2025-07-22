@@ -82,8 +82,74 @@ module.exports = {
                     console.log(`🎯 Starting direct PvP challenge: ${interaction.user.username} vs ${botData.username}`);
                     console.log(`🤖 Bot details: ID=${botData.userId}, CP=${botData.totalCP}, Fruits=${botData.fruits.length}`);
                     
+                    // Store bot data globally so the PvP system can auto-accept for bots
+                    if (!global.debugBots) {
+                        global.debugBots = new Map();
+                    }
+                    global.debugBots.set(botData.userId, {
+                        ...botData,
+                        autoAccept: true,
+                        isDebugBot: true
+                    });
+                    
+                    console.log(`🤖 Stored debug bot ${botData.userId} for auto-accept`);
+                    
                     // Use the enhanced PvP system to initiate battle directly
                     await interaction.client.pvpSystem.initiateBattle(interaction, botUserObj);
+                    
+                    // Auto-accept for the bot after a short delay
+                    setTimeout(async () => {
+                        try {
+                            console.log(`🤖 Auto-accepting challenge for bot ${botData.username}`);
+                            
+                            // Find the active battle for this bot
+                            const activeBattles = interaction.client.pvpSystem.activeBattles;
+                            let botBattleId = null;
+                            
+                            for (const [battleId, battle] of activeBattles.entries()) {
+                                if (battle.type === 'invitation' && 
+                                    (battle.challenger?.user_id === botData.userId || battle.target?.user_id === botData.userId)) {
+                                    botBattleId = battleId;
+                                    break;
+                                }
+                            }
+                            
+                            if (botBattleId) {
+                                console.log(`🤖 Found battle ${botBattleId} for bot auto-accept`);
+                                
+                                // Simulate bot accepting the challenge
+                                const mockBotInteraction = {
+                                    customId: `accept_${botBattleId}_${botData.userId}`,
+                                    user: { id: botData.userId, username: botData.username },
+                                    replied: false,
+                                    deferred: false,
+                                    update: async (data) => {
+                                        console.log(`🤖 Bot ${botData.username} auto-accepted challenge`);
+                                        return true;
+                                    },
+                                    reply: async (data) => {
+                                        console.log(`🤖 Bot ${botData.username} auto-replied`);
+                                        return true;
+                                    },
+                                    followUp: async (data) => {
+                                        console.log(`🤖 Bot ${botData.username} auto-followed-up`);
+                                        return true;
+                                    },
+                                    editReply: async (data) => {
+                                        console.log(`🤖 Bot ${botData.username} auto-edited-reply`);
+                                        return true;
+                                    }
+                                };
+                                
+                                // Auto-accept for the bot
+                                await interaction.client.pvpSystem.handleBattleResponse(mockBotInteraction);
+                            } else {
+                                console.log(`⚠️ Could not find battle for bot auto-accept`);
+                            }
+                        } catch (autoAcceptError) {
+                            console.error('Error in bot auto-accept:', autoAcceptError);
+                        }
+                    }, 2000); // Auto-accept after 2 seconds
                     
                     console.log(`✅ Direct PvP challenge initiated successfully`);
                 } catch (error) {
