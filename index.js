@@ -1,4 +1,4 @@
-// index.js - Fixed Main Bot File with Proper Enhanced PvP Integration
+// index.js - Fixed Main Bot File with Proper PvP Integration
 const { Client, GatewayIntentBits, Events, Collection, MessageFlags } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -253,16 +253,19 @@ async function handleSlashCommand(interaction) {
     }
 }
 
-// Handle PvP command
+// FIXED: Handle PvP command with proper subcommand handling
 async function handlePvPCommand(interaction) {
     if (!client.pvpSystem) {
         await interaction.reply({
             content: `❌ Enhanced PvP system is not available. Please contact an administrator.`,
             flags: MessageFlags.Ephemeral
         });
+        return;
     }
     
     const subcommand = interaction.options.getSubcommand();
+    
+    console.log(`🎯 PvP subcommand: ${subcommand} from ${interaction.user.username}`);
     
     switch (subcommand) {
         case 'challenge':
@@ -297,20 +300,13 @@ async function handlePvPCommand(interaction) {
             await handleQueueJoin(interaction);
             break;
             
-        case 'leave-queue':
-            await handleQueueLeave(interaction);
+        case 'quick':
+            // Quick match - same as queue for now
+            await handleQueueJoin(interaction);
             break;
             
         case 'queue-status':
             await handleQueueStatus(interaction);
-            break;
-            
-        case 'stats':
-            await handlePvPStats(interaction);
-            break;
-            
-        case 'system-info':
-            await handleSystemInfo(interaction);
             break;
             
         default:
@@ -321,7 +317,7 @@ async function handlePvPCommand(interaction) {
     }
 }
 
-// Handle queue operations
+// FIXED: Handle queue operations
 async function handleQueueJoin(interaction) {
     try {
         // Load PvP queue system
@@ -391,23 +387,6 @@ async function handleQueueJoin(interaction) {
     }
 }
 
-async function handleQueueLeave(interaction) {
-    try {
-        const PvPQueueSystem = require('./src/systems/pvp/pvp-queue-system');
-        const result = PvPQueueSystem.leaveQueue(interaction.user.id);
-        
-        await interaction.reply({
-            content: result.success ? '✅ Left PvP queue successfully.' : '❌ You are not in the PvP queue.',
-            ephemeral: true
-        });
-    } catch (error) {
-        await interaction.reply({
-            content: '❌ PvP queue system is not available.',
-            ephemeral: true
-        });
-    }
-}
-
 async function handleQueueStatus(interaction) {
     try {
         const PvPQueueSystem = require('./src/systems/pvp/pvp-queue-system');
@@ -431,57 +410,6 @@ async function handleQueueStatus(interaction) {
             ephemeral: true
         });
     }
-}
-
-async function handlePvPStats(interaction) {
-    if (!DatabaseManager) {
-        return await interaction.reply({
-            content: '❌ Database system is not available.',
-            ephemeral: true
-        });
-    }
-    
-    const targetUser = interaction.options.getUser('user') || interaction.user;
-    const userData = await DatabaseManager.getUser(targetUser.id);
-    
-    if (!userData) {
-        return await interaction.reply({
-            content: `${targetUser.username} hasn't started their pirate journey yet!`,
-            ephemeral: true
-        });
-    }
-    
-    const userFruits = await DatabaseManager.getUserDevilFruits(targetUser.id);
-    const battleReady = userFruits.length >= 5 ? '✅ Ready' : '❌ Need more fruits';
-    
-    await interaction.reply({
-        content: `⚔️ **${targetUser.username}'s PvP Stats**\n\n` +
-               `**PvP Wins:** ${userData.pvp_wins || 0}\n` +
-               `**PvP Losses:** ${userData.pvp_losses || 0}\n` +
-               `**Level:** ${userData.level || 0}\n` +
-               `**Total CP:** ${userData.total_cp?.toLocaleString() || 0}\n` +
-               `**Devil Fruits:** ${userFruits.length}\n` +
-               `**Battle Ready:** ${battleReady}`,
-        ephemeral: true
-    });
-}
-
-async function handleSystemInfo(interaction) {
-    const battleStats = client.pvpSystem ? client.pvpSystem.getBattleStats() : { activeBattles: 0, battles: [] };
-    
-    await interaction.reply({
-        content: `🎮 **Enhanced PvP System Information**\n\n` +
-               `**System Status:** ${client.pvpSystem ? '✅ Available' : '❌ Not Available'}\n` +
-               `**Active Battles:** ${battleStats.activeBattles}\n` +
-               `**Battle Type:** Enhanced Turn-Based Combat\n` +
-               `**Features:** Fruit Selection, Strategic Combat, Real-time Updates\n\n` +
-               `**Commands:**\n` +
-               `• \`/pvp challenge @user\` - Challenge specific user\n` +
-               `• \`/pvp queue\` - Join matchmaking queue\n` +
-               `• \`/pvp stats\` - View PvP statistics\n` +
-               `• \`/debug-challenge\` - Test with bot (Admin only)`,
-        ephemeral: true
-    });
 }
 
 // Handle pull command
@@ -728,6 +656,8 @@ async function handleInfoCommand(interaction) {
                `**📋 Commands:**\n` +
                `• \`/pull\` - Get Devil Fruits (coming soon)\n` +
                `• \`/pvp challenge @user\` - Challenge to battle\n` +
+               `• \`/pvp queue\` - Join matchmaking queue\n` +
+               `• \`/pvp queue-status\` - Check queue status\n` +
                `• \`/collection\` - View your fruits\n` +
                `• \`/balance\` - Check your berries\n` +
                `• \`/income\` - Collect berry income\n` +
@@ -751,7 +681,7 @@ async function handleHelpCommand(interaction) {
                `**⚔️ Battle System:**\n` +
                `• \`/pvp challenge @user\` - Challenge someone to PvP\n` +
                `• \`/pvp queue\` - Join matchmaking queue\n` +
-               `• \`/pvp stats\` - View PvP statistics\n\n` +
+               `• \`/pvp queue-status\` - View queue status\n\n` +
                `**📊 Information:**\n` +
                `• \`/leaderboard [type]\` - View server rankings\n` +
                `• \`/info\` - Game information and mechanics\n` +
