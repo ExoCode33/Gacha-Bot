@@ -96,6 +96,60 @@ module.exports = {
                 });
             }
 
+            // If a match was found, manually start the enhanced PvP battle
+            if (queueResult.matched && queueResult.player1 && queueResult.player2) {
+                console.log(`🔥 Match found! Starting battle between ${queueResult.player1.username} vs ${queueResult.player2.username}`);
+                
+                // Determine which player is the human and which is the bot
+                const humanPlayer = queueResult.player1.userId === botData.userId ? queueResult.player2 : queueResult.player1;
+                const botPlayer = queueResult.player1.userId === botData.userId ? queueResult.player1 : queueResult.player2;
+                
+                console.log(`👤 Human player: ${humanPlayer.username} (${humanPlayer.userId})`);
+                console.log(`🤖 Bot player: ${botPlayer.username} (${botPlayer.userId})`);
+                
+                // Try to start enhanced PvP battle if system is available
+                try {
+                    // Create a mock user object for the human player
+                    const humanUserObj = {
+                        id: humanPlayer.userId,
+                        username: humanPlayer.username
+                    };
+                    
+                    // Get the enhanced PvP system if available
+                    if (interaction.client.pvpSystem && interaction.client.pvpSystem.initiateBattle) {
+                        console.log(`🎮 Starting enhanced PvP battle via client.pvpSystem`);
+                        
+                        // Use a timeout to avoid interaction conflicts
+                        setTimeout(async () => {
+                            try {
+                                await interaction.client.pvpSystem.initiateBattle(interaction, humanUserObj);
+                                console.log(`✅ Enhanced PvP battle initiated successfully`);
+                            } catch (error) {
+                                console.error('Error starting enhanced battle:', error);
+                                await interaction.followUp({
+                                    content: `⚔️ Match found: **${humanPlayer.username}** vs **${botPlayer.username}**!\n\n❌ Auto-battle failed to start. Use \`/pvp challenge @${interaction.client.user.username}\` to challenge the bot manually.`,
+                                    ephemeral: false
+                                });
+                            }
+                        }, 2000);
+                        
+                    } else {
+                        // Enhanced PvP not available, just announce the match
+                        console.log(`⚠️ Enhanced PvP system not available, announcing match only`);
+                        await interaction.followUp({
+                            content: `⚔️ **MATCH FOUND!**\n\n🔥 **${humanPlayer.username}** vs **${botPlayer.username}**!\n\n💡 Use \`/pvp challenge @${interaction.client.user.username}\` to start the battle manually.`,
+                            ephemeral: false
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error handling match:', error);
+                    await interaction.followUp({
+                        content: `⚔️ Match found but failed to start automatically. Use \`/pvp challenge @${interaction.client.user.username}\` to battle the bot!`,
+                        ephemeral: false
+                    });
+                }
+            }
+
             // Create success embed
             const embed = new EmbedBuilder()
                 .setTitle('🤖 Debug Bot Added to PvP Queue!')
