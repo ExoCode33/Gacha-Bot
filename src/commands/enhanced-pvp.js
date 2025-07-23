@@ -1,4 +1,3 @@
-// src/commands/enhanced-pvp.js - FIXED VERSION - Removed duplicate SlashCommandBuilder
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const DatabaseManager = require('../database/manager');
 
@@ -102,7 +101,7 @@ module.exports = {
                 default:
                     await interaction.reply({
                         content: '❌ Unknown PvP subcommand!',
-                        ephemeral: true
+                        flags: 64
                     });
             }
         } catch (error) {
@@ -127,9 +126,9 @@ module.exports = {
             
             try {
                 if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({ embeds: [embed], ephemeral: true });
+                    await interaction.reply({ embeds: [embed], flags: 64 });
                 } else {
-                    await interaction.followUp({ embeds: [embed], ephemeral: true });
+                    await interaction.followUp({ embeds: [embed], flags: 64 });
                 }
             } catch (interactionError) {
                 console.error('Failed to send error message:', interactionError);
@@ -148,7 +147,7 @@ module.exports = {
             if (!PvPQueueSystem) {
                 return await interaction.reply({
                     content: '❌ PvP queue system is not available. Please contact an administrator.',
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -159,7 +158,7 @@ module.exports = {
             if (userFruits.length < 5) {
                 return await interaction.reply({
                     content: `❌ You need at least 5 Devil Fruits to join the PvP queue! You have ${userFruits.length}.\n💡 Use \`/debug-queue action:Add Test Fruits\` to get test fruits.`,
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -167,7 +166,7 @@ module.exports = {
             if (EnhancedTurnBasedPvP && EnhancedTurnBasedPvP.findUserBattle && EnhancedTurnBasedPvP.findUserBattle(userId)) {
                 return await interaction.reply({
                     content: '❌ You are already in an active battle!',
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -211,12 +210,12 @@ module.exports = {
                         .setFooter({ text: 'You\'ll be notified when a match is found!' })
                         .setTimestamp();
 
-                    await interaction.reply({ embeds: [embed], ephemeral: true });
+                    await interaction.reply({ embeds: [embed], flags: 64 });
                 }
             } else {
                 await interaction.reply({
                     content: `❌ Failed to join queue: ${result.message}`,
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -224,7 +223,7 @@ module.exports = {
             console.error('Error in handleQueue:', error);
             await interaction.reply({
                 content: '❌ An error occurred while joining the queue. Please try again.',
-                ephemeral: true
+                flags: 64
             });
         }
     },
@@ -239,12 +238,13 @@ module.exports = {
             if (!PvPQueueSystem) {
                 return await interaction.reply({
                     content: '❌ PvP queue system is not available.',
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
             const status = PvPQueueSystem.getQueueStatus();
-            const enhancedStats = EnhancedTurnBasedPvP ? EnhancedTurnBasedPvP.getBattleStats() : { activeBattles: 0, battles: [] };
+            const enhancedStats = EnhancedTurnBasedPvP && EnhancedTurnBasedPvP.getBattleStats ? 
+                EnhancedTurnBasedPvP.getBattleStats() : { activeBattles: 0, battles: [] };
             
             let queueList = 'No players in queue';
             if (status.queuedPlayers.length > 0) {
@@ -315,7 +315,7 @@ module.exports = {
             console.error('Error in handleQueueStatus:', error);
             await interaction.reply({
                 content: '❌ Failed to get queue status.',
-                ephemeral: true
+                flags: 64
             });
         }
     },
@@ -325,7 +325,7 @@ module.exports = {
             if (!PvPQueueSystem) {
                 return await interaction.reply({
                     content: '❌ PvP queue system is not available.',
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -353,13 +353,13 @@ module.exports = {
                     ]);
             }
 
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await interaction.reply({ embeds: [embed], flags: 64 });
 
         } catch (error) {
             console.error('Error in handleLeaveQueue:', error);
             await interaction.reply({
                 content: '❌ Failed to leave queue.',
-                ephemeral: true
+                flags: 64
             });
         }
     },
@@ -371,7 +371,7 @@ module.exports = {
             if (!DatabaseManager) {
                 return await interaction.reply({
                     content: '❌ Database system is not available.',
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -380,7 +380,7 @@ module.exports = {
             if (!user) {
                 return await interaction.reply({
                     content: `${targetUser.username} is not registered in the system. Use a command to register first!`,
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -470,12 +470,13 @@ module.exports = {
                 .setTitle('❌ Error')
                 .setDescription('Could not fetch PvP statistics. Please try again.')
                 .setTimestamp();
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await interaction.reply({ embeds: [embed], flags: 64 });
         }
     },
 
     async handleSystemInfo(interaction) {
-        const enhancedStats = EnhancedTurnBasedPvP ? EnhancedTurnBasedPvP.getBattleStats() : { activeBattles: 0, battles: [] };
+        const enhancedStats = EnhancedTurnBasedPvP && EnhancedTurnBasedPvP.getBattleStats ? 
+            EnhancedTurnBasedPvP.getBattleStats() : { activeBattles: 0, battles: [] };
         const queueStatus = PvPQueueSystem ? PvPQueueSystem.getQueueStatus() : { queueSize: 0, activeMatches: 0 };
         
         const embed = new EmbedBuilder()
